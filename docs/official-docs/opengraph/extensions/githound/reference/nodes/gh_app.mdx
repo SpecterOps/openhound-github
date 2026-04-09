@@ -1,0 +1,42 @@
+---
+title: 'GH_App'
+description: 'A GitHub App definition representing the registered application. The app owner controls the private key used to generate installation tokens.'
+icon: '/images/extensions/githound/reference/gh_app.png'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Description
+
+Represents a GitHub App definition — the registered application entity. The app owner holds the private key that can generate installation access tokens for **every** [GH_AppInstallation](/opengraph/extensions/githound/reference/nodes/gh_appinstallation) of this app. If the private key is compromised, all installations across all organizations are affected.
+
+App definitions are retrieved via the public `GET /apps/{app_slug}` endpoint (no authentication required) after discovering unique app slugs from the organization's app installations.
+
+
+## Edges
+
+```mermaid
+flowchart LR
+
+    GH_App["fa:fa-cube"]:::bhNode
+    GH_AppInstallation["fa:fa-plug"]:::bhNode
+    GH_App -- GH_InstalledAs --> GH_AppInstallation
+```
+
+### Inbound Edges
+
+No incoming edges.
+
+### Outbound Edges
+
+| Start | End | Kind | Description |
+|-------|-----|------|-------------|
+| [GH_App](/opengraph/extensions/githound/reference/nodes/gh_app) | [GH_AppInstallation](/opengraph/extensions/githound/reference/nodes/gh_appinstallation) | [GH_InstalledAs](/opengraph/extensions/githound/reference/edges/gh_installedas) | App is installed as this installation |
+
+## Properties
+
+::: openfetch_github.models.app_installation.GHAppProperties
+    options:
+      show_docstring_attributes: true
+      inherited_members: true
+      members_order: source

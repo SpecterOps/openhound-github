@@ -1,0 +1,60 @@
+---
+title: 'GH_Contains'
+description: 'Container relationship for organizational hierarchy (enterprise contains orgs, org contains secrets/variables, repo contains secrets/variables, environment contains secrets/variables)'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Edge Schema
+
+Traversable: ❌
+
+| Start | Kind | End |
+|-------|-----------|-------|
+| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | GH_Contains | [GH_RepoSecret](/opengraph/extensions/githound/reference/nodes/gh_reposecret) |
+| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | GH_Contains | [GH_RepoVariable](/opengraph/extensions/githound/reference/nodes/gh_repovariable) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_Contains | [GH_OrgVariable](/opengraph/extensions/githound/reference/nodes/gh_orgvariable) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_Contains | [GH_SecretScanningAlert](/opengraph/extensions/githound/reference/nodes/gh_secretscanningalert) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_Contains | [GH_PersonalAccessToken](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstoken) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_Contains | [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) |
+| [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | GH_Contains | [GH_EnvironmentVariable](/opengraph/extensions/githound/reference/nodes/gh_environmentvariable) |
+| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | GH_Contains | [GH_BranchProtectionRule](/opengraph/extensions/githound/reference/nodes/gh_branchprotectionrule) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_Contains | [GH_AppInstallation](/opengraph/extensions/githound/reference/nodes/gh_appinstallation) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_Contains | [GH_OrgSecret](/opengraph/extensions/githound/reference/nodes/gh_orgsecret) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_Contains | [GH_PersonalAccessTokenRequest](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstokenrequest) |
+| [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | GH_Contains | [GH_EnvironmentSecret](/opengraph/extensions/githound/reference/nodes/gh_environmentsecret) |
+
+```mermaid
+flowchart LR
+    GH_Repository["fa:fa-box-archive"]:::bhNode
+    GH_RepoSecret["fa:fa-lock"]:::bhNode
+    GH_RepoVariable["fa:fa-lock-open"]:::bhNode
+    GH_Organization["fa:fa-building"]:::bhNode
+    GH_OrgVariable["fa:fa-lock-open"]:::bhNode
+    GH_SecretScanningAlert["fa:fa-key"]:::bhNode
+    GH_PersonalAccessToken["fa:fa-key"]:::bhNode
+    GH_OrgRole["fa:fa-user-tie"]:::bhNode
+    GH_Environment["fa:fa-leaf"]:::bhNode
+    GH_EnvironmentVariable["fa:fa-lock-open"]:::bhNode
+    GH_BranchProtectionRule["fa:fa-shield"]:::bhNode
+    GH_AppInstallation["fa:fa-plug"]:::bhNode
+    GH_OrgSecret["fa:fa-lock"]:::bhNode
+    GH_PersonalAccessTokenRequest["fa:fa-key"]:::bhNode
+    GH_EnvironmentSecret["fa:fa-lock"]:::bhNode
+    GH_Repository -- GH_Contains --> GH_RepoSecret
+    GH_Repository -- GH_Contains --> GH_RepoVariable
+    GH_Organization -- GH_Contains --> GH_OrgVariable
+    GH_Organization -- GH_Contains --> GH_SecretScanningAlert
+    GH_Organization -- GH_Contains --> GH_PersonalAccessToken
+    GH_Organization -- GH_Contains --> GH_OrgRole
+    GH_Environment -- GH_Contains --> GH_EnvironmentVariable
+    GH_Repository -- GH_Contains --> GH_BranchProtectionRule
+    GH_Organization -- GH_Contains --> GH_AppInstallation
+    GH_Organization -- GH_Contains --> GH_OrgSecret
+    GH_Organization -- GH_Contains --> GH_PersonalAccessTokenRequest
+    GH_Environment -- GH_Contains --> GH_EnvironmentSecret
+```
+
+## General Information
+
+The non-traversable [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) edge represents structural containment within the GitHub resource hierarchy. The organization serves as the top-level container for users, teams, repositories, roles, secrets, app installations, and personal access tokens. Repositories contain their own repo-level secrets, and environments contain environment-scoped secrets. This edge is created by the collector to establish the organizational hierarchy of GitHub resources and is not traversable because containment alone does not imply privilege escalation.

@@ -1,0 +1,50 @@
+---
+title: 'GH_Environment'
+description: 'A GitHub Actions deployment environment with protection rules and deployment branch policies'
+icon: '/images/extensions/githound/reference/gh_environment.png'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Description
+
+Represents a GitHub Actions deployment environment configured on a repository. Environments can have protection rules including required reviewers, wait timers, and deployment branch policies. When custom branch policies are configured, the environment is connected to specific branches; otherwise, it is connected directly to the repository.
+
+
+## Edges
+
+```mermaid
+flowchart LR
+
+    GH_Environment["fa:fa-leaf"]:::bhNode
+    GH_EnvironmentVariable["fa:fa-lock-open"]:::bhNode
+    GH_EnvironmentSecret["fa:fa-lock"]:::bhNode
+    GH_Branch["fa:fa-code-branch"]:::bhNode
+    GH_Repository["fa:fa-box-archive"]:::bhNode
+    GH_Environment -- GH_Contains --> GH_EnvironmentVariable
+    GH_Environment -- GH_Contains --> GH_EnvironmentSecret
+    GH_Branch -- GH_HasEnvironment --> GH_Environment
+    GH_Repository -- GH_HasEnvironment --> GH_Environment
+```
+
+### Inbound Edges
+
+| Start | End | Kind | Description |
+|-------|-----|------|-------------|
+| [GH_Branch](/opengraph/extensions/githound/reference/nodes/gh_branch) | [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | [GH_HasEnvironment](/opengraph/extensions/githound/reference/edges/gh_hasenvironment) | Branch pattern can deploy to environment |
+| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | [GH_HasEnvironment](/opengraph/extensions/githound/reference/edges/gh_hasenvironment) | Repository deploys to environment (no custom branch policy) |
+
+### Outbound Edges
+
+| Start | End | Kind | Description |
+|-------|-----|------|-------------|
+| [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | [GH_EnvironmentVariable](/opengraph/extensions/githound/reference/nodes/gh_environmentvariable) | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Environment contains variable |
+| [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | [GH_EnvironmentSecret](/opengraph/extensions/githound/reference/nodes/gh_environmentsecret) | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Environment contains secret |
+
+## Properties
+
+::: openfetch_github.models.environment.GHEnvironmentProperties
+    options:
+      show_docstring_attributes: true
+      inherited_members: true
+      members_order: source

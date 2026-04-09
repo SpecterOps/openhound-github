@@ -1,0 +1,25 @@
+---
+title: 'GH_TransferRepository'
+description: '[Organization] Org role can transfer repositories'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Edge Schema
+
+Traversable: ❌
+
+| Start | Kind | End |
+|-------|-----------|-------|
+| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | GH_TransferRepository | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) |
+
+```mermaid
+flowchart LR
+    GH_OrgRole["fa:fa-user-tie"]:::bhNode
+    GH_Organization["fa:fa-building"]:::bhNode
+    GH_OrgRole -- GH_TransferRepository --> GH_Organization
+```
+
+## General Information
+
+The non-traversable [GH_TransferRepository](/opengraph/extensions/githound/reference/edges/gh_transferrepository) edge represents that a role has the ability to transfer repositories to or from the organization. This permission is typically restricted to Owners, as transferring a repository can move it outside of the organization's security controls, branch protection rules, and audit logging. An attacker with this permission could transfer a repository to an organization they control, effectively exfiltrating the codebase and its associated secrets.

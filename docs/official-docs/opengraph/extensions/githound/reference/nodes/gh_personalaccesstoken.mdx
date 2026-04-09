@@ -1,0 +1,49 @@
+---
+title: 'GH_PersonalAccessToken'
+description: 'A fine-grained personal access token granted access to organization resources'
+icon: '/images/extensions/githound/reference/gh_personalaccesstoken.png'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Description
+
+Represents a fine-grained personal access token that has been granted access to organization resources. PATs are linked to their owning user, the organization, and the repositories they can access. The permissions granted to the token are captured as a JSON string in the properties.
+
+
+## Edges
+
+```mermaid
+flowchart LR
+
+    GH_PersonalAccessToken["fa:fa-key"]:::bhNode
+    GH_Organization["fa:fa-building"]:::bhNode
+    GH_Repository["fa:fa-box-archive"]:::bhNode
+    GH_User["fa:fa-user"]:::bhNode
+    GH_PersonalAccessToken -- GH_CanAccess --> GH_Organization
+    GH_PersonalAccessToken -- GH_CanAccess --> GH_Repository
+    GH_User -- GH_HasPersonalAccessToken --> GH_PersonalAccessToken
+    GH_Organization -- GH_Contains --> GH_PersonalAccessToken
+```
+
+### Inbound Edges
+
+| Start | End | Kind | Description |
+|-------|-----|------|-------------|
+| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_PersonalAccessToken](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstoken) | [GH_HasPersonalAccessToken](/opengraph/extensions/githound/reference/edges/gh_haspersonalaccesstoken) | User owns PAT |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_PersonalAccessToken](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstoken) | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Org contains PAT |
+
+### Outbound Edges
+
+| Start | End | Kind | Description |
+|-------|-----|------|-------------|
+| [GH_PersonalAccessToken](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstoken) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_CanAccess](/opengraph/extensions/githound/reference/edges/gh_canaccess) | PAT can access org |
+| [GH_PersonalAccessToken](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstoken) | [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | [GH_CanAccess](/opengraph/extensions/githound/reference/edges/gh_canaccess) | PAT can access repository |
+
+## Properties
+
+::: openfetch_github.models.personal_access_token.GHPersonalAccessTokenProperties
+    options:
+      show_docstring_attributes: true
+      inherited_members: true
+      members_order: source

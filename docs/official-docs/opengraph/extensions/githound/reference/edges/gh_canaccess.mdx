@@ -1,0 +1,31 @@
+---
+title: 'GH_CanAccess'
+description: 'Personal access token or app installation can access this repository or organization'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Edge Schema
+
+Traversable: ❌
+
+| Start | Kind | End |
+|-------|-----------|-------|
+| [GH_PersonalAccessToken](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstoken) | GH_CanAccess | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) |
+| [GH_AppInstallation](/opengraph/extensions/githound/reference/nodes/gh_appinstallation) | GH_CanAccess | [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) |
+| [GH_PersonalAccessToken](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstoken) | GH_CanAccess | [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) |
+
+```mermaid
+flowchart LR
+    GH_PersonalAccessToken["fa:fa-key"]:::bhNode
+    GH_Organization["fa:fa-building"]:::bhNode
+    GH_AppInstallation["fa:fa-plug"]:::bhNode
+    GH_Repository["fa:fa-box-archive"]:::bhNode
+    GH_PersonalAccessToken -- GH_CanAccess --> GH_Organization
+    GH_AppInstallation -- GH_CanAccess --> GH_Repository
+    GH_PersonalAccessToken -- GH_CanAccess --> GH_Repository
+```
+
+## General Information
+
+The non-traversable [GH_CanAccess](/opengraph/extensions/githound/reference/edges/gh_canaccess) edge indicates that a personal access token or app installation has been granted access to specific repositories. It is created by `Git-HoundPersonalAccessToken` and `Git-HoundPersonalAccessTokenRequest` for PATs, and by `Git-HoundAppInstallation` for app installations. This edge represents the scope of access granted to a token or app rather than a direct attack path, providing visibility into which repositories are reachable through non-human credentials. It is non-traversable because token and app access does not transitively extend to other principals.

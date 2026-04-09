@@ -1,0 +1,14 @@
+---
+title: 'GH_HasStep'
+description: '[Workflow] Job contains this step — GH_WorkflowJob → GH_WorkflowStep'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Edge Schema
+
+Traversable: ✅
+
+## General Information
+
+The traversable [GH_HasStep](/opengraph/extensions/githound/reference/edges/gh_hasstep) edge links a job to each of its steps in execution order. Created by `Parse-GitHoundWorkflow`, this edge enables analysts to enumerate all actions and shell commands executed by a job, including which secrets and variables each step consumes.
