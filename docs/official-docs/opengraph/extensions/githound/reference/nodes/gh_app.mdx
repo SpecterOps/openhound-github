@@ -15,6 +15,10 @@ App definitions are retrieved via the public `GET /apps/{app_slug}` endpoint (no
 
 ## Edges
 
+<Note>
+The tables below list edges defined by the GitHound extension only. Additional edges to or from this node may be created by other extensions.
+</Note>
+
 ```mermaid
 flowchart LR
 
@@ -31,7 +35,7 @@ No incoming edges.
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_App](/opengraph/extensions/githound/reference/nodes/gh_app) | [GH_AppInstallation](/opengraph/extensions/githound/reference/nodes/gh_appinstallation) | [GH_InstalledAs](/opengraph/extensions/githound/reference/edges/gh_installedas) | App is installed as this installation |
+| GH_App | [GH_AppInstallation](/opengraph/extensions/githound/reference/nodes/gh_appinstallation) | [GH_InstalledAs](/opengraph/extensions/githound/reference/edges/gh_installedas) | App is installed as this installation |
 
 ## Properties
 

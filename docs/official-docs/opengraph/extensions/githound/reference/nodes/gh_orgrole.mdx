@@ -13,6 +13,10 @@ Represents an organization-level role such as Owner, Member, or a custom organiz
 
 ## Edges
 
+<Note>
+The tables below list edges defined by the GitHound extension only. Additional edges to or from this node may be created by other extensions.
+</Note>
+
 ```mermaid
 flowchart LR
 
@@ -39,24 +43,24 @@ flowchart LR
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_HasRole](/opengraph/extensions/githound/reference/edges/gh_hasrole) | User has default org role (owners or members) |
-| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Org contains role |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_HasBaseRole](/opengraph/extensions/githound/reference/edges/gh_hasbaserole) | Role inherits base role |
-| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_HasRole](/opengraph/extensions/githound/reference/edges/gh_hasrole) | User has org role |
-| [GH_Team](/opengraph/extensions/githound/reference/nodes/gh_team) | [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_HasRole](/opengraph/extensions/githound/reference/edges/gh_hasrole) | Team has org role |
+| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | GH_OrgRole | [GH_HasRole](/opengraph/extensions/githound/reference/edges/gh_hasrole) | User has default org role (owners or members) |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_OrgRole | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Org contains role |
+| GH_OrgRole | GH_OrgRole | [GH_HasBaseRole](/opengraph/extensions/githound/reference/edges/gh_hasbaserole) | Role inherits base role |
+| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | GH_OrgRole | [GH_HasRole](/opengraph/extensions/githound/reference/edges/gh_hasrole) | User has org role |
+| [GH_Team](/opengraph/extensions/githound/reference/nodes/gh_team) | GH_OrgRole | [GH_HasRole](/opengraph/extensions/githound/reference/edges/gh_hasrole) | Team has org role |
 
 ### Outbound Edges
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_HasBaseRole](/opengraph/extensions/githound/reference/edges/gh_hasbaserole) | Role inherits base role |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_CreateRepository](/opengraph/extensions/githound/reference/edges/gh_createrepository) | Role can create repositories in the organization |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_InviteMember](/opengraph/extensions/githound/reference/edges/gh_invitemember) | Role can invite members to the organization |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_AddCollaborator](/opengraph/extensions/githound/reference/edges/gh_addcollaborator) | Role can add outside collaborators to repositories |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_CreateTeam](/opengraph/extensions/githound/reference/edges/gh_createteam) | Role can create teams in the organization |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_TransferRepository](/opengraph/extensions/githound/reference/edges/gh_transferrepository) | Role can transfer repositories out of the organization |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_ViewSecretScanningAlerts](/opengraph/extensions/githound/reference/edges/gh_viewsecretscanningalerts) | Role can view secret scanning alerts for the organization |
-| [GH_OrgRole](/opengraph/extensions/githound/reference/nodes/gh_orgrole) | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_ResolveSecretScanningAlerts](/opengraph/extensions/githound/reference/edges/gh_resolvesecretscanningalerts) | Role can resolve secret scanning alerts for the organization |
+| GH_OrgRole | GH_OrgRole | [GH_HasBaseRole](/opengraph/extensions/githound/reference/edges/gh_hasbaserole) | Role inherits base role |
+| GH_OrgRole | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_CreateRepository](/opengraph/extensions/githound/reference/edges/gh_createrepository) | Role can create repositories in the organization |
+| GH_OrgRole | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_InviteMember](/opengraph/extensions/githound/reference/edges/gh_invitemember) | Role can invite members to the organization |
+| GH_OrgRole | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_AddCollaborator](/opengraph/extensions/githound/reference/edges/gh_addcollaborator) | Role can add outside collaborators to repositories |
+| GH_OrgRole | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_CreateTeam](/opengraph/extensions/githound/reference/edges/gh_createteam) | Role can create teams in the organization |
+| GH_OrgRole | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_TransferRepository](/opengraph/extensions/githound/reference/edges/gh_transferrepository) | Role can transfer repositories out of the organization |
+| GH_OrgRole | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_ViewSecretScanningAlerts](/opengraph/extensions/githound/reference/edges/gh_viewsecretscanningalerts) | Role can view secret scanning alerts for the organization |
+| GH_OrgRole | [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_ResolveSecretScanningAlerts](/opengraph/extensions/githound/reference/edges/gh_resolvesecretscanningalerts) | Role can resolve secret scanning alerts for the organization |
 
 ## Properties
 

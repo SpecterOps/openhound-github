@@ -13,6 +13,10 @@ Represents a pending request from an organization member to access organization 
 
 ## Edges
 
+<Note>
+The tables below list edges defined by the GitHound extension only. Additional edges to or from this node may be created by other extensions.
+</Note>
+
 ```mermaid
 flowchart LR
 
@@ -27,8 +31,8 @@ flowchart LR
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_PersonalAccessTokenRequest](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstokenrequest) | [GH_HasPersonalAccessTokenRequest](/opengraph/extensions/githound/reference/edges/gh_haspersonalaccesstokenrequest) | User submitted PAT request |
-| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | [GH_PersonalAccessTokenRequest](/opengraph/extensions/githound/reference/nodes/gh_personalaccesstokenrequest) | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Org contains PAT request |
+| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | GH_PersonalAccessTokenRequest | [GH_HasPersonalAccessTokenRequest](/opengraph/extensions/githound/reference/edges/gh_haspersonalaccesstokenrequest) | User submitted PAT request |
+| [GH_Organization](/opengraph/extensions/githound/reference/nodes/gh_organization) | GH_PersonalAccessTokenRequest | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Org contains PAT request |
 
 ### Outbound Edges
 

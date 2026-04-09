@@ -44,6 +44,10 @@ Use these edges to identify users and teams with elevated branch permissions:
 
 ## Edges
 
+<Note>
+The tables below list edges defined by the GitHound extension only. Additional edges to or from this node may be created by other extensions.
+</Note>
+
 ```mermaid
 flowchart LR
 
@@ -61,15 +65,15 @@ flowchart LR
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | [GH_BranchProtectionRule](/opengraph/extensions/githound/reference/nodes/gh_branchprotectionrule) | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Repository contains branch protection rule |
-| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_BranchProtectionRule](/opengraph/extensions/githound/reference/nodes/gh_branchprotectionrule) | [GH_RestrictionsCanPush](/opengraph/extensions/githound/reference/edges/gh_restrictionscanpush) | Actor can push despite push restrictions |
-| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_BranchProtectionRule](/opengraph/extensions/githound/reference/nodes/gh_branchprotectionrule) | [GH_BypassPullRequestAllowances](/opengraph/extensions/githound/reference/edges/gh_bypasspullrequestallowances) | Actor can bypass PR review requirements |
+| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | GH_BranchProtectionRule | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Repository contains branch protection rule |
+| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | GH_BranchProtectionRule | [GH_RestrictionsCanPush](/opengraph/extensions/githound/reference/edges/gh_restrictionscanpush) | Actor can push despite push restrictions |
+| [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | GH_BranchProtectionRule | [GH_BypassPullRequestAllowances](/opengraph/extensions/githound/reference/edges/gh_bypasspullrequestallowances) | Actor can bypass PR review requirements |
 
 ### Outbound Edges
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_BranchProtectionRule](/opengraph/extensions/githound/reference/nodes/gh_branchprotectionrule) | [GH_Branch](/opengraph/extensions/githound/reference/nodes/gh_branch) | [GH_ProtectedBy](/opengraph/extensions/githound/reference/edges/gh_protectedby) | Branch is protected by rule |
+| GH_BranchProtectionRule | [GH_Branch](/opengraph/extensions/githound/reference/nodes/gh_branch) | [GH_ProtectedBy](/opengraph/extensions/githound/reference/edges/gh_protectedby) | Branch is protected by rule |
 
 ## Properties
 

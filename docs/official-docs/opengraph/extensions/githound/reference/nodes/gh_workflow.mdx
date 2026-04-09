@@ -13,6 +13,10 @@ Represents a GitHub Actions workflow defined in a repository. Workflow nodes cap
 
 ## Edges
 
+<Note>
+The tables below list edges defined by the GitHound extension only. Additional edges to or from this node may be created by other extensions.
+</Note>
+
 ```mermaid
 flowchart LR
 
@@ -25,7 +29,7 @@ flowchart LR
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | [GH_Workflow](/opengraph/extensions/githound/reference/nodes/gh_workflow) | [GH_HasWorkflow](/opengraph/extensions/githound/reference/edges/gh_hasworkflow) | Repository contains workflow |
+| [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) | GH_Workflow | [GH_HasWorkflow](/opengraph/extensions/githound/reference/edges/gh_hasworkflow) | Repository contains workflow |
 
 ### Outbound Edges
 

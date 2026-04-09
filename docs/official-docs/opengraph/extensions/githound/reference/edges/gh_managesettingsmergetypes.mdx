@@ -11,7 +11,7 @@ Traversable: ❌
 
 | Start | Kind | End |
 |-------|-----------|-------|
-| [GH_RepoRole](/opengraph/extensions/githound/reference/nodes/gh_reporole) | [GH_ManageSettingsMergeTypes](/opengraph/extensions/githound/reference/edges/gh_managesettingsmergetypes) | [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) |
+| [GH_RepoRole](/opengraph/extensions/githound/reference/nodes/gh_reporole) | GH_ManageSettingsMergeTypes | [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) |
 
 ```mermaid
 flowchart LR
@@ -22,4 +22,4 @@ flowchart LR
 
 ## General Information
 
-The non-traversable [GH_ManageSettingsMergeTypes](/opengraph/extensions/githound/reference/edges/gh_managesettingsmergetypes) edge represents a role's ability to configure allowed merge types (merge commit, squash, rebase) on the repository. This permission is available to Maintain and Admin roles and custom roles that have been granted this specific permission.
+The non-traversable `GH_ManageSettingsMergeTypes` edge represents a role's ability to configure allowed merge types (merge commit, squash, rebase) on the repository. This permission is available to Maintain and Admin roles and custom roles that have been granted this specific permission.

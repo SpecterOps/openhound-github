@@ -13,6 +13,10 @@ Represents an environment-level GitHub Actions variable. These variables are sco
 
 ## Edges
 
+<Note>
+The tables below list edges defined by the GitHound extension only. Additional edges to or from this node may be created by other extensions.
+</Note>
+
 ```mermaid
 flowchart LR
 
@@ -25,7 +29,7 @@ flowchart LR
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | [GH_EnvironmentVariable](/opengraph/extensions/githound/reference/nodes/gh_environmentvariable) | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Environment contains variable |
+| [GH_Environment](/opengraph/extensions/githound/reference/nodes/gh_environment) | GH_EnvironmentVariable | [GH_Contains](/opengraph/extensions/githound/reference/edges/gh_contains) | Environment contains variable |
 
 ### Outbound Edges
 

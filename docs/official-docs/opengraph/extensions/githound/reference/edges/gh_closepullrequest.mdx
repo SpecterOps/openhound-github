@@ -11,7 +11,7 @@ Traversable: ❌
 
 | Start | Kind | End |
 |-------|-----------|-------|
-| [GH_RepoRole](/opengraph/extensions/githound/reference/nodes/gh_reporole) | [GH_ClosePullRequest](/opengraph/extensions/githound/reference/edges/gh_closepullrequest) | [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) |
+| [GH_RepoRole](/opengraph/extensions/githound/reference/nodes/gh_reporole) | GH_ClosePullRequest | [GH_Repository](/opengraph/extensions/githound/reference/nodes/gh_repository) |
 
 ```mermaid
 flowchart LR
@@ -22,4 +22,4 @@ flowchart LR
 
 ## General Information
 
-The non-traversable [GH_ClosePullRequest](/opengraph/extensions/githound/reference/edges/gh_closepullrequest) edge represents a role's ability to close pull requests. This permission is available to Triage, Write, Maintain, and Admin roles and custom roles that have been granted this specific permission.
+The non-traversable `GH_ClosePullRequest` edge represents a role's ability to close pull requests. This permission is available to Triage, Write, Maintain, and Admin roles and custom roles that have been granted this specific permission.

@@ -13,6 +13,10 @@ Represents an external identity from a SAML or SCIM identity provider that is li
 
 ## Edges
 
+<Note>
+The tables below list edges defined by the GitHound extension only. Additional edges to or from this node may be created by other extensions.
+</Note>
+
 ```mermaid
 flowchart LR
 
@@ -28,14 +32,14 @@ flowchart LR
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_SamlIdentityProvider](/opengraph/extensions/githound/reference/nodes/gh_samlidentityprovider) | [GH_ExternalIdentity](/opengraph/extensions/githound/reference/nodes/gh_externalidentity) | [GH_HasExternalIdentity](/opengraph/extensions/githound/reference/edges/gh_hasexternalidentity) | IdP has external identity |
+| [GH_SamlIdentityProvider](/opengraph/extensions/githound/reference/nodes/gh_samlidentityprovider) | GH_ExternalIdentity | [GH_HasExternalIdentity](/opengraph/extensions/githound/reference/edges/gh_hasexternalidentity) | IdP has external identity |
 
 ### Outbound Edges
 
 | Start | End | Kind | Description |
 |-------|-----|------|-------------|
-| [GH_ExternalIdentity](/opengraph/extensions/githound/reference/nodes/gh_externalidentity) | [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_MapsToUser](/opengraph/extensions/githound/reference/edges/gh_mapstouser) | External identity maps to a user |
-| [GH_ExternalIdentity](/opengraph/extensions/githound/reference/nodes/gh_externalidentity) | [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_SyncedTo](/opengraph/extensions/githound/reference/edges/gh_syncedto) | Foreign IdP user is synced to a GitHub user |
+| GH_ExternalIdentity | [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_MapsToUser](/opengraph/extensions/githound/reference/edges/gh_mapstouser) | External identity maps to a user |
+| GH_ExternalIdentity | [GH_User](/opengraph/extensions/githound/reference/nodes/gh_user) | [GH_SyncedTo](/opengraph/extensions/githound/reference/edges/gh_syncedto) | Foreign IdP user is synced to a GitHub user |
 
 ## Properties
 
