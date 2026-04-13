@@ -1,0 +1,42 @@
+[
+  {
+    "id": 25381,
+    "reason": "I need to access the GitHub API",
+    "owner": {
+      "login": "octocat",
+      "id": 1,
+      "node_id": "MDQ6VXNlcjE=",
+      "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/octocat",
+      "html_url": "https://github.com/octocat",
+      "followers_url": "https://api.github.com/users/octocat/followers",
+      "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+      "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+      "organizations_url": "https://api.github.com/users/octocat/orgs",
+      "repos_url": "https://api.github.com/users/octocat/repos",
+      "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/octocat/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "repository_selection": "all",
+    "repositories_url": "https://api.github.com/organizations/652551/personal-access-token-requests/25381/repositories",
+    "permissions": {
+      "organization": {
+        "members": "read"
+      },
+      "repository": {
+        "metadata": "read"
+      }
+    },
+    "created_at": "2023-05-16T08:47:09.000-07:00",
+    "token_id": 98716,
+    "token_name": "Some Token",
+    "token_expired": false,
+    "token_expires_at": "2023-11-16T08:47:09.000-07:00",
+    "token_last_used_at": null
+  }
+]

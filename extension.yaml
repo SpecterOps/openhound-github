@@ -1,0 +1,28 @@
+name: github
+version: 0.1.0
+description: "OpenFetch collector for Github organizations using OpenHound"
+authors:
+  - name: Joey Dreijer
+    email: jdreijer@specterops.io
+  - name: Jared Atkinson
+    email: jatkinson@specterops.io
+
+type: local
+license: APACHE-2.0
+homepage: https://github.com/specterops/openfetch-github
+references:
+  - name: OpenFetch
+    url: https://github.com/specterops/openfetch
+
+credentials:
+  - name: org_id
+    description: Github organization name to collect data from
+    required: true
+
+parameters:
+  - name: size
+    description: An example parameter specifying batch size for fetching data
+    required: false
+    default: 10000
+
+tags: [ "github", "opengraph", "bloodhound" ]

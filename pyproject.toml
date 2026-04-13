@@ -1,0 +1,40 @@
+[project]
+name = "openhound-github"
+dynamic = ["version"]
+description = "Github collector for OpenHound"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "cryptography>=46.0.6",
+    "requests>=2.33.0",
+]
+authors = [
+    { name = "jdreijer@specterops.io", email = "jdreijer@specterops.io" },
+    { name = "Jared Atkinson", email = "jatkinson@specterops.io" }
+]
+
+[build-system]
+requires = ['hatchling', 'hatch-vcs']
+build-backend = 'hatchling.build'
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.build.targets.wheel.force-include]
+"extension.yaml" = "openhound_github/extension.yaml"
+
+[dependency-groups]
+dev = [
+    "openhound",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.1",
+    "ruff>=0.15.5",
+    "mypy>=1.19.1",
+    "zensical>=0.0.27",
+]
+
+[project.entry-points."openhound.sources"]
+github = "openhound_github.main:app"

@@ -1,0 +1,6 @@
+{
+  "enabled_repositories": "all",
+  "allowed_actions": "selected",
+  "selected_actions_url": "https://api.github.com/organizations/42/actions/permissions/selected-actions",
+  "sha_pinning_required": true
+}

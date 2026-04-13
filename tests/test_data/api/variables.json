@@ -1,0 +1,19 @@
+{
+  "total_count": 3,
+  "secrets": [
+    {
+      "name": "GIST_ID",
+      "created_at": "2019-08-10T14:59:22Z",
+      "updated_at": "2020-01-10T14:59:22Z",
+      "visibility": "private",
+      "value": "super"
+    },
+    {
+      "name": "DEPLOY_TOKEN",
+      "created_at": "2019-08-10T14:59:22Z",
+      "updated_at": "2020-01-10T14:59:22Z",
+      "visibility": "all",
+      "value": "super"
+    }
+  ]
+}

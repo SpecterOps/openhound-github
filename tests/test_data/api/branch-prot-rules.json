@@ -1,0 +1,29 @@
+{
+  "data": {
+    "nodes": [
+      {
+        "id": "BPR_kwDOP-0TlM4EGUO7",
+        "pattern": "*",
+        "isAdminEnforced": false,
+        "lockBranch": false,
+        "blocksCreations": false,
+        "requiresApprovingReviews": false,
+        "requiredApprovingReviewCount": null,
+        "requiresCodeOwnerReviews": false,
+        "requireLastPushApproval": false,
+        "restrictsPushes": false,
+        "requiresStatusChecks": true,
+        "requiresStrictStatusChecks": false,
+        "dismissesStaleReviews": false,
+        "allowsForcePushes": false,
+        "allowsDeletions": true,
+        "bypassPullRequestAllowances": {
+          "nodes": []
+        },
+        "pushAllowances": {
+          "nodes": []
+        }
+      }
+    ]
+  }
+}
