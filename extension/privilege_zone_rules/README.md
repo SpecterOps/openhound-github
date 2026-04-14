@@ -1,6 +1,6 @@
 # Privilege Zone Classification Rules
 
-This directory contains Tier Zero (T0) classification rules for GitHub organizations collected by GitHound. These rules identify assets whose compromise grants control over the entire organization or the ability to compromise everything else.
+This directory contains Tier Zero (T0) classification rules for GitHub organizations. These rules identify assets whose compromise grants control over the entire organization or the ability to compromise everything else.
 
 For the full rationale and classification methodology, see [Documentation/TIER_ZERO.md](../Documentation/TIER_ZERO.md).
 

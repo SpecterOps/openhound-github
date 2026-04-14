@@ -21,7 +21,7 @@ Branch protection rules are critical security controls. Key settings to review:
 
 The only branch protection configuration that blocks the write-access → workflow → secrets exfiltration attack path is `push_restrictions` + `blocks_creations` on a `*` pattern rule. However, users with `GH_PushProtectedBranch`, `GH_AdminTo`, `GH_RestrictionsCanPush`, or `GH_EditRepoProtections` can bypass this control.
 
-For complete analysis, see [BloodHound Docs: GitHound - Mitigating Controls](https://bloodhound.specterops.io/opengraph/extensions/github/mitigating-controls).
+For complete analysis, see [BloodHound Docs: GitHub - Mitigating Controls](https://bloodhound.specterops.io/opengraph/extensions/github/mitigating-controls).
 
 ### Identifying Bypass Actors
 

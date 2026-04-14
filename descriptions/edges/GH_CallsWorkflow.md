@@ -1,6 +1,6 @@
 ## General Information
 
-The traversable `GH_CallsWorkflow` edge links a workflow job to a reusable workflow it invokes via the `uses:` key at the job level. Created by `Parse-GitHoundWorkflow`, this edge captures the reusable workflow call graph, enabling analysts to trace inherited permissions and secret access through called workflows.
+The traversable `GH_CallsWorkflow` edge links a workflow job to a reusable workflow it invokes via the `uses:` key at the job level. This edge captures the reusable workflow call graph, enabling analysts to trace inherited permissions and secret access through called workflows.
 
 ### Local vs. remote reusable workflows
 

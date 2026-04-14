@@ -1,4 +1,4 @@
-# GitHound Saved Queries
+# Saved Queries
 
 Pre-built Cypher queries for identifying security-relevant configurations across your GitHub organization. Each query is stored as an individual JSON file with `name`, `query`, and `description` fields, designed to be imported into BloodHound's saved queries feature.
 
