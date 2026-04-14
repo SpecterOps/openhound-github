@@ -1,0 +1,13 @@
+---
+title: 'GH_AppInstallation'
+description: 'A GitHub App installed on the organization with specific permissions and repository access'
+icon: '/images/extensions/github/gh_appinstallation.png'
+---
+
+<img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
+
+## Description
+
+Represents a GitHub App installed on an organization. App installations have specific permissions and can be scoped to all repositories or a selection of repositories. The permissions granted to the app are captured as a JSON string in the properties.
+
+Each installation is linked to its parent [GH_App](/opengraph/extensions/github/nodes/gh_app) via a [GH_InstalledAs](/opengraph/extensions/github/edges/gh_installedas) edge. For installations with `repository_selection` set to `all`, [GH_CanAccess](/opengraph/extensions/github/edges/gh_canaccess) edges are created to every repository in the organization. For installations with `repository_selection` set to `selected`, repository-level edges cannot be enumerated with a PAT (requires app installation token authentication).
