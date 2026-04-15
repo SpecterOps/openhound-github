@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.2.1",
+    "version": "v1.2.2",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -778,12 +778,12 @@
     },
     {
       "name": "GH_UsesSecret",
-      "description": "[Workflow] Step references a secret by name — GH_WorkflowStep → GH_Secret (name match)",
+      "description": "[Workflow] Step references a secret by name — GH_WorkflowStep → GH_RepoSecret / GH_OrgSecret (name match)",
       "is_traversable": false
     },
     {
       "name": "GH_UsesVariable",
-      "description": "[Workflow] Step references a variable by name — GH_WorkflowStep → GH_Variable (name match)",
+      "description": "[Workflow] Step references a variable by name — GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable (name match)",
       "is_traversable": false
     }
   ],

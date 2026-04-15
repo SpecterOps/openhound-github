@@ -1,6 +1,6 @@
 ---
 title: 'GH_UsesVariable'
-description: '[Workflow] Step references a variable by name — GH_WorkflowStep → GH_Variable (name match)'
+description: '[Workflow] Step references a variable by name — GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable (name match)'
 ---
 
 <img noZoom src="/assets/enterprise-AND-community-edition-pill-tag.svg" alt="Applies to BloodHound Enterprise and CE"/>
@@ -17,8 +17,8 @@ The non-traversable `GH_UsesVariable` edge links a workflow step to the variable
 
 Edges use `match_by: property` with two matchers to disambiguate between variables with the same name across repositories:
 
-- **GH_RepoVariable** is matched by `name` + `repository_id` (the GitHub node_id of the repository).
-- **GH_OrgVariable** is matched by `name` + `environmentid` (the node_id of the organization, which acts as the org-level variable scope).
+- **[GH_RepoVariable](/opengraph/extensions/github/nodes/gh_repovariable)** is matched by `name` + `repository_id` (the GitHub node_id of the repository).
+- **[GH_OrgVariable](/opengraph/extensions/github/nodes/gh_orgvariable)** is matched by `name` + `environmentid` (the node_id of the organization, which acts as the org-level variable scope).
 
 This means one `${{ vars.MY_VAR }}` expression can produce up to two `GH_UsesVariable` edges — one to the repo-level variable and one to the org-level variable.
 
