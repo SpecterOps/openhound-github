@@ -1,6 +1,6 @@
 ## General Information
 
-The non-traversable `GH_UsesVariable` edge links a workflow step to the variable it references via a `${{ vars.NAME }}` expression. This edge maps variable consumption within workflows. Unlike secrets, variable values are readable via the API, making them lower sensitivity — but they can still influence workflow behavior (e.g., controlling target environments or feature flags).
+The non-traversable GH_UsesVariable edge links a workflow step to the variable it references via a `${{ vars.NAME }}` expression. This edge maps variable consumption within workflows. Unlike secrets, variable values are readable via the API, making them lower sensitivity — but they can still influence workflow behavior (e.g., controlling target environments or feature flags).
 
 ### Matching strategy
 
@@ -9,7 +9,7 @@ Edges use `match_by: property` with two matchers to disambiguate between variabl
 - **GH_RepoVariable** is matched by `name` + `repository_id` (the GitHub node_id of the repository).
 - **GH_OrgVariable** is matched by `name` + `environmentid` (the node_id of the organization, which acts as the org-level variable scope).
 
-This means one `${{ vars.MY_VAR }}` expression can produce up to two `GH_UsesVariable` edges — one to the repo-level variable and one to the org-level variable.
+This means one `${{ vars.MY_VAR }}` expression can produce up to two GH_UsesVariable edges — one to the repo-level variable and one to the org-level variable.
 
 ### Context property
 

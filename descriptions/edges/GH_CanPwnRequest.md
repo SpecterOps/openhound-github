@@ -1,6 +1,6 @@
 ## General Information
 
-The traversable `GH_CanPwnRequest` edge indicates that a repository role can exploit a pwn-requestable workflow to execute arbitrary code with the base branch's secrets, GITHUB_TOKEN permissions, and OIDC identity. This is a computed edge that combines workflow analysis with repository access and fork policy evaluation.
+The traversable GH_CanPwnRequest edge indicates that a repository role can exploit a pwn-requestable workflow to execute arbitrary code with the base branch's secrets, GITHUB_TOKEN permissions, and OIDC identity. This is a computed edge that combines workflow analysis with repository access and fork policy evaluation.
 
 ### Pwn Request Conditions
 
@@ -14,9 +14,9 @@ A workflow is considered pwn-requestable (`is_pwn_requestable = true`) when **al
 
 ### Edge Drawing Conditions
 
-An edge is drawn from a `GH_RepoRole` to the repository (and its branches) when:
+An edge is drawn from a GH_RepoRole to the repository (and its branches) when:
 
-1. **Read access**: The role has a `GH_ReadRepoContents` edge to the repository (read access is the minimum required to fork).
+1. **Read access**: The role has a GH_ReadRepoContents edge to the repository (read access is the minimum required to fork).
 2. **Forkability**: The repository can be forked by the role holder:
    - **Public repos**: Always forkable by anyone on GitHub.
    - **Private/internal repos**: Requires both the organization setting `members_can_fork_private_repositories = true` AND the repository setting `allow_forking = true`.
@@ -34,12 +34,12 @@ An attacker who exploits a pwn request gains code execution in the workflow runn
 - **Repository secrets** scoped to the base branch
 - **Organization secrets** accessible by the repository
 - **GITHUB_TOKEN** with the workflow's declared permissions (often `write`)
-- **OIDC tokens** if `id-token: write` is set, enabling cloud identity assumption via `GH_CanAssumeIdentity`
+- **OIDC tokens** if `id-token: write` is set, enabling cloud identity assumption via GH_CanAssumeIdentity
 - **Environment secrets** if the workflow job targets a deployment environment
 
 ### Caveats
 
-- **OIDC traversal requires `id-token: write`**: The attack chain from `GH_CanPwnRequest` through `GH_CanAssumeIdentity` to a cloud role is only valid if the pwn-requestable workflow (or job) explicitly declares `id-token: write` in its `permissions:` block. The `id-token` permission defaults to `none` and is never implicitly granted — even when the workflow has no `permissions:` block at all. The `permissions` property on the `GH_WorkflowJob` node can be inspected to verify this.
+- **OIDC traversal requires `id-token: write`**: The attack chain from GH_CanPwnRequest through GH_CanAssumeIdentity to a cloud role is only valid if the pwn-requestable workflow (or job) explicitly declares `id-token: write` in its `permissions:` block. The `id-token` permission defaults to `none` and is never implicitly granted — even when the workflow has no `permissions:` block at all. The `permissions` property on the GH_WorkflowJob node can be inspected to verify this.
 - **GITHUB_TOKEN permissions**: The `permissions:` block controls what the `GITHUB_TOKEN` can do (e.g., push commits, create releases), but has no effect on secret access, OIDC token requests (governed separately by `id-token`), or arbitrary code execution. A workflow with `contents: read` is still fully exploitable via pwn request for secret exfiltration and lateral movement — only write-back to the repository is limited.
 
 ```mermaid

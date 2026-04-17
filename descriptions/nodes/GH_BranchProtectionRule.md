@@ -9,17 +9,17 @@ A single protection rule can apply to multiple branches via pattern matching (e.
 Branch protection rules are critical security controls. Key settings to review:
 
 - **enforce_admins**: Enforces merge-gate controls (PR reviews, lock branch) for admins and users with `bypass_branch_protection`. Does **not** enforce push-gate controls (`push_restrictions`) for admins or users with `push_protected_branch`.
-- **required_pull_request_reviews**: Blocks direct pushes to existing protected branches. Bypassed by `GH_BypassBranchProtection` and `GH_BypassPullRequestAllowances` (both suppressed by `enforce_admins`).
-- **push_restrictions**: Restricts who can push. Bypassed by `GH_PushProtectedBranch`, `GH_AdminTo`, and `GH_RestrictionsCanPush` (none suppressed by `enforce_admins`).
+- **required_pull_request_reviews**: Blocks direct pushes to existing protected branches. Bypassed by GH_BypassBranchProtection and GH_BypassPullRequestAllowances (both suppressed by `enforce_admins`).
+- **push_restrictions**: Restricts who can push. Bypassed by GH_PushProtectedBranch, GH_AdminTo, and GH_RestrictionsCanPush (none suppressed by `enforce_admins`).
 - **blocks_creations**: Restricts new branch creation when `push_restrictions` is also `true`. Same bypass vectors as `push_restrictions`. Silently reverts to `false` if `push_restrictions` is disabled.
-- **lock_branch**: Makes branch read-only. Bypassed by `GH_BypassBranchProtection` (suppressed by `enforce_admins`).
+- **lock_branch**: Makes branch read-only. Bypassed by GH_BypassBranchProtection (suppressed by `enforce_admins`).
 - **require_code_owner_reviews**: If `false`, changes to critical paths may not require owner approval.
 - **allows_force_pushes**: Controls whether history rewrites are allowed. Does **not** grant push access — it is not a bypass mechanism.
 - **allows_deletions**: If `true`, branches can be deleted (potentially losing code).
 
 ### Secret Exfiltration Mitigation
 
-The only branch protection configuration that blocks the write-access → workflow → secrets exfiltration attack path is `push_restrictions` + `blocks_creations` on a `*` pattern rule. However, users with `GH_PushProtectedBranch`, `GH_AdminTo`, `GH_RestrictionsCanPush`, or `GH_EditRepoProtections` can bypass this control.
+The only branch protection configuration that blocks the write-access → workflow → secrets exfiltration attack path is `push_restrictions` + `blocks_creations` on a `*` pattern rule. However, users with GH_PushProtectedBranch, GH_AdminTo, GH_RestrictionsCanPush, or GH_EditRepoProtections can bypass this control.
 
 For complete analysis, see [BloodHound Docs: GitHub - Mitigating Controls](https://bloodhound.specterops.io/opengraph/extensions/github/mitigating-controls).
 
@@ -27,8 +27,8 @@ For complete analysis, see [BloodHound Docs: GitHub - Mitigating Controls](https
 
 Use these edges to identify users and teams with elevated branch permissions:
 
-- `GH_BypassPullRequestAllowances` — can bypass PR requirements on a specific rule (PR reviews only)
-- `GH_RestrictionsCanPush` — can push despite push restrictions on a specific rule
-- `GH_BypassBranchProtection` — repo-wide bypass of merge-gate controls (PR reviews + lock branch)
-- `GH_PushProtectedBranch` — repo-wide bypass of push-gate controls (push restrictions + blocks creations)
-- `GH_EditRepoProtections` — can remove/modify protection rules entirely
+- GH_BypassPullRequestAllowances — can bypass PR requirements on a specific rule (PR reviews only)
+- GH_RestrictionsCanPush — can push despite push restrictions on a specific rule
+- GH_BypassBranchProtection — repo-wide bypass of merge-gate controls (PR reviews + lock branch)
+- GH_PushProtectedBranch — repo-wide bypass of push-gate controls (push restrictions + blocks creations)
+- GH_EditRepoProtections — can remove/modify protection rules entirely
