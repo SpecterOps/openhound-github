@@ -1,6 +1,7 @@
 # Custom
 *.duckdb
 ui_catalog.db
+docs/official-docs/
 site/
 addons/
 collectors/
@@ -12,6 +13,9 @@ dbt_packages
 .idea
 *.pem
 source
+
+# Codex
+.codex
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
