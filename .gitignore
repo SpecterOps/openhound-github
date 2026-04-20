@@ -1,6 +1,7 @@
 # Custom
 *.duckdb
 ui_catalog.db
+docs/official-docs/
 site/
 addons/
 collectors/
