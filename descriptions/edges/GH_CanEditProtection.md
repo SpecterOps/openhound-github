@@ -1,6 +1,6 @@
 ## General Information
 
-The traversable GH_CanEditProtection edge is a computed edge indicating that a role can modify or remove the branch protection rules governing a specific branch. This edge is emitted when the role has GH_EditRepoProtections or GH_AdminTo permissions and the branch is covered by at least one branch protection rule. The edge targets the protected branch (not the BPR itself) because the security impact is evaluated per-branch — a role that can weaken or remove protections on a branch can subsequently push code to it, representing a privilege escalation path.
+The traversable GH_CanEditProtection edge is a computed edge indicating that a role can modify or remove branch protection rules in a repository. This edge is emitted when the role has GH_EditRepoProtections or GH_AdminTo permissions and the repository contains at least one protected branch. Repo-targeted edges model the repo-wide security impact for attack path traversal; branch-targeted edges are also emitted as supporting evidence for each protected branch governed by those rules.
 
 ## Scenarios
 
@@ -13,6 +13,7 @@ graph LR
     role("GH_RepoRole admin") -->|GH_AdminTo| repo("GH_Repository")
     repo -->|GH_HasBranch| branch("GH_Branch main")
     bpr("GH_BranchProtectionRule") -->|GH_ProtectedBy| branch
+    role ==>|GH_CanEditProtection| repo
     role ==>|GH_CanEditProtection| branch
 ```
 
@@ -25,5 +26,6 @@ graph LR
     role("GH_RepoRole custom") -->|GH_EditRepoProtections| repo("GH_Repository")
     repo -->|GH_HasBranch| branch("GH_Branch main")
     bpr("GH_BranchProtectionRule") -->|GH_ProtectedBy| branch
+    role ==>|GH_CanEditProtection| repo
     role ==>|GH_CanEditProtection| branch
 ```
