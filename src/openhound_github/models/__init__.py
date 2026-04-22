@@ -23,6 +23,7 @@ from .repository import Repository, RepositoryQL
 from .repository_role import BaseRepoRole, RepoRole
 from .repository_secret import RepoSecret
 from .repository_variable import RepoVariable
+from .runner import OrgRunner, OrgRunnerGroupMembership, RepoRunner, RunnerGroup
 from .saml_provider import SamlProvider
 from .scim_user import ScimResource
 from .secret_scanning_alert import SecretScanningAlert
@@ -60,6 +61,10 @@ __all__ = [
     "SelectedOrgVariable",
     "RepoSecret",
     "RepoVariable",
+    "RunnerGroup",
+    "OrgRunner",
+    "OrgRunnerGroupMembership",
+    "RepoRunner",
     "SecretScanningAlert",
     "AppInstallation",
     "BaseRepoRole",

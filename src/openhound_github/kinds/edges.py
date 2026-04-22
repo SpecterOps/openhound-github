@@ -13,6 +13,7 @@ MEMBER_OF = "GH_MemberOf"
 
 # Access and capability edges
 CAN_ACCESS = "GH_CanAccess"
+CAN_USE_RUNNER = "GH_CanUseRunner"
 CAN_CREATE_BRANCH = "GH_CanCreateBranch"
 CAN_EDIT_PROTECTION = "GH_CanEditProtection"
 CAN_WRITE_BRANCH = "GH_CanWriteBranch"
