@@ -16,8 +16,8 @@ class GHRunnerGroupProperties(GHNodeProperties):
     group_id: int | None = field(
         default=None, metadata={"description": "The GitHub runner group ID."}
     )
-    group_name: str = field(
-        default="", metadata={"description": "The runner group display name."}
+    group_name: str | None = field(
+        default=None, metadata={"description": "The runner group display name."}
     )
     visibility: str | None = field(
         default=None,
@@ -49,12 +49,12 @@ class GHRunnerGroupProperties(GHNodeProperties):
         default=None,
         metadata={"description": "API URL for runners in this group."},
     )
-    environment_name: str = field(
-        default="",
+    environment_name: str | None = field(
+        default=None,
         metadata={"description": "The name of the environment (GitHub organization)."},
     )
-    query_runners: str = ""
-    query_repositories: str = ""
+    query_runners: str | None = None
+    query_repositories: str | None = None
 
 
 @app.asset(
@@ -115,22 +115,22 @@ class RunnerGroup(BaseAsset):
         )
 
     @property
-    def edges(self) -> list[Edge]:
-        return [
-            Edge(
-                kind=ek.CONTAINS,
-                start=EdgePath(value=self._lookup.org_id(), match_by="id"),
-                end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
-            )
-        ]
+    def edges(self):
+        yield Edge(
+            kind=ek.CONTAINS,
+            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
 
 
 @dataclass
 class GHRunnerProperties(GHNodeProperties):
     scope: str = field(
         default="",
-        metadata={"description": "Whether the runner is organization or repository scoped."},
+        metadata={
+            "description": "Whether the runner is organization or repository scoped."
+        },
     )
     runner_id: int | None = field(
         default=None, metadata={"description": "The GitHub runner ID."}
@@ -167,18 +167,22 @@ class GHRunnerProperties(GHNodeProperties):
     )
     repository_id: str | None = field(
         default=None,
-        metadata={"description": "The repository node_id for repository-scoped runners."},
+        metadata={
+            "description": "The repository node_id for repository-scoped runners."
+        },
     )
     repository_full_name: str | None = field(
         default=None,
-        metadata={"description": "The full repository name for repository-scoped runners."},
+        metadata={
+            "description": "The full repository name for repository-scoped runners."
+        },
     )
     environment_name: str = field(
         default="",
         metadata={"description": "The name of the environment (GitHub organization)."},
     )
-    query_group: str = ""
-    query_repositories: str = ""
+    query_group: str | None = None
+    query_repositories: str | None = None
 
 
 @app.asset(
@@ -187,23 +191,7 @@ class GHRunnerProperties(GHNodeProperties):
         description="GitHub organization-scoped self-hosted runner",
         icon="microchip",
         properties=GHRunnerProperties,
-    ),
-    edges=[
-        EdgeDef(
-            start=nk.RUNNER_GROUP,
-            end=nk.ORG_RUNNER,
-            kind=ek.CONTAINS,
-            description="Runner group contains organization runner",
-            traversable=False,
-        ),
-        EdgeDef(
-            start=nk.REPOSITORY,
-            end=nk.ORG_RUNNER,
-            kind=ek.CAN_USE_RUNNER,
-            description="Repository can dispatch jobs to runner",
-            traversable=False,
-        ),
-    ],
+    )
 )
 class OrgRunner(BaseAsset):
     id: int
@@ -242,7 +230,7 @@ class OrgRunner(BaseAsset):
         )
 
     @property
-    def edges(self) -> list[Edge]:
+    def edges(self):
         return []
 
 
@@ -274,29 +262,35 @@ class OrgRunnerGroupMembership(BaseAsset):
         return None
 
     @property
-    def edges(self) -> list[Edge]:
-        runner_node_id = f"{self._lookup.org_id()}_org_runner_{self.runner_id}"
-        edges = [
-            Edge(
-                kind=ek.CONTAINS,
-                start=EdgePath(
-                    value=f"{self._lookup.org_id()}_runner_group_{self.runner_group_id}",
-                    match_by="id",
-                ),
-                end=EdgePath(value=runner_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
-            )
-        ]
-        edges.extend(
-            Edge(
+    def _runner_node_id(self):
+        return f"{self._lookup.org_id()}_org_runner_{self.runner_id}"
+
+    @property
+    def _contains_edge(self):
+        yield Edge(
+            kind=ek.CONTAINS,
+            start=EdgePath(
+                value=f"{self._lookup.org_id()}_runner_group_{self.runner_group_id}",
+                match_by="id",
+            ),
+            end=EdgePath(value=self._runner_node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+
+    @property
+    def _can_use_runner_edges(self):
+        for repo_node_id in self.accessible_repo_node_ids:
+            yield Edge(
                 kind=ek.CAN_USE_RUNNER,
                 start=EdgePath(value=repo_node_id, match_by="id"),
-                end=EdgePath(value=runner_node_id, match_by="id"),
+                end=EdgePath(value=self._runner_node_id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
             )
-            for repo_node_id in self.accessible_repo_node_ids
-        )
-        return edges
+
+    @property
+    def edges(self):
+        yield from self._can_use_runner_edges
+        yield from self._contains_edge
 
 
 @app.asset(
@@ -365,18 +359,24 @@ class RepoRunner(BaseAsset):
         )
 
     @property
-    def edges(self) -> list[Edge]:
-        return [
-            Edge(
-                kind=ek.CONTAINS,
-                start=EdgePath(value=self.repository_node_id, match_by="id"),
-                end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
-            ),
-            Edge(
-                kind=ek.CAN_USE_RUNNER,
-                start=EdgePath(value=self.repository_node_id, match_by="id"),
-                end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
-            ),
-        ]
+    def _contains_edge(self):
+        yield Edge(
+            kind=ek.CONTAINS,
+            start=EdgePath(value=self.repository_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+
+    @property
+    def _can_use_runner_edge(self):
+        yield Edge(
+            kind=ek.CAN_USE_RUNNER,
+            start=EdgePath(value=self.repository_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+
+    @property
+    def edges(self):
+        yield from self._can_use_runner_edge
+        yield from self._contains_edge
