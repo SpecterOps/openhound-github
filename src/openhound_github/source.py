@@ -100,9 +100,6 @@ def _runner_group_repo_node_ids(
         return repo_node_ids
 
     repo_node_ids = []
-    # for page in ctx.client.paginate(
-    #     f"/orgs/{ctx.org_name}/repos", params={"per_page": 100}
-    # ):
     for repo in repos:
         if visibility == "all":
             repo_node_ids.append(repo["node_id"])
@@ -1427,9 +1424,6 @@ def source(
     repositories_graphql_resource = repositories_graphql(ctx)
     app_installs_resource = app_installations(ctx)
     runner_groups_resource = runner_groups(ctx)
-    # org_runner_group_memberships_resource = org_runner_group_memberships(
-    #     ctx, list(repos_resource)
-    # )
     branch_prot_rules_resource = (
         repositories_graphql_resource | branch_protection_rules(ctx)
     )
