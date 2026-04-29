@@ -30,8 +30,14 @@ REPOSITORY = "GH_Repository"
 REPO_ROLE = "GH_RepoRole"
 REPO_SECRET = "GH_RepoSecret"
 REPO_VARIABLE = "GH_RepoVariable"
+REPO_RUNNER = "GH_RepoRunner"
 
 DEFAULT_ROLE = "GH_RepoRole"
+
+# Runner nodes
+RUNNER = "GH_Runner"
+RUNNER_GROUP = "GH_RunnerGroup"
+ORG_RUNNER = "GH_OrgRunner"
 
 # Security nodes
 SECRET_SCANNING_ALERT = "GH_SecretScanningAlert"

@@ -93,6 +93,12 @@ class GHRepositoryProperties(GHNodeProperties):
             "description": "Whether GitHub Actions is enabled for this repository."
         },
     )
+    self_hosted_runners_enabled: bool | None = field(
+        default=None,
+        metadata={
+            "description": "Whether the repository may use self-hosted runners."
+        },
+    )
     secret_scanning: str | None = field(
         default=None,
         metadata={
@@ -105,6 +111,7 @@ class GHRepositoryProperties(GHNodeProperties):
     query_roles: str = ""
     query_teams: str = ""
     query_workflows: str = ""
+    query_runners: str = ""
     query_environments: str = ""
     query_secrets: str = ""
     query_variables: str = ""
@@ -206,6 +213,8 @@ class Repository(BaseAsset):
     forks: int | None = None
     open_issues: int | None = None
     watchers: int | None = None
+    actions_enabled: bool | None = None
+    self_hosted_runners_enabled: bool | None = None
 
     @property
     def owner_id(self) -> str:
@@ -245,7 +254,8 @@ class Repository(BaseAsset):
                 owner_id=self.owner_id or "",
                 environment_name=self._lookup.org_login(),
                 environmentid=self._lookup.org_id(),
-                # actions_enabled=self.actions_enabled,
+                actions_enabled=self.actions_enabled,
+                self_hosted_runners_enabled=self.self_hosted_runners_enabled,
                 # secret_scanning=self.secret_scanning,
                 query_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_HasBranch]->(:GH_Branch) RETURN p",
                 query_protected_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_HasBranch]->(:GH_Branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) RETURN p",
@@ -253,6 +263,7 @@ class Repository(BaseAsset):
                 query_roles=f"MATCH p=(:GH_RepoRole)-[*1..]->(:GH_Repository {{node_id: '{rid}'}}) RETURN p",
                 query_teams=f"MATCH p=(:GH_Team)-[:GH_MemberOf|GH_HasRole*1..]->(:GH_RepoRole)-[]->(:GH_Repository {{node_id: '{rid}'}}) RETURN p",
                 query_workflows=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasWorkflow]->(w:GH_Workflow) RETURN p",
+                query_runners=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_CanUseRunner]->(:GH_Runner) RETURN p",
                 query_environments=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_HasEnvironment]->(:GH_Environment) RETURN p",
                 query_secrets=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasSecret]->(:GH_Secret) RETURN p",
                 query_variables=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasVariable]->(:GH_Variable) RETURN p",

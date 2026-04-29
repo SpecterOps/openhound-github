@@ -264,6 +264,12 @@ class GHOrganizationProperties(GHNodeProperties):
         default=None,
         metadata={"description": "Whether SHA pinning is required for GitHub Actions."},
     )
+    self_hosted_runners_enabled_repositories: str | None = field(
+        default=None,
+        metadata={
+            "description": "Which repositories may use self-hosted runners: `all`, `selected`, or `none`."
+        },
+    )
     default_workflow_permissions: str | None = None
     can_approve_pull_request_reviews: bool | None = None
     query_organization_roles: str = ""
@@ -345,6 +351,7 @@ class Organization(BaseAsset):
     actions_enabled_repositories: str | None = None
     actions_allowed_actions: str | None = None
     actions_sha_pinning_required: bool | None = None
+    self_hosted_runners_enabled_repositories: str | None = None
     default_workflow_permissions: str | None = None
     can_approve_pull_request_reviews: bool | None = None
 
@@ -415,6 +422,7 @@ class Organization(BaseAsset):
                 actions_enabled_repositories=self.actions_enabled_repositories,
                 actions_allowed_actions=self.actions_allowed_actions,
                 actions_sha_pinning_required=self.actions_sha_pinning_required,
+                self_hosted_runners_enabled_repositories=self.self_hosted_runners_enabled_repositories,
                 default_workflow_permissions=self.default_workflow_permissions,
                 can_approve_pull_request_reviews=self.can_approve_pull_request_reviews,
                 query_organization_roles=f"MATCH (:GH_Organization {{node_id:'{oid}'}})-[:GH_Contains]->(n:GH_OrgRole) RETURN n",
