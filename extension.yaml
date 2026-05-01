@@ -15,9 +15,12 @@ references:
     url: https://github.com/specterops/openfetch
 
 credentials:
-  - name: org_id
-    description: Github organization name to collect data from
-    required: true
+  - name: org_name
+    description: Github organization name to collect data from for standalone organization mode
+    required: false
+  - name: enterprise_name
+    description: Github enterprise slug to collect data from for enterprise mode
+    required: false
 
 parameters:
   - name: size
