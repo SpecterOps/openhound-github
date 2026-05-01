@@ -64,6 +64,8 @@ class EnvironmentVariable(BaseAsset):
     environment_name: str
     repository_name: str
     repository_node_id: str
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def node_id(self) -> str:
@@ -79,9 +81,9 @@ class EnvironmentVariable(BaseAsset):
                 displayname=self.name,
                 node_id=vid,
                 deployment_environment_name=self.environment_name,
-                environment_name=self._lookup.org_login(),
+                environment_name=self.org_login or self._lookup.org_login(),
                 repository_name=self.repository_name,
-                environmentid=self._lookup.org_id(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 updated_at=self.updated_at,
                 created_at=self.created_at,
                 value=self.value,

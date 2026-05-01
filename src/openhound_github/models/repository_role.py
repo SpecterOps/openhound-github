@@ -685,6 +685,8 @@ class RepoRole(BaseAsset):
     repository_name: str
     repository_full_name: str
     repository_visibility: str | None = None
+    org_node_id_value: str | None = Field(alias="org_node_id", default=None)
+    org_login: str | None = None
 
     @property
     def node_id(self) -> str:
@@ -693,7 +695,7 @@ class RepoRole(BaseAsset):
 
     @property
     def org_node_id(self) -> str:
-        return self._lookup.org_id()
+        return self.org_node_id_value or self._lookup.org_id()
 
     @property
     def as_node(self) -> GHNode:
@@ -708,8 +710,8 @@ class RepoRole(BaseAsset):
                 type=self.type,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id,
                 query_explicit_users=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) RETURN p",
                 query_explicit_teams=f"MATCH p=(:GH_Team)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) RETURN p",
                 query_unrolled_members=(

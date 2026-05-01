@@ -38,6 +38,8 @@ class PatRepoAccess(BaseAsset):
 
     # Additional
     pat_id: int
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def as_node(self) -> None:
@@ -45,8 +47,8 @@ class PatRepoAccess(BaseAsset):
 
     @property
     def pat_node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_PAT_{org_node_id}_{self.id}"
+        org_node_id = self.org_node_id or self._lookup.org_id()
+        return f"GH_PAT_{org_node_id}_{self.pat_id}"
 
     @property
     def edges(self):

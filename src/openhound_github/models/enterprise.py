@@ -455,6 +455,8 @@ class GHEnterpriseTeamProperties(GHNodeProperties):
 class EnterpriseTeam(BaseAsset):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
     id: int
     name: str
     slug: str
@@ -734,6 +736,8 @@ class GHEnterpriseRoleProperties(GHNodeProperties):
 )
 class EnterpriseRole(BaseAsset):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
     id: int | str
     name: str

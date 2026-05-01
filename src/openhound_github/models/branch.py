@@ -72,6 +72,8 @@ class Branch(BaseAsset):
     target: dict
     repository_node_id: str
     repository_name: str
+    org_node_id: str | None = None
+    org_login: str | None = None
     branch_protection_rule: ProtectionRule | None = Field(
         alias="branchProtectionRule", default=None
     )
@@ -94,8 +96,8 @@ class Branch(BaseAsset):
                 protected=self.branch_protection_rule is not None,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 query_branch_write=(
                     f"MATCH p=(:GH_User)-[:GH_CanWriteBranch|GH_CanEditAndWriteBranch]"
                     f"->(:GH_Branch {{node_id:'{self.node_id}'}}) RETURN p"

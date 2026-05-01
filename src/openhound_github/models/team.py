@@ -99,6 +99,8 @@ class Team(BaseAsset):
     description: str | None = None
     privacy: str | None = None
     parent_team: ParentTeam | None = None
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     # Used for overflow
     members: Members
@@ -122,8 +124,8 @@ class Team(BaseAsset):
                 slug=self.slug,
                 description=self.description,
                 privacy=self.privacy,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 query_first_degree_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(t:GH_TeamRole)-[:GH_MemberOf]->(:GH_Team {{node_id:'{tid}'}}) RETURN p",
                 query_unrolled_members=f"MATCH p=(teamrole:GH_TeamRole)-[:GH_MemberOf*1..]->(:GH_Team {{node_id:'{tid}'}}) MATCH p1 = (teamrole)<-[:GH_HasRole]-(:GH_User) RETURN p,p1",
                 query_first_degree_maintainers=f"MATCH p=(:GH_User)-[:GH_HasRole]->(t:GH_TeamRole {{short_name: 'maintainers'}})-[:GH_MemberOf]->(:GH_Team {{node_id:'{tid}'}}) RETURN p",

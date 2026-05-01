@@ -166,6 +166,8 @@ class RepositoryQL(BaseModel):
     id: str
     name: str
     refs: Ref
+    org_node_id: str | None = None
+    org_login: str | None = None
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
 
@@ -215,6 +217,8 @@ class Repository(BaseAsset):
     watchers: int | None = None
     actions_enabled: bool | None = None
     self_hosted_runners_enabled: bool | None = None
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def owner_id(self) -> str:
@@ -252,8 +256,8 @@ class Repository(BaseAsset):
                 watchers=self.watchers,
                 owner_name=self.owner_name or "",
                 owner_id=self.owner_id or "",
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self.owner_name or self._lookup.org_login(),
+                environmentid=self.org_node_id or self.owner_id or self._lookup.org_id(),
                 actions_enabled=self.actions_enabled,
                 self_hosted_runners_enabled=self.self_hosted_runners_enabled,
                 # secret_scanning=self.secret_scanning,

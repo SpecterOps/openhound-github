@@ -100,6 +100,8 @@ class Workflow(BaseAsset):
     # short_name: str
     repository_name: str
     repository_node_id: str
+    org_node_id: str | None = None
+    org_login: str | None = None
     # environment_name: str = ""
     # environmentid: str = field(default="", metadata={"description": "The node_id of the environment (GitHub organization)."},)
 
@@ -122,8 +124,8 @@ class Workflow(BaseAsset):
                 contents=self.contents,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 query_repository=f"MATCH p=(:GH_Repository)-[:GH_HasWorkflow]->(:GH_Workflow {{node_id:'{wid}'}}) RETURN p",
                 query_editors=(
                     f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_WriteRepoContents|GH_WriteRepoPullRequests*1..]->"

@@ -84,10 +84,20 @@ class RunnerGroup(BaseAsset):
     restricted_to_workflows: bool | None = None
     selected_workflows: list[str] | None = None
     runners_url: str | None = None
+    org_node_id: str | None = None
+    org_login: str | None = None
+
+    @property
+    def _org_node_id(self) -> str:
+        return self.org_node_id or self._lookup.org_id()
+
+    @property
+    def _org_login(self) -> str:
+        return self.org_login or self._lookup.org_login()
 
     @property
     def node_id(self) -> str:
-        return f"{self._lookup.org_id()}_runner_group_{self.id}"
+        return f"{self._org_node_id}_runner_group_{self.id}"
 
     @property
     def as_node(self) -> GHNode:
@@ -95,7 +105,7 @@ class RunnerGroup(BaseAsset):
         return GHNode(
             kinds=[nk.RUNNER_GROUP],
             properties=GHRunnerGroupProperties(
-                name=f"{self._lookup.org_login()}/{self.name}",
+                name=f"{self._org_login}/{self.name}",
                 displayname=self.name,
                 node_id=gid,
                 group_id=self.id,
@@ -107,8 +117,8 @@ class RunnerGroup(BaseAsset):
                 restricted_to_workflows=self.restricted_to_workflows,
                 selected_workflows=json.dumps(self.selected_workflows or []),
                 runners_url=self.runners_url,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self._org_login,
+                environmentid=self._org_node_id,
                 query_runners=f"MATCH p=(:GH_RunnerGroup {{node_id:'{gid}'}})-[:GH_Contains]->(:GH_OrgRunner) RETURN p",
                 query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunner)<-[:GH_Contains]-(:GH_RunnerGroup {{node_id:'{gid}'}}) RETURN p",
             ),
@@ -118,7 +128,7 @@ class RunnerGroup(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self._org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
@@ -201,10 +211,20 @@ class OrgRunner(BaseAsset):
     busy: bool | None = None
     ephemeral: bool | None = None
     labels: list[dict] = Field(default_factory=list)
+    org_node_id: str | None = None
+    org_login: str | None = None
+
+    @property
+    def _org_node_id(self) -> str:
+        return self.org_node_id or self._lookup.org_id()
+
+    @property
+    def _org_login(self) -> str:
+        return self.org_login or self._lookup.org_login()
 
     @property
     def node_id(self) -> str:
-        return f"{self._lookup.org_id()}_org_runner_{self.id}"
+        return f"{self._org_node_id}_org_runner_{self.id}"
 
     @property
     def as_node(self) -> GHNode:
@@ -222,8 +242,8 @@ class OrgRunner(BaseAsset):
                 busy=self.busy,
                 ephemeral=self.ephemeral,
                 labels=json.dumps(self.labels),
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self._org_login,
+                environmentid=self._org_node_id,
                 query_group=f"MATCH p=(:GH_RunnerGroup)-[:GH_Contains]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
             ),
@@ -256,6 +276,12 @@ class OrgRunnerGroupMembership(BaseAsset):
     runner_group_id: int
     runner_id: int
     accessible_repo_node_ids: list[str] = Field(default_factory=list)
+    org_node_id: str | None = None
+    org_login: str | None = None
+
+    @property
+    def _org_node_id(self) -> str:
+        return self.org_node_id or self._lookup.org_id()
 
     @property
     def as_node(self):
@@ -263,14 +289,14 @@ class OrgRunnerGroupMembership(BaseAsset):
 
     @property
     def _runner_node_id(self):
-        return f"{self._lookup.org_id()}_org_runner_{self.runner_id}"
+        return f"{self._org_node_id}_org_runner_{self.runner_id}"
 
     @property
     def _contains_edge(self):
         yield Edge(
             kind=ek.CONTAINS,
             start=EdgePath(
-                value=f"{self._lookup.org_id()}_runner_group_{self.runner_group_id}",
+                value=f"{self._org_node_id}_runner_group_{self.runner_group_id}",
                 match_by="id",
             ),
             end=EdgePath(value=self._runner_node_id, match_by="id"),
@@ -328,6 +354,8 @@ class RepoRunner(BaseAsset):
     repository_name: str
     repository_node_id: str
     repository_full_name: str
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def node_id(self) -> str:
@@ -352,8 +380,8 @@ class RepoRunner(BaseAsset):
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
                 repository_full_name=self.repository_full_name,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 query_repositories=f"MATCH p=(:GH_Repository {{node_id:'{self.repository_node_id}'}})-[:GH_CanUseRunner]->(:GH_RepoRunner {{node_id:'{rid}'}}) RETURN p",
             ),
         )

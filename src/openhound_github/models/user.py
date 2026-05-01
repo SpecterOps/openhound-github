@@ -71,6 +71,8 @@ class User(BaseAsset):
     email: str | None = None
     company: str | None = None
     org_role: str = Field(alias="role")
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def node_id(self) -> str:
@@ -79,11 +81,11 @@ class User(BaseAsset):
 
     @property
     def _org_node_id(self) -> str:
-        return self._lookup.org_id()
+        return self.org_node_id or self._lookup.org_id()
 
     @property
     def _org_login(self) -> str:
-        return self._lookup.org_login()
+        return self.org_login or self._lookup.org_login()
 
     @property
     def as_node(self) -> GHNode:

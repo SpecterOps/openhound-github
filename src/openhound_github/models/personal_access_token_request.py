@@ -93,11 +93,21 @@ class PersonalAccessTokenRequest(BaseAsset):
     permissions: dict | None = None
     repositories_url: str | None = None
     repository_selection: str | None = None
+    org_node_id: str | None = None
+    org_login: str | None = None
+
+    @property
+    def _org_node_id(self) -> str:
+        return self.org_node_id or self._lookup.org_id()
+
+    @property
+    def _org_login(self) -> str:
+        return self.org_login or self._lookup.org_login()
 
     @property
     def node_id(self) -> str:
         """Construct a generated node id"""
-        org_node_id = self._lookup.org_id()
+        org_node_id = self._org_node_id
         return f"GH_PATRequest_{org_node_id}_{self.id}"
 
     @property
@@ -109,12 +119,12 @@ class PersonalAccessTokenRequest(BaseAsset):
                 name=self.token_name,
                 displayname=self.token_name,
                 node_id=rid,
-                environmentid=self._lookup.org_id(),
+                environmentid=self._org_node_id,
                 token_name=self.token_name,
                 owner_login=self.owner.login,
                 repository_selection=self.repository_selection,
                 reason=self.reason,
-                org_name=self._lookup.org_login(),
+                org_name=self._org_login,
                 query_organization_permissions=f"MATCH p=(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}})-[:GH_CanAccess]->(:GH_Organization) RETURN p",
                 query_user=f"MATCH p=(:GH_User)-[:GH_HasPersonalAccessTokenRequest]->(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}})-[:GH_CanAccess]->(:GH_Repository) RETURN p LIMIT 1000",
@@ -135,7 +145,7 @@ class PersonalAccessTokenRequest(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self._org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )

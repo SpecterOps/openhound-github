@@ -140,6 +140,8 @@ class Environment(BaseAsset):
     repository_name: str
     repository_full_name: str
     repository_node_id: str
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def has_custom_branch_policies(self) -> bool:
@@ -160,8 +162,8 @@ class Environment(BaseAsset):
                 # can_admins_bypass=self.can_admins_bypass,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
             ),
         )
 

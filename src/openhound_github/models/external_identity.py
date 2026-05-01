@@ -125,6 +125,11 @@ class ExternalIdentity(BaseAsset):
     saml_identity: SAMLIdentity = Field(alias="samlIdentity")
     scim_identity: SCIMIdentity | None = Field(alias="scimIdentity")
     user: User | None = None
+    org_node_id: str | None = None
+    org_login: str | None = None
+    saml_provider_id: str | None = None
+    saml_provider_issuer: str | None = None
+    saml_provider_sso_url: str | None = None
 
     @property
     def node_id(self) -> str:
@@ -163,8 +168,8 @@ class ExternalIdentity(BaseAsset):
                 else None,
                 github_username=self.user.login if self.user else None,
                 github_user_id=self.user.id if self.user else None,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 query_mapped_users=f"MATCH p=(:GH_ExternalIdentity {{node_id:'{self.node_id.upper()}'}})-[:GH_MapsToUser]->() RETURN p",
             ),
         )
@@ -187,7 +192,14 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def idp(self) -> dict:
-        ext_idp = self._lookup.idp()
+        if self.saml_provider_id:
+            return {
+                "id": self.saml_provider_id,
+                "issuer": self.saml_provider_issuer,
+                "sso_url": self.saml_provider_sso_url,
+            }
+
+        ext_idp = self._lookup.idp(self.org_node_id)
         id, issuer, sso_url = ext_idp[0]
         return {
             "id": id,

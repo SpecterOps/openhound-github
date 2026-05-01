@@ -62,6 +62,8 @@ class TeamRole(BaseAsset):
     team_node_id: str
     team_name: str
     team_slug: str
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def node_id(self):
@@ -73,15 +75,15 @@ class TeamRole(BaseAsset):
         return GHNode(
             kinds=["GH_TeamRole", "GH_Role"],
             properties=GHTeamRoleProperties(
-                name=f"{self._lookup.org_login()}/{self.team_slug}/{self.type}",
+                name=f"{self.org_login or self._lookup.org_login()}/{self.team_slug}/{self.type}",
                 displayname=self.type,
                 node_id=rid,
                 short_name=self.type,
                 type="team",
                 team_name=self.team_name,
                 team_id=self.team_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 query_team=f"MATCH p=(:GH_TeamRole {{node_id:'{rid}'}})-[:GH_MemberOf]->(:GH_Team) RETURN p",
                 query_members=f"MATCH p=(:GH_User)-[GH_HasRole]->(:GH_TeamRole {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_TeamRole {{node_id:'{rid}'}})-[:GH_MemberOf]->(:GH_Team)-[:GH_HasRole|GH_HasBaseRole*1..]->(:GH_RepoRole)-[]->(:GH_Repository) RETURN p",
