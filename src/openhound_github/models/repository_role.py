@@ -192,6 +192,8 @@ class BaseRepoRole(BaseModel):
     updated_at: str | None = None
     organization: Organization | None = None
     base_role: str
+    org_node_id: str | None = None
+    org_login: str | None = None
 
 
 @dataclass
