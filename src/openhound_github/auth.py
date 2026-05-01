@@ -189,7 +189,11 @@ class GitHubJwtSession:
 
 
 def create_github_jwt_session(
-    org_name: str, client_id: str, private_key_path: str, app_id: str
+    org_name: str,
+    client_id: str,
+    private_key_path: str,
+    app_id: str,
+    api_uri: str = "https://api.github.com/",
 ) -> GitHubJwtSession:
     """Factory function to create a GitHub JWT session.
 
@@ -198,6 +202,7 @@ def create_github_jwt_session(
         client_id: The GitHub App client ID.
         private_key_path: Path to the private key PEM file.
         app_id: The GitHub App ID.
+        api_uri: The GitHub API base URI.
 
     Returns:
         A GitHubJwtSession instance.
@@ -217,4 +222,5 @@ def create_github_jwt_session(
         client_id=client_id,
         private_key_path=private_key_path,
         app_id=app_id,
+        api_uri=api_uri,
     )
