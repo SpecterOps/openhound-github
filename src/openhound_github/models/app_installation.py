@@ -316,6 +316,8 @@ class App(BaseAsset):
     html_url: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    org_node_id: str | None = None
+    org_login: str | None = None
 
     @property
     def as_node(self):
