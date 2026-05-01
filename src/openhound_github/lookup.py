@@ -25,19 +25,34 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
-    def repository_node_ids(self):
+    def repository_node_ids(self, org_node_id: str | None = None):
+        if org_node_id:
+            return self._find_all_objects(
+                f"""SELECT node_id FROM {self.schema}.repositories WHERE org_node_id = ?""",
+                [org_node_id],
+            )
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories""",
         )
 
     @lru_cache
-    def private_repository_node_ids(self):
+    def private_repository_node_ids(self, org_node_id: str | None = None):
+        if org_node_id:
+            return self._find_all_objects(
+                f"""SELECT node_id FROM {self.schema}.repositories WHERE org_node_id = ? AND (visibility = 'private' or visibility = 'internal')""",
+                [org_node_id],
+            )
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories WHERE visibility = 'private' or visibility = 'internal'""",
         )
 
     @lru_cache
-    def idp(self) -> list:
+    def idp(self, org_node_id: str | None = None) -> list:
+        if org_node_id:
+            return self._find_all_objects(
+                f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider WHERE org_node_id = ?""",
+                [org_node_id],
+            )
         return self._find_all_objects(
             f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider"""
         )
