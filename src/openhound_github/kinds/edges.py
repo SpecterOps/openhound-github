@@ -1,11 +1,13 @@
 # Generic
 CONTAINS = "GH_Contains"
+ASSIGNED_TO = "GH_AssignedTo"
 
 # Administrative edges
 ADMIN_TO = "GH_AdminTo"
 OWNS = "GH_Owns"
 
 # Role and permission edges
+HAS_MEMBER = "GH_HasMember"
 HAS_ROLE = "GH_HasRole"
 HAS_BASE_ROLE = "GH_HasBaseRole"
 ADD_MEMBER = "GH_AddMember"

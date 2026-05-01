@@ -12,8 +12,14 @@ ENVIRONMENT_SECRET = "GH_EnvironmentSecret"
 ENVIRONMENT_VARIABLE = "GH_EnvironmentVariable"
 
 # Identity nodes
+ENTERPRISE_MANAGED_USER = "GH_EnterpriseManagedUser"
 EXTERNAL_IDENTITY = "GH_ExternalIdentity"
 SAML_IDENTITY_PROVIDER = "GH_SamlIdentityProvider"
+
+# Enterprise nodes
+ENTERPRISE = "GH_Enterprise"
+ENTERPRISE_TEAM = "GH_EnterpriseTeam"
+ENTERPRISE_ROLE = "GH_EnterpriseRole"
 
 # Organization nodes
 ORGANIZATION = "GH_Organization"
