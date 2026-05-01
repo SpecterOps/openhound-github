@@ -134,6 +134,8 @@ class AppInstallation(BaseAsset):
     permissions: dict = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime | None = None
+    org_node_id: str | None = None
+    org_login: str | None = None
     single_file_name: str | None = None
     app_slug: str | None = None
     account: Account | None = None
@@ -174,8 +176,8 @@ class AppInstallation(BaseAsset):
                 created_at=self.created_at,
                 updated_at=self.updated_at,
                 suspended_at=self.suspended_at,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login or self._lookup.org_login(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 query_repositories=f"MATCH p=(:GH_AppInstallation {{node_id:'{self.node_id}'}})-[:GH_CanAccess]->(:GH_Repository) RETURN p LIMIT 1000",
                 query_app=f"MATCH p=(:GH_App)-[:GH_InstalledAs]->(:GH_AppInstallation {{node_id:'{self.node_id}'}}) RETURN p",
             ),
@@ -196,7 +198,8 @@ class AppInstallation(BaseAsset):
     @property
     def _can_access_edges(self):
         if self.repository_selection == "all":
-            for (repo_node_id,) in self._lookup.repository_node_ids():
+            org_node_id = self.org_node_id or self._lookup.org_id()
+            for (repo_node_id,) in self._lookup.repository_node_ids(org_node_id):
                 yield Edge(
                     kind=ek.CAN_ACCESS,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -208,7 +211,9 @@ class AppInstallation(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(
+                value=self.org_node_id or self._lookup.org_id(), match_by="id"
+            ),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
@@ -321,7 +326,7 @@ class App(BaseAsset):
                 name=self.name,
                 displayname=self.name,
                 node_id=aid,
-                environmentid=self._lookup.org_id(),
+                environmentid=self.org_node_id or self._lookup.org_id(),
                 client_id=self.client_id,
                 slug=self.slug,
                 description=self.description,
