@@ -307,39 +307,38 @@ query ProtectionRulesByIds($ids: [ID!]!) {
 """
 
 SAML_QUERY = """
-query SAMLProvider($login: String!) {
+query SAML($login: String!, $count: Int = 100, $after: String = null) {
     organization(login: $login) {
         id
         name
+        login
         samlIdentityProvider {
-            id
-            issuer
-            ssoUrl
-            idpCertificate
-            signatureMethod
             digestMethod
-        }
-    }
-}
-"""
-
-SAML_IDENTITIES_QUERY = """
-query SAMLIdentities($login: String!, $count: Int!, $after: String) {
-    organization(login: $login) {
-        samlIdentityProvider {
             externalIdentities(first: $count, after: $after) {
                 nodes {
                     guid
                     id
                     samlIdentity {
+                        attributes {
+                            metadata
+                            name
+                            value
+                        }
                         familyName
                         givenName
+                        groups
                         nameId
                         username
                     }
                     scimIdentity {
+                        emails {
+                            primary
+                            type
+                            value
+                        }
                         familyName
                         givenName
+                        groups
                         username
                     }
                     user {
@@ -351,7 +350,69 @@ query SAMLIdentities($login: String!, $count: Int!, $after: String) {
                     endCursor
                     hasNextPage
                 }
+                totalCount
             }
+            id
+            idpCertificate
+            issuer
+            signatureMethod
+            ssoUrl
+        }
+    }
+}
+"""
+
+SAML_IDENTITIES_QUERY = """
+query SAML($login: String!, $count: Int = 100, $after: String = null) {
+    organization(login: $login) {
+        id
+        name
+        login
+        samlIdentityProvider {
+            digestMethod
+            externalIdentities(first: $count, after: $after) {
+                nodes {
+                    guid
+                    id
+                    samlIdentity {
+                        attributes {
+                            metadata
+                            name
+                            value
+                        }
+                        familyName
+                        givenName
+                        groups
+                        nameId
+                        username
+                    }
+                    scimIdentity {
+                        emails {
+                            primary
+                            type
+                            value
+                        }
+                        familyName
+                        givenName
+                        groups
+                        username
+                    }
+                    user {
+                        id
+                        login
+                    }
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+                totalCount
+            }
+            id
+            idpCertificate
+            issuer
+            signatureMethod
+            ssoUrl
         }
     }
 }
