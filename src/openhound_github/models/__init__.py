@@ -8,6 +8,21 @@ from .env_secret import EnvironmentSecret
 from .env_variable import EnvironmentVariable
 from .environment import Environment
 from .environment_branch_policy import EnvironmentBranchPolicy
+from .enterprise import (
+    Enterprise,
+    EnterpriseExternalIdentity,
+    EnterpriseManagedUser,
+    EnterpriseOrganization,
+    EnterpriseRole,
+    EnterpriseRoleTeam,
+    EnterpriseRoleUser,
+    EnterpriseSamlProvider,
+    EnterpriseTeam,
+    EnterpriseTeamMember,
+    EnterpriseTeamOrganization,
+    EnterpriseTeamRole,
+    EnterpriseUser,
+)
 from .external_identity import ExternalIdentity
 from .org import Organization
 from .org_role import OrgRole
@@ -56,6 +71,19 @@ __all__ = [
     "EnvironmentSecret",
     "EnvironmentVariable",
     "EnvironmentBranchPolicy",
+    "Enterprise",
+    "EnterpriseExternalIdentity",
+    "EnterpriseManagedUser",
+    "EnterpriseOrganization",
+    "EnterpriseRole",
+    "EnterpriseRoleTeam",
+    "EnterpriseRoleUser",
+    "EnterpriseSamlProvider",
+    "EnterpriseTeam",
+    "EnterpriseTeamMember",
+    "EnterpriseTeamOrganization",
+    "EnterpriseTeamRole",
+    "EnterpriseUser",
     "OrgSecret",
     "OrgVariable",
     "SelectedOrgVariable",
