@@ -139,7 +139,6 @@ def _org_collection_resources(ctx: SourceContext) -> tuple:
     environments_resource = repos_resource | environments(ctx)
     personal_access_tokens_resource = personal_access_tokens(ctx)
     org_resource = organizations(ctx)
-    org_role_resource = org_roles(ctx, org_resource)
     teams_resource = teams(ctx)
     repository_roles_base_resource = repository_roles_base(ctx)
     repositories_graphql_resource = repositories_graphql(ctx)
@@ -151,6 +150,17 @@ def _org_collection_resources(ctx: SourceContext) -> tuple:
     organization_secrets_resource = organization_secrets(ctx)
     organization_vars_resource = organization_variables(ctx)
 
+    if ctx.org_contexts:
+        shared_orgs = org_resource
+        shared_repository_roles = repository_roles_base_resource
+        shared_repos = repos_resource
+    else:
+        shared_orgs = list(org_resource)
+        shared_repository_roles = list(repository_roles_base_resource)
+        shared_repos = [repo.model_dump() for repo in repos_resource]
+
+    org_role_resource = org_roles(ctx, shared_orgs)
+
     return (
         org_resource,
         users(ctx),
@@ -159,12 +169,12 @@ def _org_collection_resources(ctx: SourceContext) -> tuple:
         org_role_resource | org_role_teams(ctx),
         repository_roles_base_resource,
         repos_resource,
-        repos_resource | repository_roles(ctx, repository_roles_base_resource),
+        repos_resource | repository_roles(ctx, shared_repository_roles),
         repos_resource | workflows(ctx),
         repos_resource | repo_runners(ctx),
         repos_resource | repository_secrets(ctx),
         repos_resource | repository_variables(ctx),
-        repos_resource | repo_role_assignments(ctx, repository_roles_base_resource),
+        repos_resource | repo_role_assignments(ctx, shared_repository_roles),
         environments_resource,
         environments_resource | environment_variables(ctx),
         environments_resource | environment_secrets(ctx),
@@ -174,7 +184,7 @@ def _org_collection_resources(ctx: SourceContext) -> tuple:
         teams_resource | team_roles(),
         runner_groups_resource,
         org_runners(ctx),
-        org_runner_group_memberships(ctx, repos_resource),
+        org_runner_group_memberships(ctx, shared_repos),
         personal_access_tokens_resource,
         personal_access_tokens_resource | pat_repo_access(ctx),
         organization_secrets_resource,
