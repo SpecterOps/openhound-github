@@ -109,6 +109,7 @@ class SourceContext:
     org_contexts: tuple[OrgContext, ...] = ()
     enterprise_name: str | None = None
     enterprise_node_id: str | None = None
+    enterprise_saml_enabled: bool = False
     auth_type: str | None = None
 
 
@@ -310,6 +311,7 @@ def _with_org_context(ctx: SourceContext, org_ctx: OrgContext) -> SourceContext:
         org_node_id=org_ctx.org_node_id,
         enterprise_name=ctx.enterprise_name,
         enterprise_node_id=ctx.enterprise_node_id,
+        enterprise_saml_enabled=ctx.enterprise_saml_enabled,
         auth_type=ctx.auth_type,
     )
 
@@ -333,6 +335,7 @@ def _org_context_for(
         org_node_id=org_node_id or ctx.org_node_id,
         enterprise_name=ctx.enterprise_name,
         enterprise_node_id=ctx.enterprise_node_id,
+        enterprise_saml_enabled=ctx.enterprise_saml_enabled,
         auth_type=ctx.auth_type,
     )
 
@@ -2053,6 +2056,8 @@ def saml_provider(ctx: SourceContext):
         for org_ctx in _iter_collection_contexts(ctx):
             yield from _raw_collection(saml_provider, org_ctx)
         return
+    if ctx.enterprise_saml_enabled:
+        return
 
     data = {
         "query": SAML_QUERY,
@@ -2086,6 +2091,8 @@ def external_identities(ctx: SourceContext):
     if ctx.org_contexts:
         for org_ctx in _iter_collection_contexts(ctx):
             yield from _raw_collection(external_identities, org_ctx)
+        return
+    if ctx.enterprise_saml_enabled:
         return
 
     data = {
@@ -2131,6 +2138,8 @@ def scim_users(ctx: SourceContext):
         for org_ctx in _iter_collection_contexts(ctx):
             yield from _raw_collection(scim_users, org_ctx)
         return
+    if ctx.enterprise_saml_enabled:
+        return
 
     scim_paginator = OffsetPaginator(
         offset_param="startIndex",
@@ -2138,14 +2147,19 @@ def scim_users(ctx: SourceContext):
         limit=100,
         total_path="totalResults",
     )
-    for page in ctx.client.paginate(
-        f"/scim/v2/organizations/{ctx.org_name}/Users",
-        params={"startIndex": 1, "itemsPerPage": 100},
-        paginator=scim_paginator,
-        data_selector="Resources",
-    ):
-        for user in page:
-            yield {**user, "org_node_id": ctx.org_node_id, "org_login": ctx.org_name}
+    try:
+        for page in ctx.client.paginate(
+            f"/scim/v2/organizations/{ctx.org_name}/Users",
+            params={"startIndex": 1, "itemsPerPage": 100},
+            paginator=scim_paginator,
+            data_selector="Resources",
+        ):
+            for user in page:
+                yield {**user, "org_node_id": ctx.org_node_id, "org_login": ctx.org_name}
+    except Exception as exc:
+        if _http_status_code(exc) == 403:
+            return
+        raise
 
 
 def _org_collection_resources(ctx: SourceContext) -> tuple:
@@ -2315,6 +2329,7 @@ def source(
         enterprise_members = _enterprise_member_records(ctx, enterprise_data)
         saml_provider_data, external_identity_data = _enterprise_saml_records(ctx)
         ctx.enterprise_node_id = enterprise_data["id"]
+        ctx.enterprise_saml_enabled = saml_provider_data is not None
 
         installation_ids_by_org = app_installation_ids_by_org()
         org_contexts = []
