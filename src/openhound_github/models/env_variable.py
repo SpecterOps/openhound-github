@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
@@ -14,24 +14,23 @@ from openhound_github.main import app
 
 @dataclass
 class GHEnvVariableProperties(GHNodeProperties):
-    environment_name: str = field(
-        metadata={"description": "The name of the environment (GitHub organization)."}
-    )
-    deployment_environment_name: str = field(
-        metadata={
-            "description": "The name of the deployment environment (GitHub organization)."
-        }
-    )
-    value: str = field(metadata={"description": "The plaintext value of the variable."})
-    created_at: datetime | None = field(
-        metadata={"description": "When the variable was created."}
-    )
-    updated_at: datetime | None = field(
-        metadata={"description": "When the variable was last updated."}
-    )
-    repository_name: str = field(
-        metadata={"description": "The name of the containing repository."}
-    )
+    """GHEnvVariableProperties properties.
+
+    Attributes:
+        environment_name: The name of the environment (GitHub organization).
+        deployment_environment_name: The name of the deployment environment (GitHub organization).
+        value: The plaintext value of the variable.
+        created_at: When the variable was created.
+        updated_at: When the variable was last updated.
+        repository_name: The name of the containing repository.
+    """
+
+    environment_name: str
+    deployment_environment_name: str
+    value: str
+    created_at: datetime | None
+    updated_at: datetime | None
+    repository_name: str
 
 
 @app.asset(

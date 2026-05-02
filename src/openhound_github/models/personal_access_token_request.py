@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
@@ -21,37 +21,30 @@ class Owner(BaseModel):
 
 @dataclass
 class GHPersonalAccessTokenRequestProperties(GHNodeProperties):
-    """PAT request properties and accordion panel queries."""
+    """PAT request properties and accordion panel queries.
+
+    Attributes:
+        token_name: The user-assigned display name of the token.
+        owner_login: The login handle of the user who submitted the request.
+        repository_selection: Whether the request targets `all`, `subset`, or `none` of the organization's repositories.
+        reason: The rationale provided by the requester for the access request.
+        org_name: The org name.
+        query_organization_permissions: OpenGraph query for related organization permissions.
+        query_user: OpenGraph query for related user.
+        query_repositories: OpenGraph query for related repositories.
+    """
 
     # TODO: Check for the following fields
     # owner_id, owner_node_id, toke_id, token_expires_at, token_last_used_at, permissions, and environment_name
 
-    token_name: str = field(
-        default="",
-        metadata={"description": "The user-assigned display name of the token."},
-    )
-    owner_login: str | None = field(
-        default=None,
-        metadata={
-            "description": "The login handle of the user who submitted the request."
-        },
-    )
-    repository_selection: str | None = field(
-        default=None,
-        metadata={
-            "description": "Whether the request targets `all`, `subset`, or `none` of the organization's repositories."
-        },
-    )
-    reason: str | None = field(
-        default=None,
-        metadata={
-            "description": "The rationale provided by the requester for the access request."
-        },
-    )
-    org_name: str = ""
-    query_organization_permissions: str = ""
-    query_user: str = ""
-    query_repositories: str = ""
+    token_name: str | None = None
+    owner_login: str | None = None
+    repository_selection: str | None = None
+    reason: str | None = None
+    org_name: str | None = None
+    query_organization_permissions: str | None = None
+    query_user: str | None = None
+    query_repositories: str | None = None
 
 
 @app.asset(

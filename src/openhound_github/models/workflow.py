@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
@@ -12,54 +12,35 @@ from openhound_github.main import app
 
 @dataclass
 class GHWorkflowProperties(GHNodeProperties):
-    """Workflow-specific properties and accordion panel queries."""
+    """Workflow-specific properties and accordion panel queries.
 
-    short_name: str = field(
-        default="", metadata={"description": "The workflow's display name."}
-    )
-    path: str = field(
-        default="",
-        metadata={
-            "description": "The file path of the workflow definition (e.g., `.github/workflows/ci.yml`)."
-        },
-    )
-    state: str = field(
-        default="",
-        metadata={
-            "description": "The workflow state (e.g., `active`, `disabled_manually`)."
-        },
-    )
-    url: str = field(
-        default="", metadata={"description": "The API URL for the workflow."}
-    )
-    repository_name: str = field(
-        default="",
-        metadata={"description": "The full name of the containing repository."},
-    )
-    repository_id: str = field(
-        default="",
-        metadata={"description": "The node_id of the containing repository."},
-    )
-    html_url: str = (
-        field(
-            default="",
-            metadata={"description": " The GitHub web URL for the workflow file."},
-        ),
-    )
-    branch: str = field(
-        default="",
-        metadata={"description": "The branch where the workflow file was found."},
-    )
-    contents: str = field(
-        default="",
-        metadata={"description": "The content of the workflow file."},
-    )
-    query_repository: str = ""
-    query_editors: str = ""
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
+    Attributes:
+        short_name: The workflow's display name.
+        path: The file path of the workflow definition (e.g., `.github/workflows/ci.yml`).
+        state: The workflow state (e.g., `active`, `disabled_manually`).
+        url: The API URL for the workflow.
+        repository_name: The full name of the containing repository.
+        repository_id: The node_id of the containing repository.
+        html_url: The html url.
+        branch: The branch where the workflow file was found.
+        contents: The content of the workflow file.
+        query_repository: OpenGraph query for related repository.
+        query_editors: OpenGraph query for related editors.
+        environment_name: The name of the environment (GitHub organization).
+    """
+
+    short_name: str | None = None
+    path: str | None = None
+    state: str | None = None
+    url: str | None = None
+    repository_name: str | None = None
+    repository_id: str | None = None
+    html_url: str | None = None
+    branch: str | None = None
+    contents: str | None = None
+    query_repository: str | None = None
+    query_editors: str | None = None
+    environment_name: str | None = None
 
 
 @app.asset(
@@ -102,9 +83,6 @@ class Workflow(BaseAsset):
     repository_node_id: str
     org_node_id: str | None = None
     org_login: str | None = None
-    # environment_name: str = ""
-    # environmentid: str = field(default="", metadata={"description": "The node_id of the environment (GitHub organization)."},)
-
     @property
     def as_node(self) -> GHNode:
         wid = self.node_id

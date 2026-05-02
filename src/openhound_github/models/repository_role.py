@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -198,31 +198,29 @@ class BaseRepoRole(BaseModel):
 
 @dataclass
 class GHRepoRoleProperties(GHNodeProperties):
-    """Repository role-specific properties and accordion panel queries."""
+    """Repository role-specific properties and accordion panel queries.
 
-    short_name: str = field(
-        metadata={
-            "description": "The short role name (e.g., `read`, `write`, `admin`, `triage`, `maintain`, or custom role name)."
-        }
-    )
-    repository_name: str = field(
-        metadata={"description": "The name of the repository this role belongs to."}
-    )
-    repository_id: str = field(
-        metadata={"description": "The node_id of the repository this role belongs to."}
-    )
-    environment_name: str = field(
-        metadata={"description": "The name of the environment (GitHub organization)."}
-    )
-    type: str = field(
-        metadata={
-            "description": "`default` for built-in roles or `custom` for custom repository roles."
-        }
-    )
-    query_explicit_users: str = ""
-    query_explicit_teams: str = ""
-    query_unrolled_members: str = ""
-    query_repository_permissions: str = ""
+    Attributes:
+        short_name: The short role name (e.g., `read`, `write`, `admin`, `triage`, `maintain`, or custom role name).
+        repository_name: The name of the repository this role belongs to.
+        repository_id: The node_id of the repository this role belongs to.
+        environment_name: The name of the environment (GitHub organization).
+        type: `default` for built-in roles or `custom` for custom repository roles.
+        query_explicit_users: OpenGraph query for related explicit users.
+        query_explicit_teams: OpenGraph query for related explicit teams.
+        query_unrolled_members: OpenGraph query for related unrolled members.
+        query_repository_permissions: OpenGraph query for related repository permissions.
+    """
+
+    short_name: str
+    repository_name: str
+    repository_id: str
+    environment_name: str
+    type: str
+    query_explicit_users: str | None = None
+    query_explicit_teams: str | None = None
+    query_unrolled_members: str | None = None
+    query_repository_permissions: str | None = None
 
 
 @app.asset(

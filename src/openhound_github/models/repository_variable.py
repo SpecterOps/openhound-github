@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
@@ -12,29 +12,25 @@ from openhound_github.main import app
 
 @dataclass
 class GHRepoVariableProperties(GHNodeProperties):
-    """Repo variable properties and accordion panel queries."""
+    """Repo variable properties and accordion panel queries.
 
-    repository_name: str = field(
-        default="", metadata={"description": "The name of the containing repository."}
-    )
-    repository_id: str = field(
-        default="",
-        metadata={"description": "The node_id of the containing repository."},
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    value: str | None = field(
-        default=None, metadata={"description": "The plaintext value of the variable."}
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the variable was created."}
-    )
-    updated_at: str | None = field(
-        default=None, metadata={"description": "When the variable was last updated."}
-    )
-    query_visible_repositories: str = ""
+    Attributes:
+        repository_name: The name of the containing repository.
+        repository_id: The node_id of the containing repository.
+        environment_name: The name of the environment (GitHub organization).
+        value: The plaintext value of the variable.
+        created_at: When the variable was created.
+        updated_at: When the variable was last updated.
+        query_visible_repositories: OpenGraph query for related visible repositories.
+    """
+
+    repository_name: str | None = None
+    repository_id: str | None = None
+    environment_name: str | None = None
+    value: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    query_visible_repositories: str | None = None
 
 
 @app.asset(
@@ -70,8 +66,8 @@ class RepoVariable(BaseAsset):
     updated_at: datetime | None = None
 
     # Additional
-    repository_name: str = ""
-    repository_node_id: str = ""
+    repository_name: str
+    repository_node_id: str
     org_node_id: str | None = None
     org_login: str | None = None
 

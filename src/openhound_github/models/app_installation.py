@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -15,79 +15,45 @@ from openhound_github.main import app
 
 @dataclass
 class GHAppInstallationProperties(GHNodeProperties):
-    """App installation properties and accordion panel queries."""
+    """App installation properties and accordion panel queries.
 
-    id: int | None = field(
-        default=None, metadata={"description": "The GitHub installation ID."}
-    )
-    app_id: int | None = field(
-        default=None,
-        metadata={
-            "description": "The GitHub App's numeric ID (shared across all installations of the same app)."
-        },
-    )
-    app_slug: str = field(
-        default="", metadata={"description": "The app's URL-friendly slug identifier."}
-    )
-    description: str | None = field(
-        default=None, metadata={"description": "The app's description."}
-    )
-    html_url: str | None = field(
-        default=None, metadata={"description": "URL to the app's GitHub page."}
-    )
-    access_tokens_url: str | None = field(
-        default=None,
-        metadata={"description": "API URL to create installation access tokens."},
-    )
-    repositories_url: str | None = field(
-        default=None,
-        metadata={
-            "description": "API URL to list repositories accessible to this installation."
-        },
-    )
-    repository_selection: str | None = field(
-        default=None,
-        metadata={
-            "description": "Whether the app has access to `all` repositories or `selected` repositories."
-        },
-    )
-    target_type: str | None = field(
-        default=None,
-        metadata={
-            "description": "The target type of the installation (e.g., `Organization`)."
-        },
-    )
-    permissions: str | None = field(
-        default=None,
-        metadata={
-            "description": 'JSON string of the permissions granted to the app (e.g., `{"contents": "read", "metadata": "read"}`).'
-        },
-    )
-    events: str | None = field(
-        default=None,
-        metadata={
-            "description": "JSON string of the webhook events the app subscribes to."
-        },
-    )
-    created_at: datetime | None = field(
-        default=None, metadata={"description": "When the app was installed."}
-    )
-    updated_at: datetime | None = field(
-        default=None,
-        metadata={"description": "When the installation was last updated."},
-    )
-    suspended_at: datetime | None = field(
-        default=None,
-        metadata={"description": "When the installation was suspended, if applicable."},
-    )
-    environment_name: str = field(
-        default="",
-        metadata={
-            "description": "The name of the environment (GitHub organization) where the app is installed."
-        },
-    )
-    query_repositories: str = ""
-    query_app: str = ""
+    Attributes:
+        id: The GitHub installation ID.
+        app_id: The GitHub App's numeric ID (shared across all installations of the same app).
+        app_slug: The app's URL-friendly slug identifier.
+        description: The app's description.
+        html_url: URL to the app's GitHub page.
+        access_tokens_url: API URL to create installation access tokens.
+        repositories_url: API URL to list repositories accessible to this installation.
+        repository_selection: Whether the app has access to `all` repositories or `selected` repositories.
+        target_type: The target type of the installation (e.g., `Organization`).
+        permissions: JSON string of the permissions granted to the app (e.g., `{"contents": "read", "metadata": "read"}`).
+        events: JSON string of the webhook events the app subscribes to.
+        created_at: When the app was installed.
+        updated_at: When the installation was last updated.
+        suspended_at: When the installation was suspended, if applicable.
+        environment_name: The name of the environment (GitHub organization) where the app is installed.
+        query_repositories: OpenGraph query for related repositories.
+        query_app: OpenGraph query for related app.
+    """
+
+    id: int | None = None
+    app_id: int | None = None
+    app_slug: str | None = None
+    description: str | None = None
+    html_url: str | None = None
+    access_tokens_url: str | None = None
+    repositories_url: str | None = None
+    repository_selection: str | None = None
+    target_type: str | None = None
+    permissions: str | None = None
+    events: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    suspended_at: datetime | None = None
+    environment_name: str | None = None
+    query_repositories: str | None = None
+    query_app: str | None = None
 
 
 class Account(BaseModel):
@@ -224,63 +190,39 @@ class AppInstallation(BaseAsset):
 
 @dataclass
 class GHAppProperties(GHNodeProperties):
-    """App definition properties and accordion panel queries."""
+    """App definition properties and accordion panel queries.
 
-    id: int | None = field(
-        default=None, metadata={"description": "The GitHub App's numeric ID."}
-    )
-    client_id: str | None = field(
-        default=None, metadata={"description": "The app's OAuth client ID."}
-    )
-    slug: str = field(
-        default="", metadata={"description": "The app's URL-friendly slug identifier."}
-    )
-    description: str | None = field(
-        default=None, metadata={"description": "The app's description."}
-    )
-    external_url: str | None = field(
-        default=None, metadata={"description": "The app's external homepage URL."}
-    )
-    html_url: str | None = field(
-        default=None, metadata={"description": "URL to the app's GitHub page."}
-    )
-    owner_login: str | None = field(
-        default=None,
-        metadata={
-            "description": "The login of the user or organization that owns the app."
-        },
-    )
-    owner_node_id: str | None = field(
-        default=None,
-        metadata={
-            "description": "The node_id of the user or organization that owns the app."
-        },
-    )
-    owner_type: str | None = field(
-        default=None,
-        metadata={
-            "description": "The type of the owner (e.g., `User`, `Organization`)."
-        },
-    )
-    events: list[str] | None = field(
-        default=None,
-        metadata={
-            "description": "JSON string of the default webhook events the app subscribes to."
-        },
-    )
-    installations_count: int | None = field(
-        default=None,
-        metadata={
-            "description": "The total number of installations of this app across all organizations."
-        },
-    )
-    created_at: datetime | None = field(
-        default=None, metadata={"description": "When the app was created."}
-    )
-    updated_at: datetime | None = field(
-        default=None, metadata={"description": "When the app was last updated."}
-    )
-    query_installations: str = ""
+    Attributes:
+        id: The GitHub App's numeric ID.
+        client_id: The app's OAuth client ID.
+        slug: The app's URL-friendly slug identifier.
+        description: The app's description.
+        external_url: The app's external homepage URL.
+        html_url: URL to the app's GitHub page.
+        owner_login: The login of the user or organization that owns the app.
+        owner_node_id: The node_id of the user or organization that owns the app.
+        owner_type: The type of the owner (e.g., `User`, `Organization`).
+        events: JSON string of the default webhook events the app subscribes to.
+        installations_count: The total number of installations of this app across all organizations.
+        created_at: When the app was created.
+        updated_at: When the app was last updated.
+        query_installations: OpenGraph query for related installations.
+    """
+
+    id: int | None = None
+    client_id: str | None = None
+    slug: str | None = None
+    description: str | None = None
+    external_url: str | None = None
+    html_url: str | None = None
+    owner_login: str | None = None
+    owner_node_id: str | None = None
+    owner_type: str | None = None
+    events: list[str] | None = None
+    installations_count: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    query_installations: str | None = None
 
 
 class Owner(BaseModel):

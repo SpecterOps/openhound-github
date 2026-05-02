@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, NodeDef
 from openhound.core.models.entries_dataclass import Edge
@@ -10,277 +10,148 @@ from openhound_github.main import app
 
 @dataclass
 class GHOrganizationProperties(GHNodeProperties):
-    """Organization-specific properties and accordion panel queries."""
+    """Organization-specific properties and accordion panel queries.
 
-    login: str = field(
-        default="",
-        metadata={"description": "The organization's login handle (URL slug)."},
-    )
-    org_name: str = field(
-        default="",
-        metadata={
-            "description": "The organization's display name (from the `name` field in the GitHub API)."
-        },
-    )
-    description: str | None = field(
-        default=None, metadata={"description": "The organization's description."}
-    )
-    company: str = field(
-        default="",
-        metadata={"description": "The company associated with the organization."},
-    )
-    blog: str | None = field(
-        default=None, metadata={"description": "The organization's blog URL."}
-    )
-    location: str | None = field(
-        default=None, metadata={"description": "The organization's location."}
-    )
-    email: str | None = field(
-        default=None,
-        metadata={"description": "The organization's public email address."},
-    )
-    is_verified: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether the organization's domain is verified by GitHub."
-        },
-    )
-    has_organization_projects: bool | None = field(
-        default=None,
-        metadata={"description": "Whether the organization has projects enabled."},
-    )
-    has_repository_projects: bool | None = field(
-        default=None,
-        metadata={"description": "Whether repository projects are enabled."},
-    )
-    public_repos: int | None = field(
-        default=None,
-        metadata={"description": "Number of public repositories in the organization."},
-    )
-    public_gists: int | None = field(
-        default=None, metadata={"description": "Number of public gists."}
-    )
-    followers: int | None = field(
-        default=None,
-        metadata={"description": "Number of followers the organization has."},
-    )
-    following: int | None = field(
-        default=None,
-        metadata={"description": "Number of accounts the organization is following."},
-    )
-    html_url: str | None = field(
-        default=None,
-        metadata={"description": "URL to the organization's GitHub profile page."},
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the organization was created."}
-    )
-    updated_at: str | None = field(
-        default=None,
-        metadata={"description": "When the organization was last updated."},
-    )
-    type: str | None = field(
-        default=None,
-        metadata={"description": "The account type (e.g., `Organization`)."},
-    )
-    total_private_repos: int | None = field(
-        default=None, metadata={"description": "Total number of private repositories."}
-    )
-    owned_private_repos: int | None = field(
-        default=None,
-        metadata={
-            "description": "Number of private repositories owned directly by the organization."
-        },
-    )
-    private_gists: int | None = field(
-        default=None, metadata={"description": "Number of private gists."}
-    )
-    collaborators: int | None = field(
-        default=None,
-        metadata={
-            "description": "Number of outside collaborators across the organization."
-        },
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    default_repository_permission: str | None = field(
-        default=None,
-        metadata={
-            "description": "Default permission level granted to members on all repositories (e.g., `read`, `write`, `admin`, `none`). Used to associate the Members org role with the appropriate `all_repo_*` role node."
-        },
-    )
-    members_can_create_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can create repositories."},
-    )
-    two_factor_requirement_enabled: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether two-factor authentication is required for all members."
-        },
-    )
-    members_can_create_public_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can create public repositories."},
-    )
-    members_can_create_private_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can create private repositories."},
-    )
-    members_can_create_internal_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can create internal repositories."},
-    )
-    members_can_create_pages: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can create GitHub Pages sites."},
-    )
-    members_can_fork_private_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can fork private repositories."},
-    )
-    web_commit_signoff_required: bool | None = field(
-        default=None,
-        metadata={"description": "Whether web-based commits require sign-off."},
-    )
-    deploy_keys_enabled_for_repositories: bool | None = field(
-        default=None, metadata={"description": "Which repositories allow deploy keys."}
-    )
-    members_can_delete_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can delete repositories."},
-    )
-    members_can_change_repo_visibility: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can change repository visibility."},
-    )
-    members_can_invite_outside_collaborators: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can invite outside collaborators."},
-    )
-    members_can_delete_issues: bool | None = field(
-        default=None, metadata={"description": "Whether members can delete issues."}
-    )
-    display_commenter_full_name_setting_enabled: bool | None = field(
-        default=None,
-        metadata={"description": "Whether commenter full names are displayed."},
-    )
-    readers_can_create_discussions: bool | None = field(
-        default=None,
-        metadata={"description": "Whether readers can create discussions."},
-    )
-    members_can_create_teams: bool | None = field(
-        default=None, metadata={"description": "Whether members can create teams."}
-    )
-    members_can_view_dependency_insights: bool | None = field(
-        default=None,
-        metadata={"description": "Whether members can view dependency insights."},
-    )
-    default_repository_branch: str | None = field(
-        default=None,
-        metadata={"description": "The default branch name for new repositories."},
-    )
-    members_can_create_public_pages: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether members can create public GitHub Pages sites."
-        },
-    )
-    members_can_create_private_pages: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether members can create private GitHub Pages sites."
-        },
-    )
-    advanced_security_enabled_for_new_repositories: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether GitHub Advanced Security is automatically enabled for new repositories."
-        },
-    )
-    dependabot_alerts_enabled_for_new_repositories: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether Dependabot alerts are enabled for new repositories."
-        },
-    )
-    dependabot_security_updates_enabled_for_new_repositories: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether Dependabot security updates are enabled for new repositories."
-        },
-    )
-    dependency_graph_enabled_for_new_repositories: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether the dependency graph is enabled for new repositories."
-        },
-    )
-    secret_scanning_enabled_for_new_repositories: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether secret scanning is enabled for new repositories."
-        },
-    )
-    secret_scanning_push_protection_enabled_for_new_repositories: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether secret scanning push protection is enabled for new repositories."
-        },
-    )
-    secret_scanning_push_protection_custom_link_enabled: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether a custom link is enabled for secret scanning push protection."
-        },
-    )
-    secret_scanning_push_protection_custom_link: str = field(
-        default="",
-        metadata={
-            "description": "The custom link for secret scanning push protection."
-        },
-    )
-    secret_scanning_validity_checks_enabled: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether secret scanning validity checks are enabled."
-        },
-    )
-    actions_enabled_repositories: str | None = field(
-        default=None,
-        metadata={
-            "description": "Which repositories have GitHub Actions enabled: `all`, `selected`, or `none`."
-        },
-    )
-    actions_allowed_actions: str | None = field(
-        default=None,
-        metadata={
-            "description": "Which Actions are allowed to run: `all`, `local_only`, or `selected`."
-        },
-    )
-    actions_sha_pinning_required: bool | None = field(
-        default=None,
-        metadata={"description": "Whether SHA pinning is required for GitHub Actions."},
-    )
-    self_hosted_runners_enabled_repositories: str | None = field(
-        default=None,
-        metadata={
-            "description": "Which repositories may use self-hosted runners: `all`, `selected`, or `none`."
-        },
-    )
+    Attributes:
+        login: The organization's login handle (URL slug).
+        org_name: The organization's display name (from the `name` field in the GitHub API).
+        description: The organization's description.
+        company: The company associated with the organization.
+        blog: The organization's blog URL.
+        location: The organization's location.
+        email: The organization's public email address.
+        is_verified: Whether the organization's domain is verified by GitHub.
+        has_organization_projects: Whether the organization has projects enabled.
+        has_repository_projects: Whether repository projects are enabled.
+        public_repos: Number of public repositories in the organization.
+        public_gists: Number of public gists.
+        followers: Number of followers the organization has.
+        following: Number of accounts the organization is following.
+        html_url: URL to the organization's GitHub profile page.
+        created_at: When the organization was created.
+        updated_at: When the organization was last updated.
+        type: The account type (e.g., `Organization`).
+        total_private_repos: Total number of private repositories.
+        owned_private_repos: Number of private repositories owned directly by the organization.
+        private_gists: Number of private gists.
+        collaborators: Number of outside collaborators across the organization.
+        environment_name: The name of the environment (GitHub organization).
+        default_repository_permission: Default permission level granted to members on all repositories (e.g., `read`, `write`, `admin`, `none`). Used to associate the Members org role with the appropriate `all_repo_*` role node.
+        members_can_create_repositories: Whether members can create repositories.
+        two_factor_requirement_enabled: Whether two-factor authentication is required for all members.
+        members_can_create_public_repositories: Whether members can create public repositories.
+        members_can_create_private_repositories: Whether members can create private repositories.
+        members_can_create_internal_repositories: Whether members can create internal repositories.
+        members_can_create_pages: Whether members can create GitHub Pages sites.
+        members_can_fork_private_repositories: Whether members can fork private repositories.
+        web_commit_signoff_required: Whether web-based commits require sign-off.
+        deploy_keys_enabled_for_repositories: Which repositories allow deploy keys.
+        members_can_delete_repositories: Whether members can delete repositories.
+        members_can_change_repo_visibility: Whether members can change repository visibility.
+        members_can_invite_outside_collaborators: Whether members can invite outside collaborators.
+        members_can_delete_issues: Whether members can delete issues.
+        display_commenter_full_name_setting_enabled: Whether commenter full names are displayed.
+        readers_can_create_discussions: Whether readers can create discussions.
+        members_can_create_teams: Whether members can create teams.
+        members_can_view_dependency_insights: Whether members can view dependency insights.
+        default_repository_branch: The default branch name for new repositories.
+        members_can_create_public_pages: Whether members can create public GitHub Pages sites.
+        members_can_create_private_pages: Whether members can create private GitHub Pages sites.
+        advanced_security_enabled_for_new_repositories: Whether GitHub Advanced Security is automatically enabled for new repositories.
+        dependabot_alerts_enabled_for_new_repositories: Whether Dependabot alerts are enabled for new repositories.
+        dependabot_security_updates_enabled_for_new_repositories: Whether Dependabot security updates are enabled for new repositories.
+        dependency_graph_enabled_for_new_repositories: Whether the dependency graph is enabled for new repositories.
+        secret_scanning_enabled_for_new_repositories: Whether secret scanning is enabled for new repositories.
+        secret_scanning_push_protection_enabled_for_new_repositories: Whether secret scanning push protection is enabled for new repositories.
+        secret_scanning_push_protection_custom_link_enabled: Whether a custom link is enabled for secret scanning push protection.
+        secret_scanning_push_protection_custom_link: The custom link for secret scanning push protection.
+        secret_scanning_validity_checks_enabled: Whether secret scanning validity checks are enabled.
+        actions_enabled_repositories: Which repositories have GitHub Actions enabled: `all`, `selected`, or `none`.
+        actions_allowed_actions: Which Actions are allowed to run: `all`, `local_only`, or `selected`.
+        actions_sha_pinning_required: Whether SHA pinning is required for GitHub Actions.
+        self_hosted_runners_enabled_repositories: Which repositories may use self-hosted runners: `all`, `selected`, or `none`.
+        default_workflow_permissions: The default workflow permissions.
+        can_approve_pull_request_reviews: The can approve pull request reviews.
+        query_organization_roles: OpenGraph query for related organization roles.
+        query_users: OpenGraph query for related users.
+        query_teams: OpenGraph query for related teams.
+        query_repositories: OpenGraph query for related repositories.
+        query_personal_access_tokens: OpenGraph query for related personal access tokens.
+        query_secret_scanning_alerts: OpenGraph query for related secret scanning alerts.
+        query_identity_provider: OpenGraph query for related identity provider.
+        query_app_installations: OpenGraph query for related app installations.
+        query_organization_secrets: OpenGraph query for related organization secrets.
+        collected: Whether this node was collected/generated by OpenHound.
+    """
+
+    login: str | None = None
+    org_name: str | None = None
+    description: str | None = None
+    company: str | None = None
+    blog: str | None = None
+    location: str | None = None
+    email: str | None = None
+    is_verified: bool | None = None
+    has_organization_projects: bool | None = None
+    has_repository_projects: bool | None = None
+    public_repos: int | None = None
+    public_gists: int | None = None
+    followers: int | None = None
+    following: int | None = None
+    html_url: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    type: str | None = None
+    total_private_repos: int | None = None
+    owned_private_repos: int | None = None
+    private_gists: int | None = None
+    collaborators: int | None = None
+    environment_name: str | None = None
+    default_repository_permission: str | None = None
+    members_can_create_repositories: bool | None = None
+    two_factor_requirement_enabled: bool | None = None
+    members_can_create_public_repositories: bool | None = None
+    members_can_create_private_repositories: bool | None = None
+    members_can_create_internal_repositories: bool | None = None
+    members_can_create_pages: bool | None = None
+    members_can_fork_private_repositories: bool | None = None
+    web_commit_signoff_required: bool | None = None
+    deploy_keys_enabled_for_repositories: bool | None = None
+    members_can_delete_repositories: bool | None = None
+    members_can_change_repo_visibility: bool | None = None
+    members_can_invite_outside_collaborators: bool | None = None
+    members_can_delete_issues: bool | None = None
+    display_commenter_full_name_setting_enabled: bool | None = None
+    readers_can_create_discussions: bool | None = None
+    members_can_create_teams: bool | None = None
+    members_can_view_dependency_insights: bool | None = None
+    default_repository_branch: str | None = None
+    members_can_create_public_pages: bool | None = None
+    members_can_create_private_pages: bool | None = None
+    advanced_security_enabled_for_new_repositories: bool | None = None
+    dependabot_alerts_enabled_for_new_repositories: bool | None = None
+    dependabot_security_updates_enabled_for_new_repositories: bool | None = None
+    dependency_graph_enabled_for_new_repositories: bool | None = None
+    secret_scanning_enabled_for_new_repositories: bool | None = None
+    secret_scanning_push_protection_enabled_for_new_repositories: bool | None = None
+    secret_scanning_push_protection_custom_link_enabled: bool | None = None
+    secret_scanning_push_protection_custom_link: str | None = None
+    secret_scanning_validity_checks_enabled: bool | None = None
+    actions_enabled_repositories: str | None = None
+    actions_allowed_actions: str | None = None
+    actions_sha_pinning_required: bool | None = None
+    self_hosted_runners_enabled_repositories: str | None = None
     default_workflow_permissions: str | None = None
     can_approve_pull_request_reviews: bool | None = None
-    query_organization_roles: str = ""
-    query_users: str = ""
-    query_teams: str = ""
-    query_repositories: str = ""
-    query_personal_access_tokens: str = ""
-    query_secret_scanning_alerts: str = ""
-    query_identity_provider: str = ""
-    query_app_installations: str = ""
-    query_organization_secrets: str = ""
+    query_organization_roles: str | None = None
+    query_users: str | None = None
+    query_teams: str | None = None
+    query_repositories: str | None = None
+    query_personal_access_tokens: str | None = None
+    query_secret_scanning_alerts: str | None = None
+    query_identity_provider: str | None = None
+    query_app_installations: str | None = None
+    query_organization_secrets: str | None = None
     collected: bool = True
 
 

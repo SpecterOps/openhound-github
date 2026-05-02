@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -13,46 +13,33 @@ from openhound_github.main import app
 
 @dataclass
 class GHRunnerGroupProperties(GHNodeProperties):
-    group_id: int | None = field(
-        default=None, metadata={"description": "The GitHub runner group ID."}
-    )
-    group_name: str | None = field(
-        default=None, metadata={"description": "The runner group display name."}
-    )
-    visibility: str | None = field(
-        default=None,
-        metadata={
-            "description": "Which repositories can use this group: `all`, `private`, or `selected`."
-        },
-    )
-    default: bool | None = field(
-        default=None,
-        metadata={"description": "Whether this is the default runner group."},
-    )
-    inherited: bool | None = field(
-        default=None,
-        metadata={"description": "Whether this runner group is inherited."},
-    )
-    allows_public_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether public repositories may use this group."},
-    )
-    restricted_to_workflows: bool | None = field(
-        default=None,
-        metadata={"description": "Whether access is restricted to selected workflows."},
-    )
-    selected_workflows: str | None = field(
-        default=None,
-        metadata={"description": "JSON array of selected workflows, if configured."},
-    )
-    runners_url: str | None = field(
-        default=None,
-        metadata={"description": "API URL for runners in this group."},
-    )
-    environment_name: str | None = field(
-        default=None,
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
+    """GHRunnerGroupProperties properties.
+
+    Attributes:
+        group_id: The GitHub runner group ID.
+        group_name: The runner group display name.
+        visibility: Which repositories can use this group: `all`, `private`, or `selected`.
+        default: Whether this is the default runner group.
+        inherited: Whether this runner group is inherited.
+        allows_public_repositories: Whether public repositories may use this group.
+        restricted_to_workflows: Whether access is restricted to selected workflows.
+        selected_workflows: JSON array of selected workflows, if configured.
+        runners_url: API URL for runners in this group.
+        environment_name: The name of the environment (GitHub organization).
+        query_runners: OpenGraph query for related runners.
+        query_repositories: OpenGraph query for related repositories.
+    """
+
+    group_id: int | None = None
+    group_name: str | None = None
+    visibility: str | None = None
+    default: bool | None = None
+    inherited: bool | None = None
+    allows_public_repositories: bool | None = None
+    restricted_to_workflows: bool | None = None
+    selected_workflows: str | None = None
+    runners_url: str | None = None
+    environment_name: str | None = None
     query_runners: str | None = None
     query_repositories: str | None = None
 
@@ -136,61 +123,41 @@ class RunnerGroup(BaseAsset):
 
 @dataclass
 class GHRunnerProperties(GHNodeProperties):
-    scope: str = field(
-        default="",
-        metadata={
-            "description": "Whether the runner is organization or repository scoped."
-        },
-    )
-    runner_id: int | None = field(
-        default=None, metadata={"description": "The GitHub runner ID."}
-    )
-    os: str | None = field(
-        default=None, metadata={"description": "The runner operating system."}
-    )
-    status: str | None = field(
-        default=None, metadata={"description": "The runner status."}
-    )
-    busy: bool | None = field(
-        default=None, metadata={"description": "Whether the runner is currently busy."}
-    )
-    ephemeral: bool | None = field(
-        default=None,
-        metadata={"description": "Whether the runner is ephemeral."},
-    )
-    labels: str | None = field(
-        default=None, metadata={"description": "JSON array of runner labels."}
-    )
-    runner_group_id: int | None = field(
-        default=None, metadata={"description": "The associated runner group ID."}
-    )
-    runner_group_name: str | None = field(
-        default=None, metadata={"description": "The associated runner group name."}
-    )
-    runner_group_visibility: str | None = field(
-        default=None,
-        metadata={"description": "Runner group visibility when organization scoped."},
-    )
-    repository_name: str | None = field(
-        default=None,
-        metadata={"description": "The repository name for repository-scoped runners."},
-    )
-    repository_id: str | None = field(
-        default=None,
-        metadata={
-            "description": "The repository node_id for repository-scoped runners."
-        },
-    )
-    repository_full_name: str | None = field(
-        default=None,
-        metadata={
-            "description": "The full repository name for repository-scoped runners."
-        },
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
+    """GHRunnerProperties properties.
+
+    Attributes:
+        scope: Whether the runner is organization or repository scoped.
+        runner_id: The GitHub runner ID.
+        os: The runner operating system.
+        status: The runner status.
+        busy: Whether the runner is currently busy.
+        ephemeral: Whether the runner is ephemeral.
+        labels: JSON array of runner labels.
+        runner_group_id: The associated runner group ID.
+        runner_group_name: The associated runner group name.
+        runner_group_visibility: Runner group visibility when organization scoped.
+        repository_name: The repository name for repository-scoped runners.
+        repository_id: The repository node_id for repository-scoped runners.
+        repository_full_name: The full repository name for repository-scoped runners.
+        environment_name: The name of the environment (GitHub organization).
+        query_group: OpenGraph query for related group.
+        query_repositories: OpenGraph query for related repositories.
+    """
+
+    scope: str | None = None
+    runner_id: int | None = None
+    os: str | None = None
+    status: str | None = None
+    busy: bool | None = None
+    ephemeral: bool | None = None
+    labels: str | None = None
+    runner_group_id: int | None = None
+    runner_group_name: str | None = None
+    runner_group_visibility: str | None = None
+    repository_name: str | None = None
+    repository_id: str | None = None
+    repository_full_name: str | None = None
+    environment_name: str | None = None
     query_group: str | None = None
     query_repositories: str | None = None
 

@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import (
@@ -24,46 +24,35 @@ _FOREIGN_USER_KIND: dict[str, str] = {
 
 @dataclass
 class GHExternalIdentityProperties(GHNodeProperties):
-    """External identity properties and accordion panel queries."""
+    """External identity properties and accordion panel queries.
 
-    guid: str | None = field(
-        default=None, metadata={"description": "The GUID of the external identity."}
-    )
-    saml_identity_username: str | None = field(
-        default=None, metadata={"description": "The username from the SAML identity."}
-    )
-    saml_identity_name_id: str | None = field(
-        default=None, metadata={"description": "The SAML NameID attribute."}
-    )
-    saml_identity_given_name: str | None = field(
-        default=None, metadata={"description": "The given name from the SAML identity."}
-    )
-    saml_identity_family_name: str | None = field(
-        default=None,
-        metadata={"description": "The family name from the SAML identity."},
-    )
-    scim_identity_username: str | None = field(
-        default=None, metadata={"description": "The username from the SCIM identity."}
-    )
-    scim_identity_given_name: str | None = field(
-        default=None, metadata={"description": "The given name from the SCIM identity."}
-    )
-    scim_identity_family_name: str | None = field(
-        default=None,
-        metadata={"description": "The family name from the SCIM identity."},
-    )
-    github_username: str | None = field(
-        default=None, metadata={"description": "The GitHub login of the linked user."}
-    )
-    github_user_id: str | None = field(
-        default=None,
-        metadata={"description": "The GraphQL ID of the linked GitHub user."},
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    query_mapped_users: str = ""
+    Attributes:
+        guid: The GUID of the external identity.
+        saml_identity_username: The username from the SAML identity.
+        saml_identity_name_id: The SAML NameID attribute.
+        saml_identity_given_name: The given name from the SAML identity.
+        saml_identity_family_name: The family name from the SAML identity.
+        scim_identity_username: The username from the SCIM identity.
+        scim_identity_given_name: The given name from the SCIM identity.
+        scim_identity_family_name: The family name from the SCIM identity.
+        github_username: The GitHub login of the linked user.
+        github_user_id: The GraphQL ID of the linked GitHub user.
+        environment_name: The name of the environment (GitHub organization).
+        query_mapped_users: OpenGraph query for related mapped users.
+    """
+
+    guid: str | None = None
+    saml_identity_username: str | None = None
+    saml_identity_name_id: str | None = None
+    saml_identity_given_name: str | None = None
+    saml_identity_family_name: str | None = None
+    scim_identity_username: str | None = None
+    scim_identity_given_name: str | None = None
+    scim_identity_family_name: str | None = None
+    github_username: str | None = None
+    github_user_id: str | None = None
+    environment_name: str | None = None
+    query_mapped_users: str | None = None
 
 
 class SCIMIdentity(BaseModel):

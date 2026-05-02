@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -46,26 +46,25 @@ class Organization(BaseModel):
 
 @dataclass
 class GHOrgRoleProperties(GHNodeProperties):
-    """Org role properties and accordion panel queries."""
+    """Org role properties and accordion panel queries.
 
-    short_name: str = field(
-        metadata={
-            "description": "The short display name of the role (e.g., `Owners`, `Members`, or the custom role name)."
-        }
-    )
-    type: str = field(
-        metadata={
-            "description": "`default` for built-in roles (Owner, Member) or `custom` for custom organization roles."
-        }
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    query_explicit_members: str = ""
-    query_unrolled_members: str = ""
-    query_org_permissions: str = ""
-    query_repo_permissions: str = ""
+    Attributes:
+        short_name: The short display name of the role (e.g., `Owners`, `Members`, or the custom role name).
+        type: `default` for built-in roles (Owner, Member) or `custom` for custom organization roles.
+        environment_name: The name of the environment (GitHub organization).
+        query_explicit_members: OpenGraph query for related explicit members.
+        query_unrolled_members: OpenGraph query for related unrolled members.
+        query_org_permissions: OpenGraph query for related org permissions.
+        query_repo_permissions: OpenGraph query for related repo permissions.
+    """
+
+    short_name: str
+    type: str
+    environment_name: str | None = None
+    query_explicit_members: str | None = None
+    query_unrolled_members: str | None = None
+    query_org_permissions: str | None = None
+    query_repo_permissions: str | None = None
 
 
 @app.asset(

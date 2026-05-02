@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -14,25 +14,22 @@ from openhound_github.main import app
 
 @dataclass
 class GHOrgSecretProperties(GHNodeProperties):
-    """Org secret properties and accordion panel queries."""
+    """Org secret properties and accordion panel queries.
 
-    visibility: str = field(
-        default="",
-        metadata={
-            "description": "The secret's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos)."
-        },
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the secret was created."}
-    )
-    updated_at: str | None = field(
-        default=None, metadata={"description": "When the secret was last updated."}
-    )
-    query_visible_repositories: str = ""
+    Attributes:
+        visibility: The secret's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos).
+        environment_name: The name of the environment (GitHub organization).
+        created_at: When the secret was created.
+        updated_at: When the secret was last updated.
+        query_visible_repositories: OpenGraph query for related visible repositories.
+        selected_repositories_url: The selected repositories url.
+    """
+
+    visibility: str | None = None
+    environment_name: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    query_visible_repositories: str | None = None
     selected_repositories_url: str | None = None
 
 

@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from dlt.common.libs.pydantic import DltConfig
@@ -59,8 +59,8 @@ class GHEnterpriseProperties(GHNodeProperties):
     billing_email: str | None = None
     security_contact_email: str | None = None
     viewer_is_admin: bool | None = None
-    environment_name: str = ""
-    query_organizations: str = ""
+    environment_name: str | None = None
+    query_organizations: str | None = None
 
 
 @app.asset(
@@ -138,9 +138,9 @@ class GHEnterpriseOrganizationProperties(GHNodeProperties):
     """
 
     collected: bool = False
-    login: str = ""
-    environment_name: str = ""
-    query_enterprise: str = ""
+    login: str | None = None
+    environment_name: str | None = None
+    query_enterprise: str | None = None
 
 
 @app.asset(
@@ -211,12 +211,12 @@ class GHEnterpriseUserProperties(GHNodeProperties):
     """
 
     collected: bool = True
-    login: str = ""
+    login: str | None = None
     full_name: str | None = None
     company: str | None = None
     email: str | None = None
-    environment_name: str = ""
-    query_enterprises: str = ""
+    environment_name: str | None = None
+    query_enterprises: str | None = None
 
 
 @app.asset(
@@ -299,16 +299,16 @@ class GHEnterpriseManagedUserProperties(GHNodeProperties):
         query_mapped_user: Query for the backing GitHub user.
     """
 
-    login: str = ""
+    login: str | None = None
     full_name: str | None = None
     url: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
     github_user_id: str | None = None
     github_username: str | None = None
-    environment_name: str = ""
-    query_enterprises: str = ""
-    query_mapped_user: str = ""
+    environment_name: str | None = None
+    query_enterprises: str | None = None
+    query_mapped_user: str | None = None
 
 
 class EnterpriseManagedBackingUser(BaseModel):
@@ -428,11 +428,11 @@ class GHEnterpriseTeamProperties(GHNodeProperties):
     description: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
-    environment_name: str = ""
-    query_enterprise: str = ""
-    query_assigned_organizations: str = ""
-    query_projected_teams: str = ""
-    query_members: str = ""
+    environment_name: str | None = None
+    query_enterprise: str | None = None
+    query_assigned_organizations: str | None = None
+    query_projected_teams: str | None = None
+    query_members: str | None = None
 
 
 @app.asset(
@@ -520,14 +520,14 @@ class GHEnterpriseTeamRoleProperties(GHNodeProperties):
         query_members: Query for role members.
     """
 
-    enterpriseid: str = ""
-    team_name: str = ""
-    team_id: str = ""
-    short_name: str = ""
-    type: str = ""
-    environment_name: str = ""
-    query_team: str = ""
-    query_members: str = ""
+    enterpriseid: str | None = None
+    team_name: str | None = None
+    team_id: str | None = None
+    short_name: str | None = None
+    type: str | None = None
+    environment_name: str | None = None
+    query_team: str | None = None
+    query_members: str | None = None
 
 
 @app.asset(
@@ -710,11 +710,11 @@ class GHEnterpriseRoleProperties(GHNodeProperties):
     type: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
-    permissions: list[str] = field(default_factory=list)
-    environment_name: str = ""
-    query_enterprise: str = ""
-    query_explicit_members: str = ""
-    query_team_members: str = ""
+    permissions: list[str] | None = None
+    environment_name: str | None = None
+    query_enterprise: str | None = None
+    query_explicit_members: str | None = None
+    query_team_members: str | None = None
 
 
 @app.asset(
@@ -888,9 +888,9 @@ class GHEnterpriseSamlProviderProperties(GHNodeProperties):
     digest_method: str | None = None
     idp_certificate: str | None = None
     foreign_environment_id: str | None = None
-    environment_name: str = ""
-    query_environments: str = ""
-    query_external_identities: str = ""
+    environment_name: str | None = None
+    query_environments: str | None = None
+    query_external_identities: str | None = None
 
 
 @app.asset(
@@ -1017,8 +1017,8 @@ class GHEnterpriseExternalIdentityProperties(GHNodeProperties):
     scim_identity_family_name: str | None = None
     github_username: str | None = None
     github_user_id: str | None = None
-    environment_name: str = ""
-    query_mapped_users: str = ""
+    environment_name: str | None = None
+    query_mapped_users: str | None = None
 
 
 @app.asset(
