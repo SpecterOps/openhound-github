@@ -1,26 +1,3 @@
-from typing import Any
-
-
-def graphql_object(page_data: list[dict[str, Any]], key: str) -> dict[str, Any]:
-    if not page_data:
-        return {}
-    root = page_data[0] or {}
-    value = root.get(key) if isinstance(root, dict) else None
-    return value if isinstance(value, dict) else {}
-
-
-def graphql_nodes(connection: dict[str, Any] | None) -> list[dict[str, Any]]:
-    if not connection:
-        return []
-    return [node for node in connection.get("nodes") or [] if isinstance(node, dict)]
-
-
-def graphql_edges(connection: dict[str, Any] | None) -> list[dict[str, Any]]:
-    if not connection:
-        return []
-    return [edge for edge in connection.get("edges") or [] if isinstance(edge, dict)]
-
-
 MEMBERS_WITH_ROLE_QUERY = """
 query MembersWithRole($login: String!, $count: Int!, $after: String) {
     organization(login: $login) {

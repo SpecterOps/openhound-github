@@ -52,6 +52,7 @@ from openhound_github.resources.organization import (
     personal_access_token_requests,
     personal_access_tokens,
     repo_role_assignments,
+    repository_roles_base,
     repo_runners,
     repository_roles,
     repository_secrets,
@@ -139,8 +140,9 @@ def _org_collection_resources(ctx: SourceContext) -> tuple:
     environments_resource = repos_resource | environments(ctx)
     personal_access_tokens_resource = personal_access_tokens(ctx)
     org_resource = organizations(ctx)
-    org_role_resource = org_roles(ctx)
+    org_role_resource = org_roles(ctx, org_resource)
     teams_resource = teams(ctx)
+    repository_roles_base_resource = repository_roles_base(ctx)
     repositories_graphql_resource = repositories_graphql(ctx)
     app_installs_resource = app_installations(ctx)
     runner_groups_resource = runner_groups(ctx)
@@ -156,13 +158,14 @@ def _org_collection_resources(ctx: SourceContext) -> tuple:
         org_role_resource,
         org_role_resource | org_role_members(ctx),
         org_role_resource | org_role_teams(ctx),
+        repository_roles_base_resource,
         repos_resource,
-        repos_resource | repository_roles(ctx),
+        repos_resource | repository_roles(ctx, repository_roles_base_resource),
         repos_resource | workflows(ctx),
         repos_resource | repo_runners(ctx),
         repos_resource | repository_secrets(ctx),
         repos_resource | repository_variables(ctx),
-        repos_resource | repo_role_assignments(ctx),
+        repos_resource | repo_role_assignments(ctx, repository_roles_base_resource),
         environments_resource,
         environments_resource | environment_variables(ctx),
         environments_resource | environment_secrets(ctx),
@@ -172,7 +175,7 @@ def _org_collection_resources(ctx: SourceContext) -> tuple:
         teams_resource | team_roles(),
         runner_groups_resource,
         org_runners(ctx),
-        org_runner_group_memberships(ctx),
+        org_runner_group_memberships(ctx, repos_resource),
         personal_access_tokens_resource,
         personal_access_tokens_resource | pat_repo_access(ctx),
         organization_secrets_resource,

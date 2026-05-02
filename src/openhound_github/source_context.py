@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Iterator
 
 from dlt.sources.helpers.rest_client.client import RESTClient
 
@@ -25,10 +25,6 @@ class SourceContext:
     enterprise_node_id: str | None = None
     enterprise_saml_enabled: bool = False
     auth_type: str | None = None
-
-
-def _raw_collection(func: Any, *args: Any, **kwargs: Any):
-    return getattr(func, "__wrapped__", func)(*args, **kwargs)
 
 
 def _with_org_context(ctx: SourceContext, org_ctx: OrgContext) -> SourceContext:
@@ -68,8 +64,3 @@ def _org_context_for(
         enterprise_saml_enabled=ctx.enterprise_saml_enabled,
         auth_type=ctx.auth_type,
     )
-
-
-def _http_status_code(exc: Exception) -> int | None:
-    response = getattr(exc, "response", None)
-    return getattr(response, "status_code", None) or getattr(exc, "status_code", None)

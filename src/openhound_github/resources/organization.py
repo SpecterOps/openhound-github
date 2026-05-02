@@ -13,9 +13,6 @@ from openhound_github.graphql import (
     SAML_QUERY,
     TEAM_MEMBERS_OVERFLOW_QUERY,
     TEAMS_QUERY,
-    graphql_edges,
-    graphql_nodes,
-    graphql_object,
 )
 from openhound_github.helpers import GraphQLCursorPaginator
 from openhound_github.main import app
@@ -65,10 +62,8 @@ from openhound_github.models.repo_role_assignment import TEAM_PERMISSION_MAP
 from openhound_github.models.repository_role import DEFAULT_REPO_ROLES
 from openhound_github.source_context import (
     SourceContext,
-    _http_status_code,
     _iter_collection_contexts,
     _org_context_for,
-    _raw_collection,
 )
 
 
@@ -166,14 +161,15 @@ def org_roles(ctx: SourceContext, orgs: list[dict] | None = None):
         OrgRole (OrgRole): Organization role record.
     """
     for org_ctx in _iter_collection_contexts(ctx):
-        org_rows = [
-            org
-            for org in orgs or []
-            if org.get("login") == org_ctx.org_name
-            or org.get("node_id") == org_ctx.org_node_id
-        ]
+        org_rows = []
+        for org in orgs or []:
+            if (
+                org.get("login") == org_ctx.org_name
+                or org.get("node_id") == org_ctx.org_node_id
+            ):
+                org_rows.append(org)
         if not org_rows:
-            org_rows = list(_raw_collection(organizations, org_ctx))
+            continue
         org = Organization(**org_rows[0])
 
         yield {
@@ -343,8 +339,10 @@ def users(ctx: SourceContext) -> Iterator[dict[str, Any]]:
             paginator=paginator,
             data_selector="data",
         ):
-            org_data = graphql_object(page_data, "organization")
-            for edge in graphql_edges(org_data.get("membersWithRole")):
+            org_data = ((page_data[0] if page_data else {}) or {}).get(
+                "organization"
+            ) or {}
+            for edge in (org_data.get("membersWithRole") or {}).get("edges") or []:
                 node = edge.get("node") or {}
                 yield {
                     **node,
@@ -390,8 +388,10 @@ def teams(ctx: SourceContext):
             paginator=paginator,
             data_selector="data",
         ):
-            org_data = graphql_object(page_data, "organization")
-            for team in graphql_nodes(org_data.get("teams")):
+            org_data = ((page_data[0] if page_data else {}) or {}).get(
+                "organization"
+            ) or {}
+            for team in (org_data.get("teams") or {}).get("nodes") or []:
                 yield {
                     **team,
                     "org_node_id": org_ctx.org_node_id,
@@ -469,9 +469,11 @@ def team_members(team: Team, ctx: SourceContext):
             paginator=paginator,
             data_selector="data",
         ):
-            org_data = graphql_object(page_data, "organization")
+            org_data = ((page_data[0] if page_data else {}) or {}).get(
+                "organization"
+            ) or {}
             team_data = org_data.get("team") or {}
-            for member in graphql_edges(team_data.get("members")):
+            for member in (team_data.get("members") or {}).get("edges") or []:
                 yield {
                     "team_id": team.id,
                     "id": member["node"]["id"],
@@ -581,15 +583,15 @@ def repo_role_assignments(
     """
 
     repo_ctx = _org_context_for(ctx, repo.org_login or repo.owner_name, repo.org_node_id)
-    if roles is None:
-        roles = list(_raw_collection(repository_roles_base, repo_ctx))
     repo_node_id = repo.node_id
     repo_name = repo.name
-    custom_roles = {
-        role["name"]: BaseRepoRole(**role)
-        for role in roles
-        if not role.get("org_login") or role.get("org_login") == repo_ctx.org_name
-    }
+    custom_roles = {}
+    for role in roles or []:
+        if (
+            not role.get("org_login")
+            or role.get("org_login") == repo_ctx.org_name
+        ):
+            custom_roles[role["name"]] = BaseRepoRole(**role)
 
     for collab_page in repo_ctx.client.paginate(
         f"/repos/{repo_ctx.org_name}/{repo_name}/collaborators",
@@ -652,7 +654,9 @@ def repository_roles_base(ctx: SourceContext):
 
 
 @app.transformer(name="repo_roles", columns=RepoRole, parallelized=True)
-def repository_roles(repository: Repository, ctx: SourceContext):
+def repository_roles(
+    repository: Repository, ctx: SourceContext, roles: list[dict] | None = None
+):
     """Yield default and custom repository role records for a repository.
 
     Emits the five built-in default roles (read, triage, write, maintain, admin) and
@@ -680,13 +684,11 @@ def repository_roles(repository: Repository, ctx: SourceContext):
             "org_login": repository.org_login or repository.owner_name,
         }
 
-    repo_ctx = _org_context_for(
-        ctx, repository.org_login or repository.owner_name, repository.org_node_id
-    )
-    roles = list(_raw_collection(repository_roles_base, repo_ctx))
-
-    for role in roles:
-        if role.get("org_login") and role.get("org_login") != repository.org_login:
+    for role in roles or []:
+        if (
+            role.get("org_login")
+            and role.get("org_login") != repository.org_login
+        ):
             continue
         role = BaseRepoRole(**role)
         yield {
@@ -737,8 +739,10 @@ def repositories_graphql(ctx: SourceContext):
             paginator=paginator,
             data_selector="data",
         ):
-            org_data = graphql_object(page_data, "organization")
-            for repo in graphql_nodes(org_data.get("repositories")):
+            org_data = ((page_data[0] if page_data else {}) or {}).get(
+                "organization"
+            ) or {}
+            for repo in (org_data.get("repositories") or {}).get("nodes") or []:
                 yield {
                     **repo,
                     "org_node_id": org_ctx.org_node_id,
@@ -795,8 +799,10 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
             paginator=paginator,
             data_selector="data",
         ):
-            repo_data = graphql_object(page_data, "repository")
-            for branch in graphql_nodes(repo_data.get("refs")):
+            repo_data = ((page_data[0] if page_data else {}) or {}).get(
+                "repository"
+            ) or {}
+            for branch in (repo_data.get("refs") or {}).get("nodes") or []:
                 yield {
                     **branch,
                     "repository_node_id": repository.id,
@@ -950,14 +956,13 @@ def org_runners(ctx: SourceContext):
 )
 def org_runner_group_memberships(ctx: SourceContext, repos: list | None = None):
     for org_ctx in _iter_collection_contexts(ctx):
-        org_repos = [
-            repo
-            for repo in repos or []
-            if repo.get("org_login") == org_ctx.org_name
-            or repo.get("org_node_id") == org_ctx.org_node_id
-        ]
-        if repos is None:
-            org_repos = list(_raw_collection(repositories, org_ctx))
+        org_repos = []
+        for repo in repos or []:
+            if (
+                repo.get("org_login") == org_ctx.org_name
+                or repo.get("org_node_id") == org_ctx.org_node_id
+            ):
+                org_repos.append(repo)
 
         for group_page in org_ctx.client.paginate(
             f"/orgs/{org_ctx.org_name}/actions/runner-groups",
@@ -1083,7 +1088,11 @@ def environment_branch_policies(environment: Environment, ctx: SourceContext):
                         "org_login": environment.org_login,
                     }
         except Exception as exc:
-            if _http_status_code(exc) == 404:
+            response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None) or getattr(
+                exc, "status_code", None
+            )
+            if status_code == 404:
                 return
             raise
 
@@ -1496,7 +1505,9 @@ def external_identities(ctx: SourceContext):
             saml_provider_data = org_data.get("samlIdentityProvider")
             if not saml_provider_data:
                 break
-            for identity in graphql_nodes(saml_provider_data.get("externalIdentities")):
+            for identity in (saml_provider_data.get("externalIdentities") or {}).get(
+                "nodes"
+            ) or []:
                 yield {
                     **identity,
                     "saml_provider_id": saml_provider_data.get("id"),
@@ -1548,6 +1559,10 @@ def scim_users(ctx: SourceContext):
                         "org_login": org_ctx.org_name,
                     }
         except Exception as exc:
-            if _http_status_code(exc) == 403:
+            response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None) or getattr(
+                exc, "status_code", None
+            )
+            if status_code == 403:
                 continue
             raise
