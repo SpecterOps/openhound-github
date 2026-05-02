@@ -11,13 +11,12 @@ from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 from openhound_github.auth import create_github_jwt_session
 from openhound_github.main import app
 from openhound_github.resources.enterprise import (
-    _enterprise_member_records,
     _enterprise_profile_and_orgs,
-    _enterprise_saml_records,
     enterprise,
     enterprise_admin_roles,
     enterprise_admins,
     enterprise_external_identities,
+    enterprise_members,
     enterprise_managed_users,
     enterprise_organizations,
     enterprise_role_teams,
@@ -199,21 +198,21 @@ def _enterprise_collection_resources(
     ctx: SourceContext,
     enterprise_data: dict[str, Any],
     enterprise_orgs: list[dict[str, Any]],
-    enterprise_members: list[dict[str, Any]],
-    saml_provider_data: dict[str, Any] | None,
-    external_identity_data: list[dict[str, Any]],
 ) -> tuple:
     enterprise_resource = enterprise(enterprise_data)
+    enterprise_members_resource = enterprise_resource | enterprise_members(ctx)
     enterprise_teams_resource = enterprise_teams(ctx, enterprise_data)
     enterprise_roles_resource = enterprise_roles(ctx, enterprise_data)
     enterprise_admin_roles_resource = enterprise_admin_roles(ctx, enterprise_data)
-    enterprise_saml_provider_resource = enterprise_saml_provider(saml_provider_data)
+    enterprise_saml_provider_resource = enterprise_resource | enterprise_saml_provider(
+        ctx
+    )
 
     return (
         enterprise_resource,
         enterprise_organizations(enterprise_orgs),
-        enterprise_users(enterprise_members),
-        enterprise_managed_users(enterprise_members),
+        enterprise_members_resource | enterprise_users(),
+        enterprise_members_resource | enterprise_managed_users(),
         enterprise_teams_resource,
         enterprise_teams_resource | enterprise_team_roles(),
         enterprise_teams_resource | enterprise_team_members(ctx),
@@ -224,7 +223,7 @@ def _enterprise_collection_resources(
         enterprise_admin_roles_resource,
         enterprise_admins(ctx, enterprise_data),
         enterprise_saml_provider_resource,
-        enterprise_external_identities(external_identity_data),
+        enterprise_saml_provider_resource | enterprise_external_identities(ctx),
     )
 
 
@@ -301,10 +300,7 @@ def source(
 
     if credentials.enterprise_name:
         enterprise_data, enterprise_orgs = _enterprise_profile_and_orgs(ctx)
-        enterprise_members = _enterprise_member_records(ctx, enterprise_data)
-        saml_provider_data, external_identity_data = _enterprise_saml_records(ctx)
         ctx.enterprise_node_id = enterprise_data["id"]
-        ctx.enterprise_saml_enabled = saml_provider_data is not None
 
         installation_ids_by_org = app_installation_ids_by_org()
         org_contexts = []
@@ -334,9 +330,6 @@ def source(
                 ctx,
                 enterprise_data,
                 enterprise_orgs,
-                enterprise_members,
-                saml_provider_data,
-                external_identity_data,
             ),
             *_org_collection_resources(ctx),
         )

@@ -922,6 +922,8 @@ class EnterpriseSamlProvider(BaseAsset):
     enterprise_node_id: str
     enterprise_slug: str
 
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
     @property
     def node_id(self) -> str:
         return self.id

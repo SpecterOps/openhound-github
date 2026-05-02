@@ -5,9 +5,6 @@ from openhound_github.graphql import (
     ENTERPRISE_MEMBERS_QUERY,
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
-    graphql_edges,
-    graphql_nodes,
-    graphql_object,
 )
 from openhound_github.helpers import GraphQLCursorPaginator
 from openhound_github.main import app
@@ -79,102 +76,6 @@ def _enterprise_profile_and_orgs(
     return enterprise, organizations
 
 
-def _enterprise_member_records(
-    ctx: SourceContext, enterprise_data: dict[str, Any]
-) -> list[dict[str, Any]]:
-    enterprise_slug = _enterprise_required(ctx)
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.enterprise.members.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-    )
-    data = {
-        "query": ENTERPRISE_MEMBERS_QUERY,
-        "variables": {"slug": enterprise_slug, "count": 100, "after": None},
-    }
-
-    records: list[dict[str, Any]] = []
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        enterprise_data_page = graphql_object(page_data, "enterprise")
-        for edge in graphql_edges(enterprise_data_page.get("members")):
-            node = edge.get("node")
-            if node:
-                records.append(
-                    {
-                        **node,
-                        "enterprise_node_id": enterprise_data["id"],
-                        "enterprise_slug": enterprise_slug,
-                    }
-                )
-    return records
-
-
-def _enterprise_saml_records(
-    ctx: SourceContext,
-) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    if ctx.auth_type != "token":
-        return None, []
-
-    enterprise_slug = _enterprise_required(ctx)
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-    )
-    data = {
-        "query": ENTERPRISE_SAML_QUERY,
-        "variables": {"slug": enterprise_slug, "count": 100, "after": None},
-    }
-
-    provider: dict[str, Any] | None = None
-    identities: list[dict[str, Any]] = []
-    try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            enterprise_data = page_data[0].get("enterprise")
-            if not enterprise_data:
-                return None, []
-            saml_provider = enterprise_data.get("ownerInfo", {}).get(
-                "samlIdentityProvider"
-            )
-            if not saml_provider:
-                return None, []
-            if provider is None:
-                provider = {
-                    **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
-                    "enterprise_node_id": enterprise_data["id"],
-                    "enterprise_slug": enterprise_data["slug"],
-                }
-            for identity in graphql_nodes(saml_provider.get("externalIdentities")):
-                identities.append(
-                    {
-                        **identity,
-                        "saml_provider_id": saml_provider["id"],
-                        "saml_provider_issuer": saml_provider.get("issuer"),
-                        "saml_provider_sso_url": saml_provider.get("ssoUrl"),
-                        "enterprise_node_id": enterprise_data["id"],
-                        "enterprise_slug": enterprise_data["slug"],
-                    }
-                )
-    except Exception:
-        return None, []
-
-    return provider, identities
-
-
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
 def enterprise(data: dict[str, Any]):
     yield data
@@ -187,26 +88,58 @@ def enterprise_organizations(orgs: list[dict[str, Any]]):
     yield from orgs
 
 
-@app.resource(name="enterprise_users", columns=EnterpriseUser, parallelized=True)
-def enterprise_users(members: list[dict[str, Any]]):
-    for member in members:
-        user, _ = flatten_enterprise_member(
-            member, member["enterprise_node_id"], member["enterprise_slug"]
-        )
-        if user:
-            yield user
+@app.transformer(name="enterprise_members", parallelized=True)
+def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
+    enterprise_slug = _enterprise_required(ctx)
+    paginator = GraphQLCursorPaginator(
+        page_info_path="data.enterprise.members.pageInfo",
+        cursor_variable="after",
+        cursor_field="endCursor",
+        has_next_field="hasNextPage",
+    )
+    data = {
+        "query": ENTERPRISE_MEMBERS_QUERY,
+        "variables": {"slug": enterprise_slug, "count": 100, "after": None},
+    }
+
+    for page_data in ctx.client.paginate(
+        "/graphql",
+        method="POST",
+        json=data,
+        paginator=paginator,
+        data_selector="data",
+    ):
+        enterprise_data_page = ((page_data[0] if page_data else {}) or {}).get(
+            "enterprise"
+        ) or {}
+        for edge in (enterprise_data_page.get("members") or {}).get("edges") or []:
+            node = edge.get("node")
+            if node:
+                yield {
+                    **node,
+                    "enterprise_node_id": enterprise_data.id,
+                    "enterprise_slug": enterprise_slug,
+                }
 
 
-@app.resource(
+@app.transformer(name="enterprise_users", columns=EnterpriseUser, parallelized=True)
+def enterprise_users(member: dict[str, Any]):
+    user, _ = flatten_enterprise_member(
+        member, member["enterprise_node_id"], member["enterprise_slug"]
+    )
+    if user:
+        yield user
+
+
+@app.transformer(
     name="enterprise_managed_users", columns=EnterpriseManagedUser, parallelized=True
 )
-def enterprise_managed_users(members: list[dict[str, Any]]):
-    for member in members:
-        _, managed_user = flatten_enterprise_member(
-            member, member["enterprise_node_id"], member["enterprise_slug"]
-        )
-        if managed_user:
-            yield managed_user
+def enterprise_managed_users(member: dict[str, Any]):
+    _, managed_user = flatten_enterprise_member(
+        member, member["enterprise_node_id"], member["enterprise_slug"]
+    )
+    if managed_user:
+        yield managed_user
 
 
 @app.resource(name="enterprise_teams", columns=EnterpriseTeam, parallelized=True)
@@ -395,9 +328,11 @@ def enterprise_admins(ctx: SourceContext, enterprise_data: dict[str, Any]):
             paginator=paginator,
             data_selector="data",
         ):
-            enterprise_data_page = graphql_object(page_data, "enterprise")
+            enterprise_data_page = ((page_data[0] if page_data else {}) or {}).get(
+                "enterprise"
+            ) or {}
             owner_info = enterprise_data_page.get("ownerInfo") or {}
-            for edge in graphql_edges(owner_info.get("admins")):
+            for edge in (owner_info.get("admins") or {}).get("edges") or []:
                 node = edge.get("node")
                 if node and node.get("id"):
                     yield {
@@ -412,18 +347,97 @@ def enterprise_admins(ctx: SourceContext, enterprise_data: dict[str, Any]):
         return
 
 
-@app.resource(
+@app.transformer(
     name="enterprise_saml_provider", columns=EnterpriseSamlProvider, parallelized=True
 )
-def enterprise_saml_provider(provider: dict[str, Any] | None):
-    if provider:
-        yield provider
+def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
+    if ctx.auth_type != "token":
+        return
+
+    enterprise_slug = _enterprise_required(ctx)
+    paginator = GraphQLCursorPaginator(
+        page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
+        cursor_variable="after",
+        cursor_field="endCursor",
+        has_next_field="hasNextPage",
+    )
+    data = {
+        "query": ENTERPRISE_SAML_QUERY,
+        "variables": {"slug": enterprise_slug, "count": 1, "after": None},
+    }
+
+    try:
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            enterprise_page = ((page_data[0] if page_data else {}) or {}).get(
+                "enterprise"
+            ) or {}
+            saml_provider = (enterprise_page.get("ownerInfo") or {}).get(
+                "samlIdentityProvider"
+            )
+            if not saml_provider:
+                return
+            yield {
+                **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
+                "enterprise_node_id": enterprise_data.id,
+                "enterprise_slug": enterprise_slug,
+            }
+            return
+    except Exception:
+        return
 
 
-@app.resource(
+@app.transformer(
     name="enterprise_external_identities",
     columns=EnterpriseExternalIdentity,
     parallelized=True,
 )
-def enterprise_external_identities(identities: list[dict[str, Any]]):
-    yield from identities
+def enterprise_external_identities(
+    saml_provider: EnterpriseSamlProvider, ctx: SourceContext
+):
+    enterprise_slug = _enterprise_required(ctx)
+    paginator = GraphQLCursorPaginator(
+        page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
+        cursor_variable="after",
+        cursor_field="endCursor",
+        has_next_field="hasNextPage",
+    )
+    data = {
+        "query": ENTERPRISE_SAML_QUERY,
+        "variables": {"slug": enterprise_slug, "count": 100, "after": None},
+    }
+
+    try:
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            enterprise_page = ((page_data[0] if page_data else {}) or {}).get(
+                "enterprise"
+            ) or {}
+            page_provider = (enterprise_page.get("ownerInfo") or {}).get(
+                "samlIdentityProvider"
+            )
+            if not page_provider:
+                return
+            for identity in (page_provider.get("externalIdentities") or {}).get(
+                "nodes"
+            ) or []:
+                yield {
+                    **identity,
+                    "saml_provider_id": saml_provider.id,
+                    "saml_provider_issuer": saml_provider.issuer,
+                    "saml_provider_sso_url": saml_provider.sso_url,
+                    "enterprise_node_id": saml_provider.enterprise_node_id,
+                    "enterprise_slug": saml_provider.enterprise_slug,
+                }
+    except Exception:
+        return
