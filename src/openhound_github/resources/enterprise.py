@@ -1,7 +1,7 @@
+from dataclasses import dataclass
 from typing import Any
 
-from openhound_github.models.enterprise import flatten_enterprise_member
-from openhound_github.source_context import SourceContext
+from dlt.sources.helpers.rest_client.client import RESTClient
 
 from openhound_github.graphql import (
     ENTERPRISE_ADMINS_QUERY,
@@ -26,18 +26,21 @@ from openhound_github.models import (
     EnterpriseTeamRole,
     EnterpriseUser,
 )
+from openhound_github.models.enterprise import flatten_enterprise_member
 
 
-def _enterprise_required(ctx: SourceContext) -> str:
-    if not ctx.enterprise_name:
-        raise ValueError("Enterprise resources require enterprise_name to be set.")
-    return ctx.enterprise_name
+@dataclass
+class SourceContext:
+    """Shared context for GitHub API access."""
+
+    client: RESTClient
+    org_name: str | None = None
+    enterprise_name: str | None = None
 
 
-def _enterprise_profile_and_orgs(
-    ctx: SourceContext,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    enterprise_slug = _enterprise_required(ctx)
+@app.resource(name="enterprise", columns=Enterprise, parallelized=True)
+def enterprise(ctx: SourceContext):
+
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.organizations.pageInfo",
         cursor_variable="after",
@@ -46,11 +49,9 @@ def _enterprise_profile_and_orgs(
     )
     data = {
         "query": ENTERPRISE_QUERY,
-        "variables": {"slug": enterprise_slug, "after": None},
+        "variables": {"slug": ctx.enterprise_name, "after": None},
     }
 
-    enterprise: dict[str, Any] | None = None
-    organizations: list[dict[str, Any]] = []
     for page_data in ctx.client.paginate(
         "/graphql",
         method="POST",
@@ -59,43 +60,27 @@ def _enterprise_profile_and_orgs(
         data_selector="data",
     ):
         page_enterprise = page_data[0].get("enterprise")
-        if not page_enterprise:
-            raise ValueError(
-                f"Enterprise '{enterprise_slug}' was not returned by GitHub."
-            )
-        if enterprise is None:
-            enterprise = {
-                k: v for k, v in page_enterprise.items() if k != "organizations"
-            }
-        for org in page_enterprise.get("organizations", {}).get("nodes", []):
-            organizations.append(
-                {
-                    **org,
-                    "enterprise_node_id": enterprise["id"],
-                    "enterprise_slug": enterprise_slug,
-                }
-            )
 
-    if enterprise is None:
-        raise ValueError(f"Enterprise '{enterprise_slug}' was not returned by GitHub.")
-    return enterprise, organizations
+        if page_enterprise:
+            yield page_enterprise
 
 
-@app.resource(name="enterprise", columns=Enterprise, parallelized=True)
-def enterprise(data: dict[str, Any]):
-    yield data
-
-
-@app.resource(
+@app.transformer(
     name="enterprise_organizations", columns=EnterpriseOrganization, parallelized=True
 )
-def enterprise_organizations(orgs: list[dict[str, Any]]):
-    yield from orgs
+def enterprise_organizations(enterprise: Enterprise, ctx: SourceContext):
+    orgs = enterprise.organizations.get("nodes", [])
+    for org in orgs:
+        yield {
+            **org,
+            "enterprise_node_id": enterprise.id,
+            "enterprise_slug": ctx.enterprise_name,
+        }
 
 
 @app.transformer(name="enterprise_members", parallelized=True)
 def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
-    enterprise_slug = _enterprise_required(ctx)
+
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.members.pageInfo",
         cursor_variable="after",
@@ -104,9 +89,8 @@ def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
     )
     data = {
         "query": ENTERPRISE_MEMBERS_QUERY,
-        "variables": {"slug": enterprise_slug, "count": 100, "after": None},
+        "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
-
     for page_data in ctx.client.paginate(
         "/graphql",
         method="POST",
@@ -123,14 +107,14 @@ def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
                 yield {
                     **node,
                     "enterprise_node_id": enterprise_data.id,
-                    "enterprise_slug": enterprise_slug,
+                    "ctx.enterprise_name": ctx.enterprise_name,
                 }
 
 
 @app.transformer(name="enterprise_users", columns=EnterpriseUser, parallelized=True)
 def enterprise_users(member: dict[str, Any]):
     user, _ = flatten_enterprise_member(
-        member, member["enterprise_node_id"], member["enterprise_slug"]
+        member, member["enterprise_node_id"], member["ctx.enterprise_name"]
     )
     if user:
         yield user
@@ -141,7 +125,7 @@ def enterprise_users(member: dict[str, Any]):
 )
 def enterprise_managed_users(member: dict[str, Any]):
     _, managed_user = flatten_enterprise_member(
-        member, member["enterprise_node_id"], member["enterprise_slug"]
+        member, member["enterprise_node_id"], member["ctx.enterprise_name"]
     )
     if managed_user:
         yield managed_user
@@ -149,15 +133,15 @@ def enterprise_managed_users(member: dict[str, Any]):
 
 @app.resource(name="enterprise_teams", columns=EnterpriseTeam, parallelized=True)
 def enterprise_teams(ctx: SourceContext, enterprise_data: dict[str, Any]):
-    enterprise_slug = _enterprise_required(ctx)
+
     for page in ctx.client.paginate(
-        f"/enterprises/{enterprise_slug}/teams", params={"per_page": 100}
+        f"/enterprises/{ctx.enterprise_name}/teams", params={"per_page": 100}
     ):
         for team in page:
             yield {
                 **team,
                 "enterprise_node_id": enterprise_data["id"],
-                "enterprise_slug": enterprise_slug,
+                "ctx.enterprise_name": ctx.enterprise_name,
             }
 
 
@@ -170,7 +154,7 @@ def enterprise_team_roles(team: EnterpriseTeam):
         "name": team.name,
         "slug": team.slug,
         "enterprise_node_id": team.enterprise_node_id,
-        "enterprise_slug": team.enterprise_slug,
+        "ctx.enterprise_name": team.ctx.enterprise_name,
     }
 
 
@@ -178,9 +162,9 @@ def enterprise_team_roles(team: EnterpriseTeam):
     name="enterprise_team_members", columns=EnterpriseTeamMember, parallelized=True
 )
 def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
-    enterprise_slug = _enterprise_required(ctx)
+
     for page in ctx.client.paginate(
-        f"/enterprises/{enterprise_slug}/teams/{team.id}/memberships",
+        f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/memberships",
         params={"per_page": 100},
     ):
         for member in page:
@@ -191,7 +175,8 @@ def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
                     "node_id": node_id,
                     "team_id": team.id,
                     "enterprise_node_id": team.enterprise_node_id,
-                    "enterprise_slug": team.enterprise_slug,
+                    "ctx.enterprise_name": team.ctx.enterprise_name,
+                }
 
 
 @app.transformer(
@@ -200,9 +185,9 @@ def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
     parallelized=True,
 )
 def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
-    enterprise_slug = _enterprise_required(ctx)
+
     for page in ctx.client.paginate(
-        f"/enterprises/{enterprise_slug}/teams/{team.id}/organizations",
+        f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/organizations",
         params={"per_page": 100},
     ):
         for org in page:
@@ -214,20 +199,22 @@ def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
                     "team_id": team.id,
                     "projected_slug": team.slug,
                     "enterprise_node_id": team.enterprise_node_id,
-                    "enterprise_slug": team.enterprise_slug,
+                    "ctx.enterprise_name": team.ctx.enterprise_name,
                 }
 
 
 @app.resource(name="enterprise_roles", columns=EnterpriseRole, parallelized=True)
 def enterprise_roles(ctx: SourceContext, enterprise_data: dict[str, Any]):
-    enterprise_slug = _enterprise_required(ctx)
-    result = ctx.client.get(f"/enterprises/{enterprise_slug}/enterprise-roles").json()
+
+    result = ctx.client.get(
+        f"/enterprises/{ctx.enterprise_name}/enterprise-roles"
+    ).json()
 
     for role in result.get("roles", []):
         yield {
             **role,
             "enterprise_node_id": enterprise_data["id"],
-            "enterprise_slug": enterprise_slug,
+            "ctx.enterprise_name": ctx.enterprise_name,
         }
 
 
@@ -242,7 +229,7 @@ def enterprise_admin_roles(ctx: SourceContext, enterprise_data: dict[str, Any]):
         "source": "Default",
         "permissions": [],
         "enterprise_node_id": enterprise_data["id"],
-        "enterprise_slug": _enterprise_required(ctx),
+        "ctx.enterprise_name": _enterprise_required(ctx),
     }
 
 
@@ -252,9 +239,9 @@ def enterprise_admin_roles(ctx: SourceContext, enterprise_data: dict[str, Any]):
 def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
     if role.id == "owners":
         return
-    enterprise_slug = _enterprise_required(ctx)
+
     for page in ctx.client.paginate(
-        f"/enterprises/{enterprise_slug}/enterprise-roles/{role.id}/users",
+        f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/users",
         params={"per_page": 100},
     ):
         for user in page:
@@ -263,7 +250,7 @@ def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
                     **user,
                     "role_id": role.id,
                     "enterprise_node_id": role.enterprise_node_id,
-                    "enterprise_slug": role.enterprise_slug,
+                    "ctx.enterprise_name": role.ctx.enterprise_name,
                 }
 
 
@@ -273,9 +260,9 @@ def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
 def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
     if role.id == "owners":
         return
-    enterprise_slug = _enterprise_required(ctx)
+
     for page in ctx.client.paginate(
-        f"/enterprises/{enterprise_slug}/enterprise-roles/{role.id}/teams",
+        f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/teams",
         params={"per_page": 100},
     ):
         for team in page:
@@ -284,7 +271,7 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
                     **team,
                     "role_id": role.id,
                     "enterprise_node_id": role.enterprise_node_id,
-                    "enterprise_slug": role.enterprise_slug,
+                    "ctx.enterprise_name": role.ctx.enterprise_name,
                 }
 
 
@@ -293,7 +280,6 @@ def enterprise_admins(ctx: SourceContext, enterprise_data: dict[str, Any]):
     if ctx.auth_type != "token":
         return
 
-    enterprise_slug = _enterprise_required(ctx)
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.admins.pageInfo",
         cursor_variable="after",
@@ -302,7 +288,7 @@ def enterprise_admins(ctx: SourceContext, enterprise_data: dict[str, Any]):
     )
     data = {
         "query": ENTERPRISE_ADMINS_QUERY,
-        "variables": {"slug": enterprise_slug, "count": 100, "after": None},
+        "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
     for page_data in ctx.client.paginate(
         "/graphql",
@@ -324,7 +310,7 @@ def enterprise_admins(ctx: SourceContext, enterprise_data: dict[str, Any]):
                     "assignment": "direct",
                     "role_id": "owners",
                     "enterprise_node_id": enterprise_data["id"],
-                    "enterprise_slug": enterprise_slug,
+                    "ctx.enterprise_name": ctx.enterprise_name,
                 }
 
 
@@ -335,7 +321,6 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
     if ctx.auth_type != "token":
         return
 
-    enterprise_slug = _enterprise_required(ctx)
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
         cursor_variable="after",
@@ -344,7 +329,7 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
     )
     data = {
         "query": ENTERPRISE_SAML_QUERY,
-        "variables": {"slug": enterprise_slug, "count": 1, "after": None},
+        "variables": {"slug": ctx.enterprise_name, "count": 1, "after": None},
     }
 
     for page_data in ctx.client.paginate(
@@ -365,7 +350,7 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         yield {
             **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
             "enterprise_node_id": enterprise_data.id,
-            "enterprise_slug": enterprise_slug,
+            "ctx.enterprise_name": ctx.enterprise_name,
         }
 
 
@@ -377,7 +362,7 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
 def enterprise_external_identities(
     saml_provider: EnterpriseSamlProvider, ctx: SourceContext
 ):
-    enterprise_slug = _enterprise_required(ctx)
+
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
         cursor_variable="after",
@@ -386,7 +371,7 @@ def enterprise_external_identities(
     )
     data = {
         "query": ENTERPRISE_SAML_QUERY,
-        "variables": {"slug": enterprise_slug, "count": 100, "after": None},
+        "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
 
     for page_data in ctx.client.paginate(
@@ -413,5 +398,15 @@ def enterprise_external_identities(
                 "saml_provider_issuer": saml_provider.issuer,
                 "saml_provider_sso_url": saml_provider.sso_url,
                 "enterprise_node_id": saml_provider.enterprise_node_id,
-                "enterprise_slug": saml_provider.enterprise_slug,
+                "ctx.enterprise_name": saml_provider.ctx.enterprise_name,
             }
+
+
+def enterprise_resources(ctx: SourceContext):
+    enterprise_resource = enterprise(ctx)
+
+    organizations_resource = enterprise_organizations(ctx)
+    return (
+        enterprise_resource,
+        enterprise_resource | organizations_resource,
+    )
