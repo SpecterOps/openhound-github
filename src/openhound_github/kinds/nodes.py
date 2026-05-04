@@ -14,6 +14,7 @@ ENVIRONMENT_VARIABLE = "GH_EnvironmentVariable"
 # Identity nodes
 EXTERNAL_IDENTITY = "GH_ExternalIdentity"
 SAML_IDENTITY_PROVIDER = "GH_SamlIdentityProvider"
+ENTERPRISE_MANAGED_USER = "GH_EnterpriseManagedUser"
 
 # Organization nodes
 ORGANIZATION = "GH_Organization"
@@ -54,3 +55,9 @@ USER = "GH_User"
 
 # Workflow nodes
 WORKFLOW = "GH_Workflow"
+
+
+# Enterprise nodes
+ENTERPRISE = "GH_Enterprise"
+ENTERPRISE_TEAM = "GH_EnterpriseTeam"
+ENTERPRISE_ROLE = "GH_EnterpriseRole"
