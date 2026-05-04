@@ -60,6 +60,7 @@ class EnvironmentVariable(BaseAsset):
     updated_at: datetime | None = None
 
     # Additional
+    org_login: str
     environment_node_id: str
     environment_name: str
     repository_name: str

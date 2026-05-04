@@ -95,9 +95,7 @@ class GHRepositoryProperties(GHNodeProperties):
     )
     self_hosted_runners_enabled: bool | None = field(
         default=None,
-        metadata={
-            "description": "Whether the repository may use self-hosted runners."
-        },
+        metadata={"description": "Whether the repository may use self-hosted runners."},
     )
     secret_scanning: str | None = field(
         default=None,
@@ -163,10 +161,14 @@ class Ref(BaseModel):
 
 
 class RepositoryQL(BaseModel):
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
     id: str
     name: str
     refs: Ref
-    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
+    # Additional
+    org_login: str
 
 
 @app.asset(
@@ -215,6 +217,9 @@ class Repository(BaseAsset):
     watchers: int | None = None
     actions_enabled: bool | None = None
     self_hosted_runners_enabled: bool | None = None
+
+    # Additional
+    org_login: str
 
     @property
     def owner_id(self) -> str:

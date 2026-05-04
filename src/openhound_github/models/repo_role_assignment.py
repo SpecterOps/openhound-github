@@ -56,6 +56,7 @@ class RepoRoleAssignment(BaseAsset):
     role_name: str | None = None
 
     # Additional
+    org_login: str
     assignee_type: str  # "user" or "team"
     repo_node_id: str
     repo_name: str

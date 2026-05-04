@@ -193,6 +193,9 @@ class BaseRepoRole(BaseModel):
     organization: Organization | None = None
     base_role: str
 
+    # Additional
+    org_login: str
+
 
 @dataclass
 class GHRepoRoleProperties(GHNodeProperties):
@@ -680,6 +683,7 @@ class RepoRole(BaseAsset):
     base_role: str | None = None
 
     # Additional
+    org_login: str
     type: str
     repository_node_id: str
     repository_name: str

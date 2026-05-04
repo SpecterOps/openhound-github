@@ -126,6 +126,9 @@ class ExternalIdentity(BaseAsset):
     scim_identity: SCIMIdentity | None = Field(alias="scimIdentity")
     user: User | None = None
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self) -> str:
         return self.id

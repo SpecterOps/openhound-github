@@ -70,17 +70,8 @@ class OrgSecret(BaseAsset):
     updated_at: datetime | None = None
     visibility: str
 
-    # node_id: str  # synthetic: "GH_OrgSecret_{org_node_id}_{name}"
-    # org_name: str
-    # org_node_id: str
-
-    # node_id: str
-    # name: str
-    # org_name: str
-    # org_node_id: str
-    # visibility: str
-    # created_at: str | None = None
-    # updated_at: str | None = None
+    # Additional
+    org_login: str
 
     @property
     def node_id(self) -> str:
@@ -158,6 +149,7 @@ class SelectedOrgSecret(BaseAsset):
     name: str
     repository_node_id: str
     repository_full_name: str
+    org_login: str
 
     @property
     def node_id(self) -> str:

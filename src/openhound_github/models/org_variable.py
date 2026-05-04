@@ -66,6 +66,9 @@ class OrgVariable(BaseAsset):
     updated_at: datetime | None = None
     visibility: str
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self) -> str:
         org_node_id = self._lookup.org_id()

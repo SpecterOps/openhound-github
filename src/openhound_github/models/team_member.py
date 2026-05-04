@@ -25,6 +25,9 @@ class TeamMember(BaseAsset):
     id: str
     role: str  # "MEMBER" or "MAINTAINER"
 
+    # Additional
+    org_login: str
+
     @property
     def team_node_id(self) -> str:
         """The ID from a GraphQL API response is the same as a regular node_id"""

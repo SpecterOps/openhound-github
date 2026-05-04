@@ -128,6 +128,7 @@ class SecretScanningAlert(BaseAsset):
     validity: str | None = None
 
     # Additional
+    org_login: str
     valid_token_user_node_id: str | None = (
         None  # based on lookup of users with valid tokens matching the secret
     )

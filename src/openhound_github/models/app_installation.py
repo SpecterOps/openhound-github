@@ -145,6 +145,9 @@ class AppInstallation(BaseAsset):
     description: str | None = None
     access_tokens_url: str | None = None
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self):
         return f"GH_AppInstallation_{self.id}"
@@ -311,6 +314,9 @@ class App(BaseAsset):
     html_url: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    # Additional
+    org_login: str
 
     @property
     def as_node(self):

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterator
 
@@ -74,7 +74,7 @@ class SourceContext:
     """Shared context for GitHub API access."""
 
     client: RESTClient
-    org_name: str | None = None
+    org_names: list[str] = field(default_factory=list)
     enterprise_name: str | None = None
 
 
@@ -170,34 +170,36 @@ def organizations(ctx: SourceContext):
     Yields:
         Organization (Organization): Organization, org role, member, and team records.
     """
-    org_data = ctx.client.get(f"/orgs/{ctx.org_name}").json()
 
-    actions = ctx.client.get(f"/orgs/{ctx.org_name}/actions/permissions").json()
-    self_hosted_runners = ctx.client.get(
-        f"/orgs/{ctx.org_name}/actions/permissions/self-hosted-runners"
-    ).json()
-    workflow_perms = ctx.client.get(
-        f"/orgs/{ctx.org_name}/actions/permissions/workflow"
-    ).json()
+    for org_name in ctx.org_names:
+        org_data = ctx.client.get(f"/orgs/{org_name}").json()
 
-    org_data["actions_enabled_repositories"] = actions.get("enabled_repositories")
-    org_data["actions_allowed_actions"] = actions.get("allowed_actions")
-    org_data["actions_sha_pinning_required"] = actions.get("sha_pinning_required")
-    org_data["self_hosted_runners_enabled_repositories"] = self_hosted_runners.get(
-        "enabled_repositories"
-    )
-    org_data["default_workflow_permissions"] = workflow_perms.get(
-        "default_workflow_permissions"
-    )
-    org_data["can_approve_pull_request_reviews"] = workflow_perms.get(
-        "can_approve_pull_request_reviews"
-    )
+        actions = ctx.client.get(f"/orgs/{org_name}/actions/permissions").json()
+        self_hosted_runners = ctx.client.get(
+            f"/orgs/{org_name}/actions/permissions/self-hosted-runners"
+        ).json()
+        workflow_perms = ctx.client.get(
+            f"/orgs/{org_name}/actions/permissions/workflow"
+        ).json()
 
-    yield org_data
+        org_data["actions_enabled_repositories"] = actions.get("enabled_repositories")
+        org_data["actions_allowed_actions"] = actions.get("allowed_actions")
+        org_data["actions_sha_pinning_required"] = actions.get("sha_pinning_required")
+        org_data["self_hosted_runners_enabled_repositories"] = self_hosted_runners.get(
+            "enabled_repositories"
+        )
+        org_data["default_workflow_permissions"] = workflow_perms.get(
+            "default_workflow_permissions"
+        )
+        org_data["can_approve_pull_request_reviews"] = workflow_perms.get(
+            "can_approve_pull_request_reviews"
+        )
+
+        yield org_data
 
 
-@app.resource(name="org_roles", columns=OrgRole, parallelized=True)
-def org_roles(ctx: SourceContext, orgs: list[dict]):
+@app.transformer(name="org_roles", columns=OrgRole, parallelized=True)
+def org_roles(org: Organization, ctx: SourceContext):
     """Fetch default and custom organization roles from the GitHub API.
 
     Yields the built-in 'owners' and 'members' roles, then fetches any custom
@@ -210,7 +212,6 @@ def org_roles(ctx: SourceContext, orgs: list[dict]):
     Yields:
         OrgRole (OrgRole): Organization role record.
     """
-    org = Organization(**orgs[0])
 
     yield {
         "id": 1,
@@ -235,7 +236,7 @@ def org_roles(ctx: SourceContext, orgs: list[dict]):
     }
 
     for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/organization-roles", params={"per_page": 100}
+        f"/orgs/{org.login}/organization-roles", params={"per_page": 100}
     ):
         for role in page:
             yield {
@@ -262,10 +263,16 @@ def org_role_teams(role: OrgRole, ctx: SourceContext):
 
     if role.type == "custom":
         for page in ctx.client.paginate(
-            f"/orgs/{ctx.org_name}/organization-roles/{role.id}/teams"
+            f"/orgs/{role.org_login}/organization-roles/{role.id}/teams"
         ):
             for team in page:
-                yield {"org_role_id": role.id, "org_role_name": role.name, **team}
+                yield {
+                    "org_role_id": role.id,
+                    "org_role_name": role.name,
+                    "org_node_id": role.org_node_id,
+                    "org_login": role.org_login,
+                    **team,
+                }
 
 
 @app.transformer(name="org_role_members", columns=OrgRoleMember, parallelized=True)
@@ -283,13 +290,15 @@ def org_role_members(role: OrgRole, ctx: SourceContext):
     """
     if role.type == "custom":
         for page in ctx.client.paginate(
-            f"/orgs/{ctx.org_name}/organization-roles/{role.id}/users"
+            f"/orgs/{role.org_login}/organization-roles/{role.id}/users"
         ):
             for user in page:
                 yield {
                     **user,
                     "org_role_name": role.name,
                     "org_role_id": role.id,
+                    "org_node_id": role.org_node_id,
+                    "org_login": role.org_login,
                 }
 
 
@@ -303,9 +312,10 @@ def app_installations(ctx: SourceContext):
     Yields:
         AppInstallation (AppInstallation): App installation record.
     """
-    for page in ctx.client.paginate(f"/orgs/{ctx.org_name}/installations"):
-        for item in page:
-            yield item
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(f"/orgs/{org_name}/installations"):
+            for item in page:
+                yield {**item, "org_login": org_name}
 
 
 @app.transformer(name="applications", columns=App, parallelized=True)
@@ -323,7 +333,7 @@ def applications(app_install: AppInstallation, ctx: SourceContext):
     if app_install.id:
         app_data = ctx.client.get(f"/apps/{app_slug}").json()
         if app_data.get("node_id"):
-            yield {**app_data, "slug": app_slug}
+            yield {**app_data, "slug": app_slug, "org_login": app_install.org_login}
 
 
 @app.resource(name="users", columns=User, parallelized=True)
@@ -339,27 +349,29 @@ def users(ctx: SourceContext) -> Iterator[dict[str, Any]]:
     Yields:
         User (User): User record.
     """
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.organization.membersWithRole.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-    )
-    data = {
-        "query": MEMBERS_WITH_ROLE_QUERY,
-        "variables": {"login": ctx.org_name, "count": 100, "after": None},
-    }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        for edge in page_data[0]["organization"]["membersWithRole"]["edges"]:
-            node = edge.get("node", {})
-            yield {**node, **edge}
+    for org_name in ctx.org_names:
+        paginator = GraphQLCursorPaginator(
+            page_info_path="data.organization.membersWithRole.pageInfo",
+            cursor_variable="after",
+            cursor_field="endCursor",
+            has_next_field="hasNextPage",
+        )
+        data = {
+            "query": MEMBERS_WITH_ROLE_QUERY,
+            "variables": {"login": org_name, "count": 100, "after": None},
+        }
+
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for edge in page_data[0]["organization"]["membersWithRole"]["edges"]:
+                node = edge.get("node", {})
+                yield {**node, **edge, "org_login": org_name}
 
 
 @app.resource(name="teams", columns=Team, parallelized=True)
@@ -380,27 +392,28 @@ def teams(ctx: SourceContext):
         Team (Team): Team record lol!.
     """
 
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.organization.teams.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-    )
-    data = {
-        "query": TEAMS_QUERY,
-        "variables": {"login": ctx.org_name, "count": 100, "after": None},
-    }
+    for org_name in ctx.org_names:
+        paginator = GraphQLCursorPaginator(
+            page_info_path="data.organization.teams.pageInfo",
+            cursor_variable="after",
+            cursor_field="endCursor",
+            has_next_field="hasNextPage",
+        )
+        data = {
+            "query": TEAMS_QUERY,
+            "variables": {"login": org_name, "count": 100, "after": None},
+        }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        teams_data = page_data[0]["organization"]["teams"]
-        for team in teams_data["nodes"]:
-            yield team
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            teams_data = page_data[0]["organization"]["teams"]
+            for team in teams_data["nodes"]:
+                yield {**team, "org_login": org_name}
 
 
 @app.transformer(name="team_roles", columns=TeamRole, parallelized=True)
@@ -419,6 +432,7 @@ def team_roles(team: Team):
             "team_node_id": team.node_id,
             "team_name": team.name,
             "team_slug": team.slug,
+            "org_login": team.org_login,
         }
 
 
@@ -442,6 +456,7 @@ def team_members(team: Team, ctx: SourceContext):
             "id": member.node.id,
             "login": member.node.login,
             "role": member.role,
+            "org_login": team.org_login,
         }
 
     paginator = GraphQLCursorPaginator(
@@ -474,13 +489,18 @@ def team_members(team: Team, ctx: SourceContext):
                     "id": member["node"]["id"],
                     "login": member["node"]["login"],
                     "role": member["role"],
+                    "org_login": team.org_login,
                 }
 
 
 @app.resource(name="actions_permissions", columns=ActionPermission, parallelized=True)
 def actions_permissions(ctx):
-    actions = ctx.client.get(f"/orgs/{ctx.org_name}/actions/permissions").json()
-    yield actions
+    for org_name in ctx.org_names:
+        actions = ctx.client.get(f"/orgs/{org_name}/actions/permissions").json()
+        yield {
+            **actions,
+            "org_login": org_name,
+        }
 
 
 @app.resource(name="repositories", columns=Repository, parallelized=True)
@@ -493,54 +513,56 @@ def repositories(ctx: SourceContext):
     Yields:
         Repository (Repository): Repository record.
     """
-    actions = ctx.client.get(f"/orgs/{ctx.org_name}/actions/permissions").json()
-    runner_settings = ctx.client.get(
-        f"/orgs/{ctx.org_name}/actions/permissions/self-hosted-runners"
-    ).json()
+    for org_name in ctx.org_names:
+        actions = ctx.client.get(f"/orgs/{org_name}/actions/permissions").json()
+        runner_settings = ctx.client.get(
+            f"/orgs/{org_name}/actions/permissions/self-hosted-runners"
+        ).json()
 
-    enabled_repo_ids: set[str] | None = None
-    if actions.get("enabled_repositories") == "selected":
-        enabled_repo_ids = set()
+        enabled_repo_ids: set[str] | None = None
+        if actions.get("enabled_repositories") == "selected":
+            enabled_repo_ids = set()
+            for page in ctx.client.paginate(
+                f"/orgs/{org_name}/actions/permissions/repositories",
+                params={"per_page": 100},
+                data_selector="repositories",
+            ):
+                enabled_repo_ids.update(
+                    repo["node_id"] for repo in page if repo.get("node_id")
+                )
+
+        runner_enabled_repo_ids: set[str] | None = None
+        if runner_settings.get("enabled_repositories") == "selected":
+            runner_enabled_repo_ids = set()
+            for page in ctx.client.paginate(
+                f"/orgs/{org_name}/actions/permissions/self-hosted-runners/repositories",
+                params={"per_page": 100},
+                data_selector="repositories",
+            ):
+                runner_enabled_repo_ids.update(
+                    repo["node_id"] for repo in page if repo.get("node_id")
+                )
+
         for page in ctx.client.paginate(
-            f"/orgs/{ctx.org_name}/actions/permissions/repositories",
-            params={"per_page": 100},
-            data_selector="repositories",
+            f"/orgs/{org_name}/repos", params={"per_page": 100}
         ):
-            enabled_repo_ids.update(
-                repo["node_id"] for repo in page if repo.get("node_id")
-            )
-
-    runner_enabled_repo_ids: set[str] | None = None
-    if runner_settings.get("enabled_repositories") == "selected":
-        runner_enabled_repo_ids = set()
-        for page in ctx.client.paginate(
-            f"/orgs/{ctx.org_name}/actions/permissions/self-hosted-runners/repositories",
-            params={"per_page": 100},
-            data_selector="repositories",
-        ):
-            runner_enabled_repo_ids.update(
-                repo["node_id"] for repo in page if repo.get("node_id")
-            )
-
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/repos", params={"per_page": 100}
-    ):
-        for repo in page:
-            repo_node_id = repo.get("node_id")
-            actions_enabled = actions.get("enabled_repositories") == "all" or (
-                enabled_repo_ids is not None and repo_node_id in enabled_repo_ids
-            )
-            self_hosted_runners_enabled = runner_settings.get(
-                "enabled_repositories"
-            ) == "all" or (
-                runner_enabled_repo_ids is not None
-                and repo_node_id in runner_enabled_repo_ids
-            )
-            yield {
-                **repo,
-                "actions_enabled": actions_enabled,
-                "self_hosted_runners_enabled": self_hosted_runners_enabled,
-            }
+            for repo in page:
+                repo_node_id = repo.get("node_id")
+                actions_enabled = actions.get("enabled_repositories") == "all" or (
+                    enabled_repo_ids is not None and repo_node_id in enabled_repo_ids
+                )
+                self_hosted_runners_enabled = runner_settings.get(
+                    "enabled_repositories"
+                ) == "all" or (
+                    runner_enabled_repo_ids is not None
+                    and repo_node_id in runner_enabled_repo_ids
+                )
+                yield {
+                    **repo,
+                    "actions_enabled": actions_enabled,
+                    "self_hosted_runners_enabled": self_hosted_runners_enabled,
+                    "org_login": org_name,
+                }
 
 
 @app.transformer(
@@ -572,7 +594,7 @@ def repo_role_assignments(
     custom_roles = {role["name"]: BaseRepoRole(**role) for role in roles}
 
     for collab_page in ctx.client.paginate(
-        f"/repos/{ctx.org_name}/{repo_name}/collaborators",
+        f"/repos/{repo.org_login}/{repo_name}/collaborators",
         params={"affiliation": "direct", "per_page": 100},
     ):
         for collaborator in collab_page:
@@ -580,6 +602,7 @@ def repo_role_assignments(
             custom_role = custom_roles.get(role)
             yield {
                 **collaborator,
+                "org_login": repo.org_login,
                 "assignee_type": "user",
                 "repo_node_id": repo_node_id,
                 "repo_name": repo_name,
@@ -590,7 +613,7 @@ def repo_role_assignments(
 
     # Team access
     for team_page in ctx.client.paginate(
-        f"/repos/{ctx.org_name}/{repo_name}/teams",
+        f"/repos/{repo.org_login}/{repo_name}/teams",
         params={"per_page": 100},
     ):
         for team in team_page:
@@ -601,6 +624,7 @@ def repo_role_assignments(
                 **team,
                 "assignee_type": "team",
                 "repo_node_id": repo_node_id,
+                "org_login": repo.org_login,
                 "repo_name": repo_name,
                 "role_name": role,
                 "base_role": custom_role.base_role if custom_role else None,
@@ -618,10 +642,15 @@ def repository_roles_base(ctx: SourceContext):
     Yields:
         list[dict] (list[dict]): Pages of raw custom repository role records from the GitHub API.
     """
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/custom-repository-roles", params={"per_page": 100}
-    ):
-        yield page
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/custom-repository-roles", params={"per_page": 100}
+        ):
+            for item in page:
+                yield {
+                    **item,
+                    "org_login": org_name,
+                }
 
 
 @app.transformer(name="repo_roles", columns=RepoRole, parallelized=True)
@@ -649,6 +678,7 @@ def repository_roles(repository: Repository, roles: list[dict]):
             "repository_name": repository.name,
             "repository_node_id": repository.node_id,
             "repository_visibility": repository.visibility,
+            "org_login": repository.org_login,
         }
 
     for role in roles:
@@ -663,6 +693,7 @@ def repository_roles(repository: Repository, roles: list[dict]):
             "repository_name": repository.name,
             "repository_node_id": repository.node_id,
             "repository_visibility": repository.visibility,
+            "org_login": repository.org_login,
         }
 
 
@@ -680,27 +711,28 @@ def repositories_graphql(ctx: SourceContext):
     Yields:
         RepositoryQL (RepositoryQL): Repository record with nested branch ref data.
     """
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.organization.repositories.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-    )
-    data = {
-        "query": REPO_REFS_QUERY,
-        "variables": {"login": ctx.org_name, "count": 100, "after": None},
-    }
+    for org_name in ctx.org_names:
+        paginator = GraphQLCursorPaginator(
+            page_info_path="data.organization.repositories.pageInfo",
+            cursor_variable="after",
+            cursor_field="endCursor",
+            has_next_field="hasNextPage",
+        )
+        data = {
+            "query": REPO_REFS_QUERY,
+            "variables": {"login": org_name, "count": 100, "after": None},
+        }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        repos_page = page_data[0]["organization"]["repositories"]
-        for repo in repos_page["nodes"]:
-            yield repo
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            repos_page = page_data[0]["organization"]["repositories"]
+            for repo in repos_page["nodes"]:
+                yield {**repo, "org_login": org_name}
 
 
 @app.transformer(name="branches", columns=Branch, parallelized=True)
@@ -729,6 +761,7 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
             **branch.model_dump(),
             "repository_node_id": repository.id,
             "repository_name": repository.name,
+            "org_login": repository.org_login,
         }
 
     if repository.refs.page_info.has_next_page:
@@ -754,6 +787,7 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
                     **branch,
                     "repository_node_id": repository.id,
                     "repository_name": repository.name,
+                    "org_login": repository.org_login,
                 }
 
 
@@ -794,6 +828,7 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
             for rule in response["data"].get("nodes", []):
                 yield {
                     **rule,
+                    "org_login": repository.org_login,
                     "repository_node_id": repository.id,
                     "repository_name": repository.name,
                 }
@@ -820,6 +855,7 @@ def workflows(repo: Repository, ctx: SourceContext):
                     **workflow,
                     "repository_name": repo.name,
                     "repository_node_id": repo.node_id,
+                    "org_login": repo.org_login,
                 }
 
 
@@ -846,6 +882,7 @@ def environments(repo: Repository, ctx: SourceContext):
         for env in page:
             yield {
                 **env,
+                "org_login": repo.org_login,
                 "repository_name": repo_name,
                 "repository_full_name": full_name,
                 "repository_node_id": repo_node_id,
@@ -854,24 +891,32 @@ def environments(repo: Repository, ctx: SourceContext):
 
 @app.resource(name="runner_groups", columns=RunnerGroup, parallelized=True)
 def runner_groups(ctx: SourceContext):
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/actions/runner-groups",
-        params={"per_page": 100},
-        data_selector="runner_groups",
-    ):
-        for group in page:
-            yield group
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/actions/runner-groups",
+            params={"per_page": 100},
+            data_selector="runner_groups",
+        ):
+            for group in page:
+                yield {
+                    **group,
+                    "org_login": org_name,
+                }
 
 
 @app.resource(name="org_runners", columns=OrgRunner, parallelized=True)
 def org_runners(ctx: SourceContext):
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/actions/runners",
-        params={"per_page": 100},
-        data_selector="runners",
-    ):
-        for runner in page:
-            yield runner
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/actions/runners",
+            params={"per_page": 100},
+            data_selector="runners",
+        ):
+            for runner in page:
+                yield {
+                    **runner,
+                    "org_login": org_name,
+                }
 
 
 @app.resource(
@@ -880,27 +925,31 @@ def org_runners(ctx: SourceContext):
     parallelized=True,
 )
 def org_runner_group_memberships(ctx: SourceContext, repos: list):
-    for group_page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/actions/runner-groups",
-        params={"per_page": 100},
-        data_selector="runner_groups",
-    ):
-        for group in group_page:
-            accessible_repo_node_ids = _runner_group_repo_node_ids(group, ctx, repos)
-            try:
-                for runner_page in ctx.client.paginate(
-                    f"/orgs/{ctx.org_name}/actions/runner-groups/{group['id']}/runners",
-                    params={"per_page": 100},
-                    data_selector="runners",
-                ):
-                    for runner in runner_page:
-                        yield {
-                            "runner_group_id": group["id"],
-                            "runner_id": runner["id"],
-                            "accessible_repo_node_ids": accessible_repo_node_ids,
-                        }
-            except Exception:
-                continue
+    for org_name in ctx.org_names:
+        for group_page in ctx.client.paginate(
+            f"/orgs/{org_name}/actions/runner-groups",
+            params={"per_page": 100},
+            data_selector="runner_groups",
+        ):
+            for group in group_page:
+                accessible_repo_node_ids = _runner_group_repo_node_ids(
+                    group, ctx, repos
+                )
+                try:
+                    for runner_page in ctx.client.paginate(
+                        f"/orgs/{org_name}/actions/runner-groups/{group['id']}/runners",
+                        params={"per_page": 100},
+                        data_selector="runners",
+                    ):
+                        for runner in runner_page:
+                            yield {
+                                "runner_group_id": group["id"],
+                                "runner_id": runner["id"],
+                                "accessible_repo_node_ids": accessible_repo_node_ids,
+                                "org_login": org_name,
+                            }
+                except Exception:
+                    continue
 
 
 @app.transformer(name="repo_runners", columns=RepoRunner, parallelized=True)
@@ -918,6 +967,7 @@ def repo_runners(repo: Repository, ctx: SourceContext):
                 "repository_name": repo.name,
                 "repository_node_id": repo.node_id,
                 "repository_full_name": repo.full_name,
+                "org_login": repo.org_login,
             }
 
 
@@ -947,6 +997,7 @@ def environment_variables(environment: Environment, ctx: SourceContext):
         for item in page:
             yield {
                 **item,
+                "org_login": environment.org_login,
                 "environment_node_id": env_node_id,
                 "environment_name": env_name,
                 "repository_name": repo_name,
@@ -988,6 +1039,7 @@ def environment_branch_policies(environment: Environment, ctx: SourceContext):
                     "environment_name": env_name,
                     "repository_name": repo_name,
                     "repository_node_id": repo_node_id,
+                    "org_login": environment.org_login,
                 }
 
 
@@ -1016,6 +1068,7 @@ def environment_secrets(environment: Environment, ctx: SourceContext):
         for secret in page:
             yield {
                 **secret,
+                "org_login": environment.org_login,
                 "repository_name": repo_name,
                 "repository_node_id": repo_node_id,
                 "environment_name": env_name,
@@ -1049,11 +1102,15 @@ def organization_secrets(ctx: SourceContext):
         OrgSecret (OrgSecret): Organization secret record.
     """
 
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/actions/secrets", params={"per_page": 100}
-    ):
-        for item in page:
-            yield item
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/actions/secrets", params={"per_page": 100}
+        ):
+            for item in page:
+                yield {
+                    **item,
+                    "org_login": org_name,
+                }
 
 
 @app.transformer(
@@ -1073,7 +1130,7 @@ def selected_organization_secrets(secret: OrgSecret, ctx: SourceContext):
     """
     if secret.visibility == "selected":
         for page in ctx.client.paginate(
-            f"/orgs/{ctx.org_name}/actions/secrets/{secret.name}/repositories",
+            f"/orgs/{secret.org_login}/actions/secrets/{secret.name}/repositories",
             params={"per_page": 100},
         ):
             for repo in page:
@@ -1081,6 +1138,7 @@ def selected_organization_secrets(secret: OrgSecret, ctx: SourceContext):
                     "name": secret.name,
                     "repository_full_name": repo["full_name"],
                     "repository_node_id": repo["node_id"],
+                    "org_login": secret.org_login,
                 }
 
 
@@ -1094,11 +1152,15 @@ def organization_variables(ctx: SourceContext):
     Yields:
         OrgVariable (OrgVariable): Organization variable record.
     """
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/actions/variables", params={"per_page": 100}
-    ):
-        for item in page:
-            yield item
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/actions/variables", params={"per_page": 100}
+        ):
+            for item in page:
+                yield {
+                    **item,
+                    "org_login": org_name,
+                }
 
 
 @app.transformer(
@@ -1120,13 +1182,14 @@ def selected_organization_variables(variable: OrgVariable, ctx: SourceContext):
     """
     if variable.visibility == "selected":
         for page in ctx.client.paginate(
-            f"/orgs/{ctx.org_name}/actions/variables/{variable.name}/repositories",
+            f"/orgs/{variable.org_login}/actions/variables/{variable.name}/repositories",
             params={"per_page": 100},
         ):
             for repo in page:
                 yield {
                     "name": variable.name,
                     "repository_node_id": repo["node_id"],
+                    "org_login": variable.org_login,
                 }
 
 
@@ -1147,6 +1210,7 @@ def repository_secrets(repo: Repository, ctx: SourceContext):
         for secret in page:
             yield {
                 **secret,
+                "org_login": repo.org_login,
                 "repository_name": repo.full_name,
                 "repository_node_id": repo.node_id,
             }
@@ -1172,6 +1236,7 @@ def repository_variables(repo: Repository, ctx: SourceContext):
         for variable in page:
             yield {
                 **variable,
+                "org_login": repo.org_login,
                 "repository_name": repo.full_name,
                 "repository_node_id": repo.node_id,
             }
@@ -1195,29 +1260,34 @@ def secret_scanning_alerts(ctx: SourceContext):
         SecretScanningAlert (SecretScanningAlert): A secret scanning alert.
     """
 
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/secret-scanning/alerts", params={"per_page": 100}
-    ):
-        for alert in page:
-            valid_token_user_node_id: str | None = None
-            secret = alert.get("secret")
-            if (
-                alert.get("state") == "open"
-                and alert.get("secret_type") == "github_personal_access_token"
-                and secret
-            ):
-                try:
-                    resp = requests.get(
-                        "https://api.github.com/user",
-                        headers={"Authorization": f"Bearer {secret}"},
-                        timeout=10,
-                    )
-                    if resp.status_code == 200:
-                        valid_token_user_node_id = resp.json().get("node_id")
-                except Exception:
-                    pass
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/secret-scanning/alerts", params={"per_page": 100}
+        ):
+            for alert in page:
+                valid_token_user_node_id: str | None = None
+                secret = alert.get("secret")
+                if (
+                    alert.get("state") == "open"
+                    and alert.get("secret_type") == "github_personal_access_token"
+                    and secret
+                ):
+                    try:
+                        resp = requests.get(
+                            "https://api.github.com/user",
+                            headers={"Authorization": f"Bearer {secret}"},
+                            timeout=10,
+                        )
+                        if resp.status_code == 200:
+                            valid_token_user_node_id = resp.json().get("node_id")
+                    except Exception:
+                        pass
 
-            yield {**alert, "valid_token_user_node_id": valid_token_user_node_id}
+                yield {
+                    **alert,
+                    "valid_token_user_node_id": valid_token_user_node_id,
+                    "org_login": org_name,
+                }
 
 
 @app.resource(
@@ -1237,11 +1307,15 @@ def personal_access_tokens(ctx: SourceContext):
         PersonalAccessToken (PersonalAccessToken): Fine-grained personal access token record.
     """
 
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/personal-access-tokens", params={"per_page": 100}
-    ):
-        for pat in page:
-            yield pat
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/personal-access-tokens", params={"per_page": 100}
+        ):
+            for pat in page:
+                yield {
+                    **pat,
+                    "org_login": org_name,
+                }
 
 
 @app.transformer(name="pat_repo_access", columns=PatRepoAccess, parallelized=True)
@@ -1256,11 +1330,11 @@ def pat_repo_access(pat: PersonalAccessToken, ctx: SourceContext):
         PatRepoAccess (PatRepoAccess): PAT-to-repository access record.
     """
     for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/personal-access-tokens/{pat['id']}/repositories",
+        f"/orgs/{pat.org_login}/personal-access-tokens/{pat.id}/repositories",
         params={"per_page": 100},
     ):
         for item in page:
-            yield {"pat_id": pat["id"], **item}
+            yield {"pat_id": pat.id, **item, "org_login": pat.org_login}
 
 
 @app.resource(
@@ -1280,11 +1354,17 @@ def personal_access_token_requests(ctx: SourceContext):
     Yields:
         PersonalAccessTokenRequest (PersonalAccessTokenRequest): PAT request record.
     """
-    for page in ctx.client.paginate(
-        f"/orgs/{ctx.org_name}/personal-access-token-requests",
-        params={"per_page": 100},
-    ):
-        yield page
+
+    for org_name in ctx.org_names:
+        for page in ctx.client.paginate(
+            f"/orgs/{org_name}/personal-access-token-requests",
+            params={"per_page": 100},
+        ):
+            for item in page:
+                yield {
+                    **item,
+                    "org_login": org_name,
+                }
 
 
 @app.resource(name="saml_provider", columns=SamlProvider, parallelized=True)
@@ -1300,24 +1380,26 @@ def saml_provider(ctx: SourceContext):
     Yields:
         SamlProvider (SamlProvider): SAML provider record.
     """
-    data = {
-        "query": SAML_QUERY,
-        "variables": {"login": ctx.org_name, "count": 100, "after": None},
-    }
-
-    response = ctx.client.post("/graphql", json=data).json()
-    response_data = response.get("data", {})
-    org_data = response_data.get("organization", {})
-    if response_data and org_data:
-        idp = org_data.get("samlIdentityProvider")
-        if not idp:
-            return
-
-        yield {
-            **idp,
-            "org_node_id": org_data["id"],
-            "org_name": org_data["name"],
+    for org_name in ctx.org_names:
+        data = {
+            "query": SAML_QUERY,
+            "variables": {"login": org_name, "count": 100, "after": None},
         }
+
+        response = ctx.client.post("/graphql", json=data).json()
+        response_data = response.get("data", {})
+        org_data = response_data.get("organization", {})
+        if response_data and org_data:
+            idp = org_data.get("samlIdentityProvider")
+            if not idp:
+                return
+
+            yield {
+                **idp,
+                "org_node_id": org_data["id"],
+                "org_name": org_data["name"],
+                "org_login": org_name,
+            }
 
 
 @app.resource(name="external_identities", columns=ExternalIdentity, parallelized=True)
@@ -1331,31 +1413,34 @@ def external_identities(ctx: SourceContext):
     Yields:
         ExternalIdentity (ExternalIdentity): External identity record.
     """
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.organization.samlIdentityProvider.externalIdentities.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-    )
-    data = {
-        "query": SAML_IDENTITIES_QUERY,
-        "variables": {"login": ctx.org_name, "count": 100, "after": None},
-    }
+    for org_name in ctx.org_names:
+        paginator = GraphQLCursorPaginator(
+            page_info_path="data.organization.samlIdentityProvider.externalIdentities.pageInfo",
+            cursor_variable="after",
+            cursor_field="endCursor",
+            has_next_field="hasNextPage",
+        )
+        data = {
+            "query": SAML_IDENTITIES_QUERY,
+            "variables": {"login": org_name, "count": 100, "after": None},
+        }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        for org in page_data:
-            org_data = org.get("organization")
-            idp = org_data.get("samlIdentityProvider")
-            if not idp:
-                return
-            for identity in (idp.get("externalIdentities") or {}).get("nodes") or []:
-                yield identity
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for org in page_data:
+                org_data = org.get("organization")
+                idp = org_data.get("samlIdentityProvider")
+                if not idp:
+                    return
+                for identity in (idp.get("externalIdentities") or {}).get(
+                    "nodes"
+                ) or []:
+                    yield {**identity, "org_login": org_name}
 
 
 @app.resource(name="scim_users", columns=ScimResource, parallelized=True)
@@ -1368,28 +1453,34 @@ def scim_users(ctx: SourceContext):
     Yields:
         ScimResource (ScimResource): SCIM user record.
     """
-    scim_paginator = OffsetPaginator(
-        offset_param="startIndex",
-        limit_param="itemsPerPage",
-        limit=100,
-        total_path="totalResults",
-    )
-    for page in ctx.client.paginate(
-        f"/scim/v2/organizations/{ctx.org_name}/Users",
-        params={"startIndex": 1, "itemsPerPage": 100},
-        paginator=scim_paginator,
-        data_selector="Resources",
-    ):
-        yield page
+    for org_name in ctx.org_names:
+        scim_paginator = OffsetPaginator(
+            offset_param="startIndex",
+            limit_param="itemsPerPage",
+            limit=100,
+            total_path="totalResults",
+        )
+        for page in ctx.client.paginate(
+            f"/scim/v2/organizations/{org_name}/Users",
+            params={"startIndex": 1, "itemsPerPage": 100},
+            paginator=scim_paginator,
+            data_selector="Resources",
+        ):
+            yield {
+                **page,
+                "org_login": org_name,
+            }
 
 
 def organization_resources(ctx: SourceContext):
+    org_resource = organizations(ctx)
+    roles_resource = org_roles(ctx)
     repo_roles_base = list(repository_roles_base(ctx))
     repos_resource = repositories(ctx)
     environments_resource = repos_resource | environments(ctx)
     personal_access_tokens_resource = personal_access_tokens(ctx)
-    org_resource = organizations(ctx)
-    org_role_resource = org_roles(ctx, list(org_resource))
+
+    org_role_resource = org_roles(ctx)
     teams_resource = teams(ctx)
     repositories_graphql_resource = repositories_graphql(ctx)
     app_installs_resource = app_installations(ctx)
@@ -1402,10 +1493,13 @@ def organization_resources(ctx: SourceContext):
 
     return (
         org_resource,
+        org_resource | roles_resource,
+        org_resource | roles_resource | org_role_teams(ctx),
+        org_resource | roles_resource | org_role_members(ctx),
+        app_installs_resource,
+        app_installs_resource | applications(ctx),
         users(ctx),
-        org_role_resource,
-        org_role_resource | org_role_members(ctx),
-        org_role_resource | org_role_teams(ctx),
+        actions_permissions(ctx),
         repos_resource,
         repos_resource | repository_roles(repo_roles_base),
         repos_resource | workflows(ctx),
@@ -1437,6 +1531,4 @@ def organization_resources(ctx: SourceContext):
         secret_scanning_alerts(ctx),
         saml_provider(ctx),
         external_identities(ctx),
-        app_installs_resource,
-        app_installs_resource | applications(ctx),
     )

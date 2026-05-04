@@ -72,6 +72,9 @@ class User(BaseAsset):
     company: str | None = None
     org_role: str = Field(alias="role")
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self) -> str:
         """The ID from a GraphQL API response is the same as a regular node_id"""

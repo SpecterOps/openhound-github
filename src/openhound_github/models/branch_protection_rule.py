@@ -173,6 +173,7 @@ class BranchProtectionRule(BaseAsset):
     push_allowances: PushAllowances | None = Field(alias="pushAllowances", default=None)
 
     # Additional
+    org_login: str
     repository_node_id: str
     repository_name: str
 

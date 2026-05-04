@@ -91,6 +91,7 @@ class Team(BaseAsset):
     """One record from the `teams` DLT table → one GH_Team node + optional GH_MemberOf edge to parent."""
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
     name: str
     id: str
@@ -103,7 +104,8 @@ class Team(BaseAsset):
     # Used for overflow
     members: Members
 
-    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+    # Additional
+    org_login: str
 
     @property
     def node_id(self) -> str:

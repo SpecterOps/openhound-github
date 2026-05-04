@@ -4,6 +4,22 @@ from .branch import Branch
 from .branch_pr_bypass_allowance import BranchPrBypassAllowance
 from .branch_protection_rule import BranchProtectionRule, BranchProtectionRuleActor
 from .branch_push_allowance import BranchPushAllowance
+from .enterprise import (
+    BaseUser,
+    Enterprise,
+    EnterpriseExternalIdentity,
+    EnterpriseManagedUser,
+    EnterpriseOrganization,
+    EnterpriseRole,
+    EnterpriseRoleTeam,
+    EnterpriseRoleUser,
+    EnterpriseSamlProvider,
+    EnterpriseTeam,
+    EnterpriseTeamMember,
+    EnterpriseTeamOrganization,
+    EnterpriseTeamRole,
+    EnterpriseUser,
+)
 from .env_secret import EnvironmentSecret
 from .env_variable import EnvironmentVariable
 from .environment import Environment
@@ -78,4 +94,22 @@ __all__ = [
     "ExternalIdentity",
     "ScimResource",
     "RepoRoleAssignment",
+    "Environment",
+    "EnvironmentSecret",
+    "EnvironmentVariable",
+    "EnvironmentBranchPolicy",
+    "Enterprise",
+    "EnterpriseExternalIdentity",
+    "EnterpriseManagedUser",
+    "EnterpriseOrganization",
+    "EnterpriseRole",
+    "EnterpriseRoleTeam",
+    "EnterpriseRoleUser",
+    "EnterpriseSamlProvider",
+    "EnterpriseTeam",
+    "EnterpriseTeamMember",
+    "EnterpriseTeamOrganization",
+    "EnterpriseTeamRole",
+    "EnterpriseUser",
+    "BaseUser"
 ]

@@ -137,6 +137,7 @@ class Environment(BaseAsset):
     deployment_branch_policy: DeploymentBranchPolicy | None = None
 
     # Custom fields added
+    org_login: str
     repository_name: str
     repository_full_name: str
     repository_node_id: str

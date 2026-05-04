@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+from typing import ClassVar
 
+from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, NodeDef
 from openhound.core.models.entries_dataclass import Edge
 
@@ -294,6 +296,8 @@ class GHOrganizationProperties(GHNodeProperties):
 )
 class Organization(BaseAsset):
     """One record from the `organizations` DLT table → one GH_Organization node."""
+
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
     node_id: str
     login: str

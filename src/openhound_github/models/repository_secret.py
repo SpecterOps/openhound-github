@@ -71,6 +71,7 @@ class RepoSecret(BaseAsset):
     selected_repositories_url: str | None = None
 
     # Additional
+    org_login: str
     repository_name: str = ""
     repository_node_id: str = ""
 

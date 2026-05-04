@@ -97,11 +97,9 @@ class Workflow(BaseAsset):
     # query_repository: str
 
     # Custom fields added
-    # short_name: str
+    org_login: str
     repository_name: str
     repository_node_id: str
-    # environment_name: str = ""
-    # environmentid: str = field(default="", metadata={"description": "The node_id of the environment (GitHub organization)."},)
 
     @property
     def as_node(self) -> GHNode:

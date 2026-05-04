@@ -63,6 +63,9 @@ class TeamRole(BaseAsset):
     team_name: str
     team_slug: str
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self):
         return f"{self.team_node_id}_{self.type}"

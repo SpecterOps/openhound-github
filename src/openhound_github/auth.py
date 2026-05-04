@@ -1,12 +1,13 @@
 """GitHub authentication helpers for JWT-based app authentication."""
 
-import json
 import base64
-import requests
+import json
 from datetime import datetime, timezone
+from typing import Optional
+
+import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from typing import Optional
 
 
 class GitHubJwtSession:
@@ -14,7 +15,7 @@ class GitHubJwtSession:
 
     def __init__(
         self,
-        org_name: str,
+        org_name: str | None,
         client_id: str,
         private_key_path: str,
         app_id: str,
@@ -117,6 +118,63 @@ class GitHubJwtSession:
         # Remove padding
         return encoded.rstrip("=")
 
+    def get_jwt_headers(self) -> dict:
+        """Get HTTP headers for GitHub App JWT requests."""
+        jwt_token = self._create_jwt()
+        return {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {jwt_token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+    def _installation_id(self) -> str:
+        if not self.org_name:
+            return self.app_id
+
+        try:
+            response = requests.get(
+                f"{self.api_uri}orgs/{self.org_name}/installation",
+                headers=self.get_jwt_headers(),
+                timeout=10,
+            )
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise ValueError(
+                f"Failed to resolve GitHub App installation for org {self.org_name}: {e}"
+            ) from e
+
+        installation_id = response.json().get("id")
+        if installation_id is None:
+            raise ValueError(
+                f"No installation id returned for GitHub org {self.org_name}."
+            )
+        return str(installation_id)
+
+    def list_installations(self) -> list[dict]:
+        installations: list[dict] = []
+        page = 1
+        while True:
+            try:
+                response = requests.get(
+                    f"{self.api_uri}app/installations",
+                    headers=self.get_jwt_headers(),
+                    params={"per_page": 100, "page": page},
+                    timeout=10,
+                )
+                response.raise_for_status()
+            except requests.RequestException as e:
+                raise ValueError(f"Failed to list GitHub App installations: {e}") from e
+
+            batch = response.json()
+            if not batch:
+                break
+            installations.extend(batch)
+            if "next" not in response.links:
+                break
+            page += 1
+
+        return installations
+
     def get_access_token(self) -> str:
         """Get a valid access token for GitHub API requests.
 
@@ -138,19 +196,13 @@ class GitHubJwtSession:
         ):
             return self._access_token
 
-        # Create a fresh JWT
-        jwt_token = self._create_jwt()
-
-        # Exchange JWT for access token
-        headers = {
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {jwt_token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
+        # Exchange JWT for an installation-scoped access token.
+        headers = self.get_jwt_headers()
+        installation_id = self._installation_id()
 
         try:
             response = requests.post(
-                f"{self.api_uri}app/installations/{self.app_id}/access_tokens",
+                f"{self.api_uri}app/installations/{installation_id}/access_tokens",
                 headers=headers,
                 timeout=10,
             )
@@ -189,7 +241,11 @@ class GitHubJwtSession:
 
 
 def create_github_jwt_session(
-    org_name: str, client_id: str, private_key_path: str, app_id: str
+    org_name: str | None,
+    client_id: str,
+    private_key_path: str,
+    app_id: str,
+    api_uri: str = "https://api.github.com/",
 ) -> GitHubJwtSession:
     """Factory function to create a GitHub JWT session.
 
@@ -198,6 +254,7 @@ def create_github_jwt_session(
         client_id: The GitHub App client ID.
         private_key_path: Path to the private key PEM file.
         app_id: The GitHub App ID.
+        api_uri: The GitHub API base URI.
 
     Returns:
         A GitHubJwtSession instance.
@@ -217,4 +274,5 @@ def create_github_jwt_session(
         client_id=client_id,
         private_key_path=private_key_path,
         app_id=app_id,
+        api_uri=api_uri,
     )

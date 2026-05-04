@@ -94,6 +94,9 @@ class PersonalAccessTokenRequest(BaseAsset):
     repositories_url: str | None = None
     repository_selection: str | None = None
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self) -> str:
         """Construct a generated node id"""

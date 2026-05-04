@@ -78,6 +78,7 @@ class SamlProvider(BaseAsset):
     foreign_environment_id: str | None = None  # tenant/org ID in the foreign IdP
 
     # Additional
+    org_login: str
     org_name: str
     org_node_id: str  # organization.id (GraphQL global ID)
 

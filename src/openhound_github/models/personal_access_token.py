@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import ClassVar
 
+from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 from pydantic import BaseModel
@@ -113,6 +115,8 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
 class PersonalAccessToken(BaseAsset):
     """One record from `personal_access_tokens` → one GH_PersonalAccessToken node + edges."""
 
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
     id: int
     owner: Owner
     repository_selection: str | None = None
@@ -125,6 +129,9 @@ class PersonalAccessToken(BaseAsset):
     token_expired: bool
     token_expires_at: datetime | None = None
     token_last_used_at: datetime | None = None
+
+    # Additional
+    org_login: str
 
     @property
     def node_id(self) -> str:

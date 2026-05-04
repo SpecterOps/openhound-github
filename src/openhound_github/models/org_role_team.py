@@ -37,6 +37,8 @@ class OrgRoleTeam(BaseAsset):
     # Additional
     org_role_id: int
     org_role_name: str
+    org_node_id: str
+    org_login: str
 
     @property
     def org_role_node_id(self) -> str:

@@ -85,6 +85,9 @@ class RunnerGroup(BaseAsset):
     selected_workflows: list[str] | None = None
     runners_url: str | None = None
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self) -> str:
         return f"{self._lookup.org_id()}_runner_group_{self.id}"
@@ -202,6 +205,9 @@ class OrgRunner(BaseAsset):
     ephemeral: bool | None = None
     labels: list[dict] = Field(default_factory=list)
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self) -> str:
         return f"{self._lookup.org_id()}_org_runner_{self.id}"
@@ -256,6 +262,9 @@ class OrgRunnerGroupMembership(BaseAsset):
     runner_group_id: int
     runner_id: int
     accessible_repo_node_ids: list[str] = Field(default_factory=list)
+
+    # Additional
+    org_login: str
 
     @property
     def as_node(self):
@@ -328,6 +337,9 @@ class RepoRunner(BaseAsset):
     repository_name: str
     repository_node_id: str
     repository_full_name: str
+
+    # Additional
+    org_login: str
 
     @property
     def node_id(self) -> str:

@@ -70,6 +70,7 @@ class RepoVariable(BaseAsset):
     updated_at: datetime | None = None
 
     # Additional
+    org_login: str
     repository_name: str = ""
     repository_node_id: str = ""
 

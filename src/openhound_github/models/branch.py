@@ -76,6 +76,9 @@ class Branch(BaseAsset):
         alias="branchProtectionRule", default=None
     )
 
+    # Additional
+    org_login: str
+
     @property
     def node_id(self) -> str:
         """The ID is identical to a node_id when using GraphQL"""
