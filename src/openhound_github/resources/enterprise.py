@@ -13,6 +13,7 @@ from openhound_github.main import app
 from openhound_github.models import (
     BaseUser,
     Enterprise,
+    EnterpriseAdmin,
     EnterpriseExternalIdentity,
     EnterpriseManagedUser,
     EnterpriseOrganization,
@@ -200,7 +201,6 @@ def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
     ):
         for org in page:
             node_id = org.get("node_id") or org.get("id")
-            print(org)
             if node_id:
                 yield {
                     **org,
@@ -225,11 +225,6 @@ def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
             "enterprise_slug": ctx.enterprise_name,
         }
 
-
-@app.transformer(
-    name="enterprise_admin_roles", columns=EnterpriseRole, parallelized=True
-)
-def enterprise_admin_roles(enterprise_data: Enterprise, ctx: SourceContext):
     yield {
         "id": "owners",
         "name": "owners",
@@ -239,27 +234,6 @@ def enterprise_admin_roles(enterprise_data: Enterprise, ctx: SourceContext):
         "enterprise_node_id": enterprise_data.id,
         "enterprise_slug": ctx.enterprise_name,
     }
-
-
-@app.transformer(
-    name="enterprise_role_users", columns=EnterpriseRoleUser, parallelized=True
-)
-def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
-    if role.id == "owners":
-        return
-
-    for page in ctx.client.paginate(
-        f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/users",
-        params={"per_page": 100},
-    ):
-        for user in page:
-            if user.get("node_id"):
-                yield {
-                    **user,
-                    "role_id": role.id,
-                    "enterprise_node_id": role.enterprise_node_id,
-                    "enterprise_slug": role.enterprise_slug,
-                }
 
 
 @app.transformer(
@@ -284,8 +258,27 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
 
 
 @app.transformer(
-    name="enterprise_admins", columns=EnterpriseRoleUser, parallelized=True
+    name="enterprise_role_users", columns=EnterpriseRoleUser, parallelized=True
 )
+def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
+    if role.id == "owners":
+        return
+
+    for page in ctx.client.paginate(
+        f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/users",
+        params={"per_page": 100},
+    ):
+        for user in page:
+            if user.get("node_id"):
+                yield {
+                    **user,
+                    "role_id": role.id,
+                    "enterprise_node_id": role.enterprise_node_id,
+                    "enterprise_slug": role.enterprise_slug,
+                }
+
+
+@app.transformer(name="enterprise_admins", columns=EnterpriseAdmin, parallelized=True)
 def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.admins.pageInfo",
@@ -418,7 +411,7 @@ def enterprise_resources(ctx: SourceContext):
         enterprise_resource | roles_resource,
         enterprise_resource | roles_resource | enterprise_role_users(ctx),
         enterprise_resource | roles_resource | enterprise_role_teams(ctx),
-        enterprise_resource | enterprise_admin_roles(ctx),
+        # enterprise_resource | enterprise_admin_roles(ctx),
         enterprise_resource | enterprise_admins(ctx),
         enterprise_resource | saml_resource,
         enterprise_resource | saml_resource | enterprise_external_identities(ctx),

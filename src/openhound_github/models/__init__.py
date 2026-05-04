@@ -5,6 +5,7 @@ from .branch_pr_bypass_allowance import BranchPrBypassAllowance
 from .branch_protection_rule import BranchProtectionRule, BranchProtectionRuleActor
 from .branch_push_allowance import BranchPushAllowance
 from .enterprise import Enterprise
+from .enterprise_admin import EnterpriseAdmin
 from .enterprise_external_identity import EnterpriseExternalIdentity
 from .enterprise_helpers import enterprise_role_node_id, enterprise_team_node_id
 from .enterprise_managed_user import EnterpriseManagedUser
@@ -98,6 +99,7 @@ __all__ = [
     "EnvironmentVariable",
     "EnvironmentBranchPolicy",
     "Enterprise",
+    "EnterpriseAdmin",
     "EnterpriseExternalIdentity",
     "EnterpriseManagedUser",
     "EnterpriseOrganization",
