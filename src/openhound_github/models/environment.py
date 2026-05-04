@@ -143,6 +143,10 @@ class Environment(BaseAsset):
     repository_node_id: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def has_custom_branch_policies(self) -> bool:
         if self.deployment_branch_policy:
             return self.deployment_branch_policy.custom_branch_policies
@@ -161,8 +165,8 @@ class Environment(BaseAsset):
                 # can_admins_bypass=self.can_admins_bypass,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
             ),
         )
 

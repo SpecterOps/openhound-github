@@ -130,6 +130,10 @@ class ExternalIdentity(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         return self.id
 
@@ -166,8 +170,8 @@ class ExternalIdentity(BaseAsset):
                 else None,
                 github_username=self.user.login if self.user else None,
                 github_user_id=self.user.id if self.user else None,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_mapped_users=f"MATCH p=(:GH_ExternalIdentity {{node_id:'{self.node_id.upper()}'}})-[:GH_MapsToUser]->() RETURN p",
             ),
         )
@@ -190,7 +194,9 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def idp(self) -> dict:
-        ext_idp = self._lookup.idp()
+        ext_idp = self._lookup.idp_for_org(self.org_login)
+        if not ext_idp:
+            return {"id": None, "issuer": None, "sso_url": None}
         id, issuer, sso_url = ext_idp[0]
         return {
             "id": id,

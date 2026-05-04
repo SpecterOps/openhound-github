@@ -74,9 +74,12 @@ class OrgSecret(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgSecret_{org_node_id}_{self.name}"
+        return f"GH_OrgSecret_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self) -> GHNode:
@@ -88,8 +91,8 @@ class OrgSecret(BaseAsset):
                 displayname=self.name,
                 node_id=sid,
                 visibility=self.visibility,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 created_at=str(self.created_at) if self.created_at else None,
                 updated_at=str(self.updated_at) if self.updated_at else None,
                 query_visible_repositories=f"MATCH p=(:GH_OrgSecret {{node_id:'{sid}'}})<-[:GH_HasSecret]-(:GH_Repository) RETURN p",
@@ -99,7 +102,7 @@ class OrgSecret(BaseAsset):
     @property
     def _all_repo_edges(self):
         if self.visibility == "all":
-            for repo in self._lookup.repository_node_ids():
+            for repo in self._lookup.repository_node_ids_for_org(self.org_login):
                 for repo_node_id in repo:
                     yield Edge(
                         kind=ek.HAS_SECRET,
@@ -111,7 +114,7 @@ class OrgSecret(BaseAsset):
     @property
     def _private_repo_edges(self):
         if self.visibility == "private":
-            for repo in self._lookup.private_repository_node_ids():
+            for repo in self._lookup.private_repository_node_ids_for_org(self.org_login):
                 for repo_node_id in repo:
                     yield Edge(
                         kind=ek.HAS_SECRET,
@@ -124,7 +127,7 @@ class OrgSecret(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
@@ -152,9 +155,12 @@ class SelectedOrgSecret(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgSecret_{org_node_id}_{self.name}"
+        return f"GH_OrgSecret_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self) -> None:
@@ -164,7 +170,7 @@ class SelectedOrgSecret(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )

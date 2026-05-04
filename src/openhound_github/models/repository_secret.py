@@ -76,6 +76,10 @@ class RepoSecret(BaseAsset):
     repository_node_id: str = ""
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         return f"GH_Secret_{self.repository_node_id}_{self.name}"
 
@@ -90,8 +94,8 @@ class RepoSecret(BaseAsset):
                 node_id=sid,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 created_at=str(self.created_at) if self.created_at else None,
                 updated_at=str(self.updated_at) if self.updated_at else None,
                 visibility=self.visibility,

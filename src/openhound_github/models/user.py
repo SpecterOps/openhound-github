@@ -76,17 +76,21 @@ class User(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         """The ID from a GraphQL API response is the same as a regular node_id"""
         return self.id
 
     @property
     def _org_node_id(self) -> str:
-        return self._lookup.org_id()
+        return self.org_node_id
 
     @property
     def _org_login(self) -> str:
-        return self._lookup.org_login()
+        return self.org_login
 
     @property
     def as_node(self) -> GHNode:

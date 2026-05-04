@@ -108,6 +108,10 @@ class Team(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         """The ID from a GraphQL API response is the same as a regular node_id"""
         return self.id
@@ -124,8 +128,8 @@ class Team(BaseAsset):
                 slug=self.slug,
                 description=self.description,
                 privacy=self.privacy,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_first_degree_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(t:GH_TeamRole)-[:GH_MemberOf]->(:GH_Team {{node_id:'{tid}'}}) RETURN p",
                 query_unrolled_members=f"MATCH p=(teamrole:GH_TeamRole)-[:GH_MemberOf*1..]->(:GH_Team {{node_id:'{tid}'}}) MATCH p1 = (teamrole)<-[:GH_HasRole]-(:GH_User) RETURN p,p1",
                 query_first_degree_maintainers=f"MATCH p=(:GH_User)-[:GH_HasRole]->(t:GH_TeamRole {{short_name: 'maintainers'}})-[:GH_MemberOf]->(:GH_Team {{node_id:'{tid}'}}) RETURN p",

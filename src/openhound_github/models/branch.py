@@ -80,6 +80,10 @@ class Branch(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         """The ID is identical to a node_id when using GraphQL"""
         return self.id
@@ -97,8 +101,8 @@ class Branch(BaseAsset):
                 protected=self.branch_protection_rule is not None,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_branch_write=(
                     f"MATCH p=(:GH_User)-[:GH_CanWriteBranch|GH_CanEditAndWriteBranch]"
                     f"->(:GH_Branch {{node_id:'{self.node_id}'}}) RETURN p"

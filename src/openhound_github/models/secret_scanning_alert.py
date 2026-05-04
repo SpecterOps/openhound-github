@@ -143,7 +143,7 @@ class SecretScanningAlert(BaseAsset):
     def org_node_id(self) -> str | None:
         if self.repository and self.repository.owner:
             return self.repository.owner.node_id
-        return None
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def as_node(self) -> GHNode:
@@ -154,7 +154,7 @@ class SecretScanningAlert(BaseAsset):
                 name=str(self.number),
                 displayname=self.secret_type_display_name or str(self.number),
                 node_id=aid,
-                environmentid=self._lookup.org_id(),
+                environmentid=self.org_node_id,
                 repository_name=self.repository.name if self.repository else "",
                 secret_type=self.secret_type,
                 secret_type_display_name=self.secret_type_display_name,

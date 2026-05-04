@@ -178,6 +178,10 @@ class BranchProtectionRule(BaseAsset):
     repository_name: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         return self.id
 
@@ -192,8 +196,8 @@ class BranchProtectionRule(BaseAsset):
                 pattern=self.pattern,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 enforce_admins=self.is_admin_enforced,
                 lock_branch=self.lock_branch,
                 blocks_creations=self.blocks_creations,

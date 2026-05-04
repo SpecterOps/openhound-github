@@ -134,10 +134,13 @@ class PersonalAccessToken(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         """Construct a synthetic node_id for this PAT based on org node ID and token ID. This is needed to link users to their PATs via edges, since GH doesn't return unique IDs for PATs."""
-        org_node_id = self._lookup.org_id()
-        return f"GH_PAT_{org_node_id}_{self.id}"
+        return f"GH_PAT_{self.org_node_id}_{self.id}"
 
     @property
     def as_node(self) -> GHNode:
@@ -152,8 +155,8 @@ class PersonalAccessToken(BaseAsset):
                 owner_login=self.owner.login,
                 repository_selection=self.repository_selection,
                 token_expired=self.token_expired,
-                environmentid=self._lookup.org_id(),
-                environment_name=self._lookup.org_login(),
+                environmentid=self.org_node_id,
+                environment_name=self.org_login,
                 token_expires_at=self.token_expires_at,
                 owner_id=self.owner.id if self.owner else None,
                 token_last_used_at=self.token_last_used_at,
@@ -177,14 +180,14 @@ class PersonalAccessToken(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
         yield Edge(
             kind=ek.CAN_ACCESS,
             start=EdgePath(value=self.node_id, match_by="id"),
-            end=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            end=EdgePath(value=self.org_node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
         yield from self._owner_edge

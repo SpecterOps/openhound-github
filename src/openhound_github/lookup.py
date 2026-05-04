@@ -18,6 +18,13 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def org_id_for_login(self, org_login: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT node_id FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
     def org_login(self) -> str | None:
         res = self._find_single_object(
             f"""SELECT login FROM {self.schema}.organizations"""
@@ -25,9 +32,23 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def org_login_for_id(self, org_node_id: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT login FROM {self.schema}.organizations WHERE node_id = ?""",
+            [org_node_id],
+        )
+
+    @lru_cache
     def repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories""",
+        )
+
+    @lru_cache
+    def repository_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ?""",
+            [org_login],
         )
 
     @lru_cache
@@ -37,16 +58,36 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def private_repository_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ? AND (visibility = 'private' or visibility = 'internal')""",
+            [org_login],
+        )
+
+    @lru_cache
     def idp(self) -> list:
         return self._find_all_objects(
             f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider"""
         )
 
     @lru_cache
-    def app_node_id(self, app_slug: str) -> str | None:
+    def idp_for_org(self, org_login: str) -> list:
+        return self._find_all_objects(
+            f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider WHERE org_login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def app_node_id(self, app_slug: str, org_login: str | None = None) -> str | None:
+        if org_login is None:
+            return self._find_single_object(
+                f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
+                [app_slug],
+            )
+
         return self._find_single_object(
-            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
-            [app_slug],
+            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ? AND org_login = ?""",
+            [app_slug, org_login],
         )
 
     @lru_cache

@@ -70,9 +70,12 @@ class OrgVariable(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgVariable_{org_node_id}_{self.name}"
+        return f"GH_OrgVariable_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self) -> GHNode:
@@ -84,8 +87,8 @@ class OrgVariable(BaseAsset):
                 displayname=self.name,
                 node_id=vid,
                 visibility=self.visibility,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 value=self.value,
                 created_at=str(self.created_at) if self.created_at else None,
                 updated_at=str(self.updated_at) if self.updated_at else None,
@@ -122,11 +125,15 @@ class SelectedOrgVariable(BaseAsset):
 
     name: str
     repository_node_id: str
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgVariable_{org_node_id}_{self.name}"
+        return f"GH_OrgVariable_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self):

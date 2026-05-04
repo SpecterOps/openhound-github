@@ -170,7 +170,6 @@ class RepositoryQL(BaseModel):
     # Additional
     org_login: str
 
-
 @app.asset(
     node=NodeDef(
         kind=nk.REPOSITORY,
@@ -222,6 +221,10 @@ class Repository(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def owner_id(self) -> str:
         return self.owner.node_id
 
@@ -257,8 +260,8 @@ class Repository(BaseAsset):
                 watchers=self.watchers,
                 owner_name=self.owner_name or "",
                 owner_id=self.owner_id or "",
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 actions_enabled=self.actions_enabled,
                 self_hosted_runners_enabled=self.self_hosted_runners_enabled,
                 # secret_scanning=self.secret_scanning,

@@ -67,6 +67,10 @@ class EnvironmentVariable(BaseAsset):
     repository_node_id: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def node_id(self) -> str:
         return f"GH_EnvironmentVariable_{self.environment_node_id}_{self.name}"
 
@@ -80,9 +84,9 @@ class EnvironmentVariable(BaseAsset):
                 displayname=self.name,
                 node_id=vid,
                 deployment_environment_name=self.environment_name,
-                environment_name=self._lookup.org_login(),
+                environment_name=self.org_login,
                 repository_name=self.repository_name,
-                environmentid=self._lookup.org_id(),
+                environmentid=self.org_node_id,
                 updated_at=self.updated_at,
                 created_at=self.created_at,
                 value=self.value,

@@ -153,6 +153,10 @@ class AppInstallation(BaseAsset):
         return f"GH_AppInstallation_{self.id}"
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def as_node(self) -> GHNode:
         slug = self.app_slug or str(self.app_id)
         return GHNode(
@@ -177,8 +181,8 @@ class AppInstallation(BaseAsset):
                 created_at=self.created_at,
                 updated_at=self.updated_at,
                 suspended_at=self.suspended_at,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_repositories=f"MATCH p=(:GH_AppInstallation {{node_id:'{self.node_id}'}})-[:GH_CanAccess]->(:GH_Repository) RETURN p LIMIT 1000",
                 query_app=f"MATCH p=(:GH_App)-[:GH_InstalledAs]->(:GH_AppInstallation {{node_id:'{self.node_id}'}}) RETURN p",
             ),
@@ -187,7 +191,7 @@ class AppInstallation(BaseAsset):
     @property
     def _app_edges(self):
         if self.app_slug:
-            app_node_id = self._lookup.app_node_id(self.app_slug)
+            app_node_id = self._lookup.app_node_id(self.app_slug, self.org_login)
             if app_node_id:
                 yield Edge(
                     kind=ek.INSTALLED_AS,
@@ -199,7 +203,9 @@ class AppInstallation(BaseAsset):
     @property
     def _can_access_edges(self):
         if self.repository_selection == "all":
-            for (repo_node_id,) in self._lookup.repository_node_ids():
+            for (repo_node_id,) in self._lookup.repository_node_ids_for_org(
+                self.org_login
+            ):
                 yield Edge(
                     kind=ek.CAN_ACCESS,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -211,7 +217,7 @@ class AppInstallation(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
@@ -319,6 +325,10 @@ class App(BaseAsset):
     org_login: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def as_node(self):
         aid = self.node_id
         return GHNode(
@@ -327,7 +337,7 @@ class App(BaseAsset):
                 name=self.name,
                 displayname=self.name,
                 node_id=aid,
-                environmentid=self._lookup.org_id(),
+                environmentid=self.org_node_id,
                 client_id=self.client_id,
                 slug=self.slug,
                 description=self.description,

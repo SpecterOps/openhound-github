@@ -102,6 +102,10 @@ class Workflow(BaseAsset):
     repository_node_id: str
 
     @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
     def as_node(self) -> GHNode:
         wid = self.node_id
         # short = self.short_name or self.name.rsplit("/", 1)[-1]
@@ -120,8 +124,8 @@ class Workflow(BaseAsset):
                 contents=self.contents,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_repository=f"MATCH p=(:GH_Repository)-[:GH_HasWorkflow]->(:GH_Workflow {{node_id:'{wid}'}}) RETURN p",
                 query_editors=(
                     f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_WriteRepoContents|GH_WriteRepoPullRequests*1..]->"

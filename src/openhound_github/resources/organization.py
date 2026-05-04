@@ -79,14 +79,14 @@ class SourceContext:
 
 
 def _runner_group_repo_node_ids(
-    group: dict[str, Any], ctx: SourceContext, repos: list
+    group: dict[str, Any], ctx: SourceContext, repos: list, org_login: str
 ) -> list[str]:
     visibility = group.get("visibility")
     if visibility == "selected":
         repo_node_ids: list[str] = []
         try:
             for page in ctx.client.paginate(
-                f"/orgs/{ctx.org_name}/actions/runner-groups/{group['id']}/repositories",
+                f"/orgs/{org_login}/actions/runner-groups/{group['id']}/repositories",
                 params={"per_page": 100},
                 data_selector="repositories",
             ):
@@ -99,6 +99,11 @@ def _runner_group_repo_node_ids(
 
     repo_node_ids = []
     for repo in repos:
+        repo_org_login = (
+            repo.org_login if isinstance(repo, Repository) else repo.get("org_login")
+        )
+        if repo_org_login != org_login:
+            continue
         repo_node_id = (
             repo.node_id if isinstance(repo, Repository) else repo.get("node_id")
         )
@@ -591,7 +596,11 @@ def repo_role_assignments(
 
     repo_node_id = repo.node_id
     repo_name = repo.name
-    custom_roles = {role["name"]: BaseRepoRole(**role) for role in roles}
+    custom_roles = {
+        role["name"]: BaseRepoRole(**role)
+        for role in roles
+        if role.get("org_login") == repo.org_login
+    }
 
     for collab_page in ctx.client.paginate(
         f"/repos/{repo.org_login}/{repo_name}/collaborators",
@@ -682,6 +691,8 @@ def repository_roles(repository: Repository, roles: list[dict]):
         }
 
     for role in roles:
+        if role.get("org_login") != repository.org_login:
+            continue
         role = BaseRepoRole(**role)
         yield {
             "id": role.id,
@@ -933,7 +944,7 @@ def org_runner_group_memberships(ctx: SourceContext, repos: list):
         ):
             for group in group_page:
                 accessible_repo_node_ids = _runner_group_repo_node_ids(
-                    group, ctx, repos
+                    group, ctx, repos, org_name
                 )
                 try:
                     for runner_page in ctx.client.paginate(
@@ -1392,7 +1403,7 @@ def saml_provider(ctx: SourceContext):
         if response_data and org_data:
             idp = org_data.get("samlIdentityProvider")
             if not idp:
-                return
+                continue
 
             yield {
                 **idp,
@@ -1436,7 +1447,7 @@ def external_identities(ctx: SourceContext):
                 org_data = org.get("organization")
                 idp = org_data.get("samlIdentityProvider")
                 if not idp:
-                    return
+                    continue
                 for identity in (idp.get("externalIdentities") or {}).get(
                     "nodes"
                 ) or []:
