@@ -764,7 +764,7 @@ class EnterpriseRole(BaseAsset):
 
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
-    id: int | str
+    id: str | int
     name: str
     description: str | None = None
     source: str | None = None

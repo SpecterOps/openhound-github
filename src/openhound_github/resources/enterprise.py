@@ -163,7 +163,7 @@ def enterprise_team_roles(team: EnterpriseTeam):
         "name": team.name,
         "slug": team.slug,
         "enterprise_node_id": team.enterprise_node_id,
-        "ctx.enterprise_name": team.ctx.enterprise_name,
+        "enterprise_slug": team.enterprise_slug,
     }
 
 
@@ -184,7 +184,7 @@ def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
                     "node_id": node_id,
                     "team_id": team.id,
                     "enterprise_node_id": team.enterprise_node_id,
-                    "ctx.enterprise_name": team.ctx.enterprise_name,
+                    "enterprise_slug": team.enterprise_slug,
                 }
 
 
@@ -208,7 +208,7 @@ def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
                     "team_id": team.id,
                     "projected_slug": team.slug,
                     "enterprise_node_id": team.enterprise_node_id,
-                    "ctx.enterprise_name": team.ctx.enterprise_name,
+                    "enterprise_slug": team.enterprise_slug,
                 }
 
 
@@ -221,7 +221,7 @@ def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
     for role in result.get("roles", []):
         yield {
             **role,
-            "enterprise_node_id": enterprise_data["id"],
+            "enterprise_node_id": enterprise_data.id,
             "enterprise_slug": ctx.enterprise_name,
         }
 
@@ -230,15 +230,13 @@ def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
     name="enterprise_admin_roles", columns=EnterpriseRole, parallelized=True
 )
 def enterprise_admin_roles(enterprise_data: Enterprise, ctx: SourceContext):
-    if ctx.auth_type != "token":
-        return
     yield {
         "id": "owners",
         "name": "owners",
         "description": "Enterprise administrators discovered from ownerInfo.admins",
         "source": "Default",
         "permissions": [],
-        "enterprise_node_id": enterprise_data["id"],
+        "enterprise_node_id": enterprise_data.id,
         "enterprise_slug": ctx.enterprise_name,
     }
 
@@ -260,7 +258,7 @@ def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
                     **user,
                     "role_id": role.id,
                     "enterprise_node_id": role.enterprise_node_id,
-                    "ctx.enterprise_name": role.ctx.enterprise_name,
+                    "enterprise_slug": role.enterprise_slug,
                 }
 
 
@@ -281,7 +279,7 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
                     **team,
                     "role_id": role.id,
                     "enterprise_node_id": role.enterprise_node_id,
-                    "ctx.enterprise_name": role.ctx.enterprise_name,
+                    "enterprise_slug": role.enterprise_slug,
                 }
 
 
@@ -417,10 +415,19 @@ def enterprise_resources(ctx: SourceContext):
 
     organizations_resource = enterprise_organizations(ctx)
     members_resource = enterprise_members(ctx)
+    teams_resource = enterprise_teams(ctx)
+    roles_resource = enterprise_roles(ctx)
     return (
         enterprise_resource,
         enterprise_resource | organizations_resource,
         enterprise_resource | members_resource | enterprise_users(ctx),
         enterprise_resource | members_resource | enterprise_managed_users(ctx),
-        enterprise_resource | enterprise_teams(ctx),
+        enterprise_resource | teams_resource,
+        enterprise_resource | teams_resource | enterprise_team_roles,
+        enterprise_resource | teams_resource | enterprise_team_members(ctx),
+        enterprise_resource | teams_resource | enterprise_team_organizations(ctx),
+        enterprise_resource | roles_resource,
+        enterprise_resource | roles_resource | enterprise_role_users(ctx),
+        enterprise_resource | roles_resource | enterprise_role_teams(ctx),
+        enterprise_resource | enterprise_admin_roles(ctx),
     )
