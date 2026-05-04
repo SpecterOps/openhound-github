@@ -283,11 +283,10 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
                 }
 
 
-@app.resource(name="enterprise_admins", columns=EnterpriseRoleUser, parallelized=True)
-def enterprise_admins(ctx: SourceContext, enterprise_data: dict[str, Any]):
-    if ctx.auth_type != "token":
-        return
-
+@app.transformer(
+    name="enterprise_admins", columns=EnterpriseRoleUser, parallelized=True
+)
+def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.admins.pageInfo",
         cursor_variable="after",
@@ -305,30 +304,26 @@ def enterprise_admins(ctx: SourceContext, enterprise_data: dict[str, Any]):
         paginator=paginator,
         data_selector="data",
     ):
-        enterprise_data_page = ((page_data[0] if page_data else {}) or {}).get(
-            "enterprise"
-        ) or {}
-        owner_info = enterprise_data_page.get("ownerInfo") or {}
-        for edge in (owner_info.get("admins") or {}).get("edges") or []:
-            node = edge.get("node")
-            if node and node.get("id"):
-                yield {
-                    "node_id": node["id"],
-                    "login": node.get("login"),
-                    "assignment": "direct",
-                    "role_id": "owners",
-                    "enterprise_node_id": enterprise_data["id"],
-                    "ctx.enterprise_name": ctx.enterprise_name,
-                }
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            owner_info = es_data.get("ownerInfo") or {}
+            for edge in (owner_info.get("admins") or {}).get("edges") or []:
+                node = edge.get("node")
+                if node and node.get("id"):
+                    yield {
+                        "node_id": node["id"],
+                        "login": node.get("login"),
+                        "assignment": "direct",
+                        "role_id": "owners",
+                        "enterprise_node_id": enterprise_data["id"],
+                        "ctx.enterprise_name": ctx.enterprise_name,
+                    }
 
 
 @app.transformer(
     name="enterprise_saml_provider", columns=EnterpriseSamlProvider, parallelized=True
 )
 def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
-    if ctx.auth_type != "token":
-        return
-
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
         cursor_variable="after",
@@ -347,19 +342,16 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         paginator=paginator,
         data_selector="data",
     ):
-        enterprise_page = ((page_data[0] if page_data else {}) or {}).get(
-            "enterprise"
-        ) or {}
-        saml_provider = (enterprise_page.get("ownerInfo") or {}).get(
-            "samlIdentityProvider"
-        )
-        if not saml_provider:
-            return
-        yield {
-            **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
-            "enterprise_node_id": enterprise_data.id,
-            "ctx.enterprise_name": ctx.enterprise_name,
-        }
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            saml_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
+            if not saml_provider:
+                return
+            yield {
+                **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
+                "enterprise_node_id": enterprise_data.id,
+                "enterprise_slug": ctx.enterprise_name,
+            }
 
 
 @app.transformer(
@@ -389,34 +381,31 @@ def enterprise_external_identities(
         paginator=paginator,
         data_selector="data",
     ):
-        enterprise_page = ((page_data[0] if page_data else {}) or {}).get(
-            "enterprise"
-        ) or {}
-        page_provider = (enterprise_page.get("ownerInfo") or {}).get(
-            "samlIdentityProvider"
-        )
-        if not page_provider:
-            return
-        for identity in (page_provider.get("externalIdentities") or {}).get(
-            "nodes"
-        ) or []:
-            yield {
-                **identity,
-                "saml_provider_id": saml_provider.id,
-                "saml_provider_issuer": saml_provider.issuer,
-                "saml_provider_sso_url": saml_provider.sso_url,
-                "enterprise_node_id": saml_provider.enterprise_node_id,
-                "ctx.enterprise_name": saml_provider.ctx.enterprise_name,
-            }
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            page_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
+            if not page_provider:
+                return
+            for identity in (page_provider.get("externalIdentities") or {}).get(
+                "nodes"
+            ) or []:
+                yield {
+                    **identity,
+                    "saml_provider_id": saml_provider.id,
+                    "saml_provider_issuer": saml_provider.issuer,
+                    "saml_provider_sso_url": saml_provider.sso_url,
+                    "enterprise_node_id": saml_provider.enterprise_node_id,
+                    "enterprise_slug": saml_provider.enterprise_slug,
+                }
 
 
 def enterprise_resources(ctx: SourceContext):
     enterprise_resource = enterprise(ctx)
-
     organizations_resource = enterprise_organizations(ctx)
     members_resource = enterprise_members(ctx)
     teams_resource = enterprise_teams(ctx)
     roles_resource = enterprise_roles(ctx)
+    saml_resource = enterprise_saml_provider(ctx)
     return (
         enterprise_resource,
         enterprise_resource | organizations_resource,
@@ -430,4 +419,7 @@ def enterprise_resources(ctx: SourceContext):
         enterprise_resource | roles_resource | enterprise_role_users(ctx),
         enterprise_resource | roles_resource | enterprise_role_teams(ctx),
         enterprise_resource | enterprise_admin_roles(ctx),
+        enterprise_resource | enterprise_admins(ctx),
+        enterprise_resource | saml_resource,
+        enterprise_resource | saml_resource | enterprise_external_identities(ctx),
     )
