@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-from typing import Any
-
 from dlt.sources.helpers.rest_client.client import RESTClient
 
 from openhound_github.graphql import (
