@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+
 from dlt.sources.helpers.rest_client.client import RESTClient
 
 from openhound_github.graphql import (
@@ -199,6 +200,7 @@ def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
     ):
         for org in page:
             node_id = org.get("node_id") or org.get("id")
+            print(org)
             if node_id:
                 yield {
                     **org,
@@ -313,8 +315,8 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
                         "login": node.get("login"),
                         "assignment": "direct",
                         "role_id": "owners",
-                        "enterprise_node_id": enterprise_data["id"],
-                        "ctx.enterprise_name": ctx.enterprise_name,
+                        "enterprise_node_id": enterprise_data.id,
+                        "enterprise_slug": ctx.enterprise_name,
                     }
 
 
