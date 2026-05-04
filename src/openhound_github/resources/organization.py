@@ -470,7 +470,7 @@ def team_members(team: Team, ctx: SourceContext):
         data = {
             "query": TEAM_MEMBERS_OVERFLOW_QUERY,
             "variables": {
-                "login": ctx.org_name,
+                "login": team.org_login,
                 "count": 100,
                 "after": team.members.page_info.end_cursor,
                 "slug": team.slug,
@@ -768,7 +768,7 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
         data = {
             "query": REF_OVERFLOW_QUERY,
             "variables": {
-                "owner": ctx.org_name,
+                "owner": repository.org_login,
                 "count": 100,
                 "after": repository.refs.page_info.end_cursor,
                 "name": repository.name,
