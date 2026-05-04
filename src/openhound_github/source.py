@@ -101,14 +101,20 @@ def _runner_group_repo_node_ids(
 
     repo_node_ids = []
     for repo in repos:
+        repo_node_id = (
+            repo.node_id if isinstance(repo, Repository) else repo.get("node_id")
+        )
+        repo_visibility = (
+            repo.visibility if isinstance(repo, Repository) else repo.get("visibility")
+        )
         if visibility == "all":
-            repo_node_ids.append(repo["node_id"])
-        elif visibility == "private" and repo.get("visibility") in {
+            repo_node_ids.append(repo_node_id)
+        elif visibility == "private" and repo_visibility in {
             "private",
             "internal",
         }:
-            repo_node_ids.append(repo["node_id"])
-    return repo_node_ids
+            repo_node_ids.append(repo_node_id)
+    return [node_id for node_id in repo_node_ids if node_id]
 
 
 @configspec
@@ -1301,13 +1307,17 @@ def saml_provider(ctx: SourceContext):
     }
 
     response = ctx.client.post("/graphql", json=data).json()
-    if response["data"]:
-        org = response["data"]["organization"]
-        idp = org.get("samlIdentityProvider")
+    response_data = response.get("data", {})
+    org_data = response_data.get("organization", {})
+    if response_data and org_data:
+        idp = org_data.get("samlIdentityProvider")
+        if not idp:
+            return
+
         yield {
             **idp,
-            "org_node_id": org["id"],
-            "org_name": org["name"],
+            "org_node_id": org_data["id"],
+            "org_name": org_data["name"],
         }
 
 
@@ -1340,10 +1350,13 @@ def external_identities(ctx: SourceContext):
         paginator=paginator,
         data_selector="data",
     ):
-        for identity in page_data[0]["organization"]["samlIdentityProvider"][
-            "externalIdentities"
-        ]["nodes"]:
-            yield identity
+        for org in page_data:
+            org_data = org.get("organization")
+            idp = org_data.get("samlIdentityProvider")
+            if not idp:
+                return
+            for identity in (idp.get("externalIdentities") or {}).get("nodes") or []:
+                yield identity
 
 
 @app.resource(name="scim_users", columns=ScimResource, parallelized=True)
