@@ -140,8 +140,8 @@ def enterprise_managed_users(base_user: BaseUser, ctx: SourceContext):
         }
 
 
-@app.resource(name="enterprise_teams", columns=EnterpriseTeam, parallelized=True)
-def enterprise_teams(ctx: SourceContext, enterprise_data: dict[str, Any]):
+@app.transformer(name="enterprise_teams", columns=EnterpriseTeam, parallelized=True)
+def enterprise_teams(enterprise_data: Enterprise, ctx: SourceContext):
 
     for page in ctx.client.paginate(
         f"/enterprises/{ctx.enterprise_name}/teams", params={"per_page": 100}
@@ -149,8 +149,8 @@ def enterprise_teams(ctx: SourceContext, enterprise_data: dict[str, Any]):
         for team in page:
             yield {
                 **team,
-                "enterprise_node_id": enterprise_data["id"],
-                "ctx.enterprise_name": ctx.enterprise_name,
+                "enterprise_node_id": enterprise_data.id,
+                "enterprise_slug": ctx.enterprise_name,
             }
 
 
@@ -422,4 +422,5 @@ def enterprise_resources(ctx: SourceContext):
         enterprise_resource | organizations_resource,
         enterprise_resource | members_resource | enterprise_users(ctx),
         enterprise_resource | members_resource | enterprise_managed_users(ctx),
+        enterprise_resource | enterprise_teams(ctx),
     )
