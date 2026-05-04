@@ -12,6 +12,7 @@ from openhound_github.graphql import (
 from openhound_github.helpers import GraphQLCursorPaginator
 from openhound_github.main import app
 from openhound_github.models import (
+    BaseUser,
     Enterprise,
     EnterpriseExternalIdentity,
     EnterpriseManagedUser,
@@ -26,7 +27,6 @@ from openhound_github.models import (
     EnterpriseTeamRole,
     EnterpriseUser,
 )
-from openhound_github.models.enterprise import flatten_enterprise_member
 
 
 @dataclass
@@ -68,17 +68,17 @@ def enterprise(ctx: SourceContext):
 @app.transformer(
     name="enterprise_organizations", columns=EnterpriseOrganization, parallelized=True
 )
-def enterprise_organizations(enterprise: Enterprise, ctx: SourceContext):
-    orgs = enterprise.organizations.get("nodes", [])
+def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    orgs = enterprise_data.organizations.get("nodes", [])
     for org in orgs:
         yield {
             **org,
-            "enterprise_node_id": enterprise.id,
+            "enterprise_node_id": enterprise_data.id,
             "enterprise_slug": ctx.enterprise_name,
         }
 
 
-@app.transformer(name="enterprise_members", parallelized=True)
+@app.transformer(name="enterprise_members", columns=BaseUser, parallelized=True)
 def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
 
     paginator = GraphQLCursorPaginator(
@@ -98,37 +98,46 @@ def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
         paginator=paginator,
         data_selector="data",
     ):
-        enterprise_data_page = ((page_data[0] if page_data else {}) or {}).get(
-            "enterprise"
-        ) or {}
-        for edge in (enterprise_data_page.get("members") or {}).get("edges") or []:
-            node = edge.get("node")
-            if node:
-                yield {
-                    **node,
-                    "enterprise_node_id": enterprise_data.id,
-                    "ctx.enterprise_name": ctx.enterprise_name,
-                }
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            members = es_data.get("members", {})
+            for edge in members.get("edges", []):
+                node = edge.get("node")
+                if node:
+                    yield {
+                        **node,
+                        "enterprise_node_id": enterprise_data.id,
+                        "enterprise_slug": ctx.enterprise_name,
+                    }
 
 
 @app.transformer(name="enterprise_users", columns=EnterpriseUser, parallelized=True)
-def enterprise_users(member: dict[str, Any]):
-    user, _ = flatten_enterprise_member(
-        member, member["enterprise_node_id"], member["ctx.enterprise_name"]
-    )
-    if user:
-        yield user
+def enterprise_users(base_user: BaseUser, ctx: SourceContext):
+    if base_user.typename == "EnterpriseUserAccount":
+        if base_user.user and base_user.user.id:
+            yield {
+                **base_user.user.model_dump(),
+                "enterprise_slug": ctx.enterprise_name,
+                "has_direct_enterprise_membership": False,
+            }
+
+    if base_user.id:
+        yield {
+            **base_user.model_dump(),
+            "enterprise_slug": ctx.enterprise_name,
+            "has_direct_enterprise_membership": True,
+        }
 
 
 @app.transformer(
     name="enterprise_managed_users", columns=EnterpriseManagedUser, parallelized=True
 )
-def enterprise_managed_users(member: dict[str, Any]):
-    _, managed_user = flatten_enterprise_member(
-        member, member["enterprise_node_id"], member["ctx.enterprise_name"]
-    )
-    if managed_user:
-        yield managed_user
+def enterprise_managed_users(base_user: BaseUser, ctx: SourceContext):
+    if base_user.typename == "EnterpriseUserAccount":
+        yield {
+            **base_user.model_dump(),
+            "enterprise_slug": ctx.enterprise_name,
+        }
 
 
 @app.resource(name="enterprise_teams", columns=EnterpriseTeam, parallelized=True)
@@ -203,9 +212,8 @@ def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
                 }
 
 
-@app.resource(name="enterprise_roles", columns=EnterpriseRole, parallelized=True)
-def enterprise_roles(ctx: SourceContext, enterprise_data: dict[str, Any]):
-
+@app.transformer(name="enterprise_roles", columns=EnterpriseRole, parallelized=True)
+def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
     result = ctx.client.get(
         f"/enterprises/{ctx.enterprise_name}/enterprise-roles"
     ).json()
@@ -214,12 +222,14 @@ def enterprise_roles(ctx: SourceContext, enterprise_data: dict[str, Any]):
         yield {
             **role,
             "enterprise_node_id": enterprise_data["id"],
-            "ctx.enterprise_name": ctx.enterprise_name,
+            "enterprise_slug": ctx.enterprise_name,
         }
 
 
-@app.resource(name="enterprise_admin_roles", columns=EnterpriseRole, parallelized=True)
-def enterprise_admin_roles(ctx: SourceContext, enterprise_data: dict[str, Any]):
+@app.transformer(
+    name="enterprise_admin_roles", columns=EnterpriseRole, parallelized=True
+)
+def enterprise_admin_roles(enterprise_data: Enterprise, ctx: SourceContext):
     if ctx.auth_type != "token":
         return
     yield {
@@ -229,7 +239,7 @@ def enterprise_admin_roles(ctx: SourceContext, enterprise_data: dict[str, Any]):
         "source": "Default",
         "permissions": [],
         "enterprise_node_id": enterprise_data["id"],
-        "ctx.enterprise_name": _enterprise_required(ctx),
+        "enterprise_slug": ctx.enterprise_name,
     }
 
 
@@ -406,7 +416,10 @@ def enterprise_resources(ctx: SourceContext):
     enterprise_resource = enterprise(ctx)
 
     organizations_resource = enterprise_organizations(ctx)
+    members_resource = enterprise_members(ctx)
     return (
         enterprise_resource,
         enterprise_resource | organizations_resource,
+        enterprise_resource | members_resource | enterprise_users(ctx),
+        enterprise_resource | members_resource | enterprise_managed_users(ctx),
     )
