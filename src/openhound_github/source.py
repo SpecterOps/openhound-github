@@ -4,7 +4,6 @@ from typing import Optional, Union
 import dlt
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import CredentialsConfiguration
-from dlt.sources import credentials
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
