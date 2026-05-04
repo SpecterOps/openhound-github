@@ -169,4 +169,5 @@ def source(
             ]
         return (*enterprise_resources(ctx), *organization_resources(ctx))
 
-    raise ValueError("Must specify either enterprise_name or org_name")
+    else:
+        raise ValueError("Must specify either enterprise_name or org_name")
