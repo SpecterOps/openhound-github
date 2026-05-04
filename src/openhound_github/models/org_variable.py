@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -14,28 +14,23 @@ from openhound_github.main import app
 
 @dataclass
 class GHOrgVariableProperties(GHNodeProperties):
-    """Org variable properties and accordion panel queries."""
+    """Org variable properties and accordion panel queries.
+    
+    Attributes:
+        visibility: The variable's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos).
+        environment_name: The name of the environment (GitHub organization).
+        value: The plaintext value of the variable.
+        created_at: When the variable was created.
+        updated_at: When the variable was last updated.
+        query_visible_repositories: Query for visible repositories.
+    """
 
-    visibility: str = field(
-        default="",
-        metadata={
-            "description": "The variable's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos)."
-        },
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    value: str | None = field(
-        default=None, metadata={"description": "The plaintext value of the variable."}
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the variable was created."}
-    )
-    updated_at: str | None = field(
-        default=None, metadata={"description": "When the variable was last updated."}
-    )
-    query_visible_repositories: str = ""
+    visibility: str | None = None
+    environment_name: str | None = None
+    value: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    query_visible_repositories: str | None = None
 
 
 @app.asset(

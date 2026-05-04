@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar
 
 from dlt.common.libs.pydantic import DltConfig
@@ -23,89 +23,49 @@ class BranchProtectionRuleActor(BaseModel):
 
 @dataclass
 class GHBranchProtectionRuleProperties(GHNodeProperties):
-    """Branch protection rule properties and accordion panel queries."""
+    """Branch protection rule properties and accordion panel queries.
+    
+    Attributes:
+        pattern: The branch name pattern this rule applies to (e.g., `main`, `release/*`).
+        repository_name: The repository name property.
+        repository_id: The repository id property.
+        environment_name: The GitHub organization login name.
+        enforce_admins: Whether branch protection rules are enforced for administrators.
+        lock_branch: Whether the branch is locked (read-only).
+        blocks_creations: Whether creating branches matching this pattern is restricted. Only effective when `push_restrictions` is also `true`; silently reverts to `false` otherwise.
+        required_pull_request_reviews: Whether pull request reviews are required before merging.
+        required_approving_review_count: The number of approving reviews required.
+        require_code_owner_reviews: Whether reviews from code owners are required.
+        require_last_push_approval: Whether the last push must be approved by someone other than the pusher.
+        push_restrictions: Whether push access is restricted to specific users/teams.
+        requires_status_checks: Whether status checks must pass before merging.
+        requires_strict_status_checks: Whether branches must be up to date with the base branch before merging.
+        dismisses_stale_reviews: Whether new commits dismiss previously approved reviews.
+        allows_force_pushes: Whether force pushes are allowed to matching branches.
+        allows_deletions: Whether matching branches can be deleted.
+        query_user_exceptions: Query for user exceptions.
+        query_branches: Query for branches.
+    """
 
-    pattern: str = field(
-        default="",
-        metadata={
-            "description": "The branch name pattern this rule applies to (e.g., `main`, `release/*`)."
-        },
-    )
-    repository_name: str = ""
-    repository_id: str = ""
-    environment_name: str = field(
-        default="", metadata={"description": "The GitHub organization login name."}
-    )
-    enforce_admins: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether branch protection rules are enforced for administrators."
-        },
-    )
-    lock_branch: bool | None = field(
-        default=None,
-        metadata={"description": "Whether the branch is locked (read-only)."},
-    )
-    blocks_creations: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether creating branches matching this pattern is restricted. Only effective when `push_restrictions` is also `true`; silently reverts to `false` otherwise."
-        },
-    )
-    required_pull_request_reviews: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether pull request reviews are required before merging."
-        },
-    )
-    required_approving_review_count: int | None = field(
-        default=None,
-        metadata={"description": "The number of approving reviews required."},
-    )
-    require_code_owner_reviews: bool | None = field(
-        default=None,
-        metadata={"description": "Whether reviews from code owners are required."},
-    )
-    require_last_push_approval: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether the last push must be approved by someone other than the pusher."
-        },
-    )
-    push_restrictions: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether push access is restricted to specific users/teams."
-        },
-    )
-    requires_status_checks: bool | None = field(
-        default=None,
-        metadata={"description": "Whether status checks must pass before merging."},
-    )
-    requires_strict_status_checks: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether branches must be up to date with the base branch before merging."
-        },
-    )
-    dismisses_stale_reviews: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether new commits dismiss previously approved reviews."
-        },
-    )
-    allows_force_pushes: bool | None = field(
-        default=None,
-        metadata={
-            "description": "Whether force pushes are allowed to matching branches."
-        },
-    )
-    allows_deletions: bool | None = field(
-        default=None,
-        metadata={"description": "Whether matching branches can be deleted."},
-    )
-    query_user_exceptions: str = ""
-    query_branches: str = ""
+    pattern: str | None = None
+    repository_name: str | None = None
+    repository_id: str | None = None
+    environment_name: str | None = None
+    enforce_admins: bool | None = None
+    lock_branch: bool | None = None
+    blocks_creations: bool | None = None
+    required_pull_request_reviews: bool | None = None
+    required_approving_review_count: int | None = None
+    require_code_owner_reviews: bool | None = None
+    require_last_push_approval: bool | None = None
+    push_restrictions: bool | None = None
+    requires_status_checks: bool | None = None
+    requires_strict_status_checks: bool | None = None
+    dismisses_stale_reviews: bool | None = None
+    allows_force_pushes: bool | None = None
+    allows_deletions: bool | None = None
+    query_user_exceptions: str | None = None
+    query_branches: str | None = None
 
 
 class Actor(BaseModel):

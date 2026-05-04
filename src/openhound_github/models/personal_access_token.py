@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -27,58 +27,39 @@ class Owner(BaseModel):
 
 @dataclass
 class GHPersonalAccessTokenProperties(GHNodeProperties):
-    """PAT properties and accordion panel queries."""
+    """PAT properties and accordion panel queries.
+    
+    Attributes:
+        environment_name: The name of the environment (GitHub organization) where the token has access.
+        owner_id: The GitHub ID of the token owner.
+        owner_node_id: The GraphQL node ID of the token owner.
+        token_expires_at: The ISO 8601 timestamp of when the token expires.
+        token_last_used_at: The ISO 8601 timestamp of when the token was last used.
+        access_granted_at: The ISO 8601 timestamp of when the token was granted to the organization. |
+        token_name: The user-assigned display name of the token.
+        owner_login: The login handle of the user who owns the token.
+        repository_selection: Whether the token has access to `all`, `subset`, or `none` of the organization's repositories.
+        token_expired: Whether the token has expired.
+        query_organization_permissions: Query for organization permissions.
+        query_user: Query for user.
+        query_repositories: Query for repositories.
+    """
 
-    environment_name: str = field(
-        metadata={
-            "description": "The name of the environment (GitHub organization) where the token has access."
-        }
-    )
-    owner_id: str | None = field(
-        default=None, metadata={"description": "The GitHub ID of the token owner."}
-    )
+    environment_name: str
+    owner_id: str | None = None
     # TODO: owner_node_id?
-    owner_node_id: str | None = field(
-        default=None,
-        metadata={"description": "The GraphQL node ID of the token owner."},
-    )
-    token_expires_at: datetime | None = field(
-        default=None,
-        metadata={"description": "The ISO 8601 timestamp of when the token expires."},
-    )
-    token_last_used_at: datetime | None = field(
-        default=None,
-        metadata={
-            "description": "The ISO 8601 timestamp of when the token was last used."
-        },
-    )
+    owner_node_id: str | None = None
+    token_expires_at: datetime | None = None
+    token_last_used_at: datetime | None = None
     # TODO: permissions:
-    access_granted_at: datetime | None = field(
-        default=None,
-        metadata={
-            "description": "The ISO 8601 timestamp of when the token was granted to the organization. |"
-        },
-    )
-    token_name: str = field(
-        default="",
-        metadata={"description": "The user-assigned display name of the token."},
-    )
-    owner_login: str | None = field(
-        default=None,
-        metadata={"description": "The login handle of the user who owns the token."},
-    )
-    repository_selection: str | None = field(
-        default=None,
-        metadata={
-            "description": "Whether the token has access to `all`, `subset`, or `none` of the organization's repositories."
-        },
-    )
-    token_expired: bool | None = field(
-        default=None, metadata={"description": "Whether the token has expired."}
-    )
-    query_organization_permissions: str = ""
-    query_user: str = ""
-    query_repositories: str = ""
+    access_granted_at: datetime | None = None
+    token_name: str | None = None
+    owner_login: str | None = None
+    repository_selection: str | None = None
+    token_expired: bool | None = None
+    query_organization_permissions: str | None = None
+    query_user: str | None = None
+    query_repositories: str | None = None
 
 
 @app.asset(

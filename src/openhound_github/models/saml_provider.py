@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -12,38 +12,29 @@ from openhound_github.main import app
 
 @dataclass
 class GHSamlProviderProperties(GHNodeProperties):
-    """SAML identity provider properties and accordion panel queries."""
+    """SAML identity provider properties and accordion panel queries.
+    
+    Attributes:
+        issuer: The SAML issuer URL.
+        sso_url: The SAML single sign-on URL.
+        signature_method: The signature method used by the SAML provider.
+        digest_method: The digest method used by the SAML provider.
+        idp_certificate: The identity provider's X.509 certificate.
+        environment_name: The name of the environment (GitHub organization).
+        foreign_environment_id: The ID of the foreign environment linked to this provider.
+        query_environments: Query for environments.
+        query_external_identities: Query for external identities.
+    """
 
-    issuer: str | None = field(
-        default=None, metadata={"description": "The SAML issuer URL."}
-    )
-    sso_url: str | None = field(
-        default=None, metadata={"description": "The SAML single sign-on URL."}
-    )
-    signature_method: str | None = field(
-        default=None,
-        metadata={"description": "The signature method used by the SAML provider."},
-    )
-    digest_method: str | None = field(
-        default=None,
-        metadata={"description": "The digest method used by the SAML provider."},
-    )
-    idp_certificate: str | None = field(
-        default=None,
-        metadata={"description": "The identity provider's X.509 certificate."},
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    foreign_environment_id: str | None = field(
-        default=None,
-        metadata={
-            "description": "The ID of the foreign environment linked to this provider."
-        },
-    )
-    query_environments: str = ""
-    query_external_identities: str = ""
+    issuer: str | None = None
+    sso_url: str | None = None
+    signature_method: str | None = None
+    digest_method: str | None = None
+    idp_certificate: str | None = None
+    environment_name: str | None = None
+    foreign_environment_id: str | None = None
+    query_environments: str | None = None
+    query_external_identities: str | None = None
 
 
 @app.asset(

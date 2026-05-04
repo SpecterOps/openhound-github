@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -11,24 +11,27 @@ from openhound_github.main import app
 
 @dataclass
 class GHTeamRoleProperties(GHNodeProperties):
-    """Team role properties and accordion panel queries."""
+    """Team role properties and accordion panel queries.
+    
+    Attributes:
+        short_name: The short role name: `member` or `maintainer`.
+        type: Always `default` for team roles.
+        team_name: The team name property.
+        team_id: The team id property.
+        environment_name: The name of the environment (GitHub organization).
+        query_team: Query for team.
+        query_members: Query for members.
+        query_repositories: Query for repositories.
+    """
 
-    short_name: str = field(
-        default="",
-        metadata={"description": "The short role name: `member` or `maintainer`."},
-    )
-    type: str = field(
-        default="", metadata={"description": "Always `default` for team roles."}
-    )
-    team_name: str = ""
-    team_id: str = ""
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    query_team: str = ""
-    query_members: str = ""
-    query_repositories: str = ""
+    short_name: str | None = None
+    type: str | None = None
+    team_name: str | None = None
+    team_id: str | None = None
+    environment_name: str | None = None
+    query_team: str | None = None
+    query_members: str | None = None
+    query_repositories: str | None = None
 
 
 @app.asset(

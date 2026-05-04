@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
@@ -12,30 +12,25 @@ from openhound_github.main import app
 
 @dataclass
 class GHEnvironmentSecretProperties(GHNodeProperties):
-    """Environment secret properties."""
+    """Environment secret properties.
+    
+    Attributes:
+        deployment_environment_name: The name of the containing deployment environment.
+        deployment_environmentid: The node_id of the containing deployment environment.
+        repository_name: The repository name property.
+        repository_id: The repository id property.
+        environment_name: The name of the environment (GitHub organization).
+        created_at: When the secret was created.
+        updated_at: When the secret was last updated.
+    """
 
-    deployment_environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the containing deployment environment."},
-    )
-    deployment_environmentid: str = field(
-        default="",
-        metadata={
-            "description": "The node_id of the containing deployment environment."
-        },
-    )
-    repository_name: str = ""
-    repository_id: str = ""
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the secret was created."}
-    )
-    updated_at: str | None = field(
-        default=None, metadata={"description": "When the secret was last updated."}
-    )
+    deployment_environment_name: str | None = None
+    deployment_environmentid: str | None = None
+    repository_name: str | None = None
+    repository_id: str | None = None
+    environment_name: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 @app.asset(
