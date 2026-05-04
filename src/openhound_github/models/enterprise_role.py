@@ -94,7 +94,7 @@ class EnterpriseRole(BaseAsset):
                 name=f"{self.enterprise_slug}/{self.name}",
                 displayname=self.name,
                 node_id=self.node_id,
-                environmentid=self.enterprise_node_id,
+                environmentid=self._lookup.enterprise_id(),
                 environment_name=self.enterprise_slug,
                 github_role_id=self.id,
                 short_name=self.name,
@@ -114,7 +114,7 @@ class EnterpriseRole(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self.enterprise_node_id, match_by="id"),
+            start=EdgePath(value=self._lookup.enterprise_id(), match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )

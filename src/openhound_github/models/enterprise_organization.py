@@ -73,7 +73,7 @@ class EnterpriseOrganization(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self.enterprise_node_id, match_by="id"),
+            start=EdgePath(value=self._lookup.enterprise_id(), match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )

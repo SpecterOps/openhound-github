@@ -132,7 +132,7 @@ class EnterpriseExternalIdentity(BaseAsset):
                 name=self.guid or self.node_id,
                 displayname=self.guid or self.node_id,
                 node_id=self.node_id,
-                environmentid=self.enterprise_node_id,
+                environmentid=self._lookup.enterprise_id(),
                 environment_name=self.enterprise_slug,
                 guid=self.guid,
                 saml_identity_username=self.saml_identity.username

@@ -75,7 +75,7 @@ class EnterpriseUser(BaseAsset):
                 name=self.login,
                 displayname=self.name or self.login,
                 node_id=self.node_id,
-                environmentid=self.enterprise_node_id,
+                environmentid=self._lookup.enterprise_id(),
                 environment_name=self.enterprise_slug,
                 login=self.login,
                 full_name=self.name,
@@ -90,7 +90,7 @@ class EnterpriseUser(BaseAsset):
         if self.has_direct_enterprise_membership:
             yield Edge(
                 kind=ek.HAS_MEMBER,
-                start=EdgePath(value=self.enterprise_node_id, match_by="id"),
+                start=EdgePath(value=self._lookup.enterprise_id(), match_by="id"),
                 end=EdgePath(value=self.node_id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
             )

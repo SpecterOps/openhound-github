@@ -88,7 +88,7 @@ class Enterprise(BaseAsset):
                 name=self.slug,
                 displayname=self.name or self.slug,
                 node_id=self.node_id,
-                environmentid=self.node_id,
+                environmentid=self._lookup.enterprise_id(),
                 environment_name=self.slug,
                 slug=self.slug,
                 enterprise_name=self.name,

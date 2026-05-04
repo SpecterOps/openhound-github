@@ -32,6 +32,11 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def enterprise_id(self) -> str | None:
+        res = self._find_single_object(f"""SELECT id FROM {self.schema}.enterprise""")
+        return res
+
+    @lru_cache
     def org_login_for_id(self, org_node_id: str) -> str | None:
         return self._find_single_object(
             f"""SELECT login FROM {self.schema}.organizations WHERE node_id = ?""",

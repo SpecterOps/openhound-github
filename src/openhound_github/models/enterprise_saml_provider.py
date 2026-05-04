@@ -99,7 +99,7 @@ class EnterpriseSamlProvider(BaseAsset):
                 name=self.node_id,
                 displayname=self.enterprise_slug,
                 node_id=self.node_id,
-                environmentid=self.enterprise_node_id,
+                environmentid=self._lookup.enterprise_id(),
                 environment_name=self.enterprise_slug,
                 issuer=self.issuer,
                 sso_url=self.sso_url,
@@ -116,7 +116,7 @@ class EnterpriseSamlProvider(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.HAS_SAML_IDENTITY_PROVIDER,
-            start=EdgePath(value=self.enterprise_node_id, match_by="id"),
+            start=EdgePath(value=self._lookup.enterprise_id(), match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )

@@ -60,4 +60,5 @@ def preproc(ctx: PreProcContext):
         "repo_roles": "repo_roles",
         "saml_provider": "saml_provider",
         "applications": "applications",
+        "enterprise": "enterprise",
     }
