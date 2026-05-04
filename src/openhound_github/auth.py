@@ -3,11 +3,15 @@
 import base64
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Iterator
 
 import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+from dlt.sources.helpers.rest_client.client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import (
+    HeaderLinkPaginator,
+)
 
 
 class GitHubJwtSession:
@@ -15,10 +19,10 @@ class GitHubJwtSession:
 
     def __init__(
         self,
-        org_name: str | None,
         client_id: str,
         private_key_path: str,
-        app_id: str,
+        app_id: str | None = None,
+        org_name: str | None = None,
         api_uri: str = "https://api.github.com/",
     ):
         """Initialize a GitHub JWT session.
@@ -34,15 +38,13 @@ class GitHubJwtSession:
             FileNotFoundError: If the private key file cannot be found.
             ValueError: If the private key cannot be loaded or JWT cannot be created.
         """
-        self.org_name = org_name
         self.client_id = client_id
         self.private_key_path = private_key_path
         self.app_id = app_id
+        self.org_name = org_name
         self.api_uri = api_uri.rstrip("/") + "/"
 
-        self._jwt_token: Optional[str] = None
-        self._access_token: Optional[str] = None
-        self._token_expires_at: datetime | None = None
+        self._access_tokens: dict[int, tuple[str, datetime | None]] = {}
 
         self._load_private_key()
 
@@ -93,9 +95,7 @@ class GitHubJwtSession:
         except Exception as e:
             raise ValueError(f"Failed to sign JWT: {e}") from e
 
-        jwt_token = f"{header_encoded}.{payload_encoded}.{signature_encoded}"
-        self._jwt_token = jwt_token
-        return jwt_token
+        return f"{header_encoded}.{payload_encoded}.{signature_encoded}"
 
     @staticmethod
     def _base64url_encode(data: str | bytes) -> str:
@@ -118,8 +118,8 @@ class GitHubJwtSession:
         # Remove padding
         return encoded.rstrip("=")
 
-    def get_jwt_headers(self) -> dict:
-        """Get HTTP headers for GitHub App JWT requests."""
+    @property
+    def jwt_headers(self) -> dict:
         jwt_token = self._create_jwt()
         return {
             "Accept": "application/vnd.github+json",
@@ -127,83 +127,38 @@ class GitHubJwtSession:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-    def _installation_id(self) -> str:
-        if not self.org_name:
-            return self.app_id
+    @property
+    def jwt_token(self) -> str:
+        return self._create_jwt()
 
-        try:
-            response = requests.get(
-                f"{self.api_uri}orgs/{self.org_name}/installation",
-                headers=self.get_jwt_headers(),
-                timeout=10,
-            )
-            response.raise_for_status()
-        except requests.RequestException as e:
-            raise ValueError(
-                f"Failed to resolve GitHub App installation for org {self.org_name}: {e}"
-            ) from e
+    def _jwt_client(self) -> RESTClient:
+        return RESTClient(
+            base_url=self.api_uri,
+            headers=self.jwt_headers,
+            paginator=HeaderLinkPaginator(),
+        )
 
-        installation_id = response.json().get("id")
-        if installation_id is None:
-            raise ValueError(
-                f"No installation id returned for GitHub org {self.org_name}."
-            )
-        return str(installation_id)
-
-    def list_installations(self) -> list[dict]:
-        installations: list[dict] = []
-        page = 1
-        while True:
-            try:
-                response = requests.get(
-                    f"{self.api_uri}app/installations",
-                    headers=self.get_jwt_headers(),
-                    params={"per_page": 100, "page": page},
-                    timeout=10,
-                )
-                response.raise_for_status()
-            except requests.RequestException as e:
-                raise ValueError(f"Failed to list GitHub App installations: {e}") from e
-
-            batch = response.json()
-            if not batch:
-                break
-            installations.extend(batch)
-            if "next" not in response.links:
-                break
-            page += 1
-
-        return installations
-
-    def get_access_token(self) -> str:
-        """Get a valid access token for GitHub API requests.
-
-        Fetches an installation access token using the JWT token. If a valid
-        access token is already cached and not expired, it returns that.
-
-        Returns:
-            A valid access token string.
-
-        Raises:
-            requests.RequestException: If the API request fails.
-            ValueError: If token cannot be obtained.
-        """
-        # Return cached token if still valid
-        if (
-            self._access_token
-            and self._token_expires_at
-            and datetime.now(timezone.utc) < self._token_expires_at
+    def list_installations(self) -> Iterator[dict]:
+        for page in self._jwt_client().paginate(
+            "/app/installations", params={"per_page": 100}
         ):
-            return self._access_token
+            yield from page
 
-        # Exchange JWT for an installation-scoped access token.
-        headers = self.get_jwt_headers()
-        installation_id = self._installation_id()
+    def installation_id_for_org(self, org_login: str) -> int:
+        response = self._jwt_client().get(f"/orgs/{org_login}/installation").json()
+        return int(response["id"])
+
+    def installation_token(self, installation_id: int) -> str:
+        cached = self._access_tokens.get(installation_id)
+        if cached:
+            token, expires_at = cached
+            if expires_at is None or datetime.now(timezone.utc) < expires_at:
+                return token
 
         try:
             response = requests.post(
                 f"{self.api_uri}app/installations/{installation_id}/access_tokens",
-                headers=headers,
+                headers=self.jwt_headers,
                 timeout=10,
             )
             response.raise_for_status()
@@ -216,15 +171,41 @@ class GitHubJwtSession:
         if "token" not in response_data:
             raise ValueError("No token in GitHub API response. Check app credentials.")
 
-        self._access_token = response_data["token"]
-
-        # Parse expiration time if provided
+        expires_at = None
         if "expires_at" in response_data:
-            self._token_expires_at = datetime.fromisoformat(
+            expires_at = datetime.fromisoformat(
                 response_data["expires_at"].replace("Z", "+00:00")
             )
 
-        return self._access_token
+        token = response_data["token"]
+        self._access_tokens[installation_id] = (token, expires_at)
+        return token
+
+    def get_access_token(
+        self, org_name: str | None = None, installation_id: int | None = None
+    ) -> str:
+        """Get a valid access token for GitHub API requests.
+
+        Fetches an installation access token using the JWT token. If a valid
+        access token is already cached and not expired, it returns that.
+
+        Returns:
+            A valid access token string.
+
+        Raises:
+            requests.RequestException: If the API request fails.
+            ValueError: If token cannot be obtained.
+        """
+        if installation_id is None:
+            org_login = org_name or self.org_name
+            if org_login:
+                installation_id = self.installation_id_for_org(org_login)
+            else:
+                if not self.app_id:
+                    raise ValueError("org_name or installation_id is required")
+                installation_id = int(self.app_id)
+
+        return self.installation_token(installation_id)
 
     def get_headers(self) -> dict:
         """Get HTTP headers for authenticated GitHub API requests.
@@ -245,7 +226,7 @@ def create_github_jwt_session(
     client_id: str,
     private_key_path: str,
     app_id: str,
-    api_uri: str = "https://api.github.com/",
+    api_uri: str = "https://api.github.com",
 ) -> GitHubJwtSession:
     """Factory function to create a GitHub JWT session.
 
@@ -254,7 +235,6 @@ def create_github_jwt_session(
         client_id: The GitHub App client ID.
         private_key_path: Path to the private key PEM file.
         app_id: The GitHub App ID.
-        api_uri: The GitHub API base URI.
 
     Returns:
         A GitHubJwtSession instance.
