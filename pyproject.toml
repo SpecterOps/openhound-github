@@ -28,7 +28,7 @@ local_scheme = "no-local-version"
 
 [dependency-groups]
 dev = [
-    "openhound",
+    "openhound==0.1.4",
     "pre-commit>=4.5.1",
     "pytest>=9.0.1",
     "ruff>=0.15.5",
