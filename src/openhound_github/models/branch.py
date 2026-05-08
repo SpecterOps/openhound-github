@@ -59,7 +59,7 @@ class ProtectionRule(BaseModel):
             end=nk.BRANCH,
             kind=ek.PROTECTED_BY,
             description="Branch is protected by rule",
-            traversable=True,
+            traversable=False,
         ),
     ],
 )
@@ -110,7 +110,7 @@ class Branch(BaseAsset):
                 kind=ek.PROTECTED_BY,
                 start=EdgePath(value=self.branch_protection_rule.id, match_by="id"),
                 end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property

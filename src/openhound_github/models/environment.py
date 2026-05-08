@@ -113,7 +113,7 @@ class GHEnvironmentProperties(GHNodeProperties):
             end=nk.ENVIRONMENT,
             kind=ek.HAS_ENVIRONMENT,
             description="Repository deploys to environment (no custom branch policy)",
-            traversable=True,
+            traversable=False,
         ),
     ],
 )
@@ -173,5 +173,5 @@ class Environment(BaseAsset):
                 kind=ek.HAS_ENVIRONMENT,
                 start=EdgePath(value=self.repository_node_id, match_by="id"),
                 end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )

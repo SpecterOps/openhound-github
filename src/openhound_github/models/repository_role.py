@@ -257,7 +257,7 @@ class GHRepoRoleProperties(GHNodeProperties):
             end=nk.REPOSITORY,
             kind=ek.ADMIN_TO,
             description="Role has admin access to repo",
-            traversable=True,
+            traversable=False,
         ),
         EdgeDef(
             start=nk.REPO_ROLE,
@@ -348,21 +348,21 @@ class GHRepoRoleProperties(GHNodeProperties):
             end=nk.REPOSITORY,
             kind=ek.CAN_CREATE_BRANCH,
             description="Role can create new branches in the repository",
-            traversable=False,
+            traversable=True,
         ),
         EdgeDef(
             start=nk.REPO_ROLE,
             end=nk.BRANCH,
             kind=ek.CAN_WRITE_BRANCH,
             description="Role can push commits to this branch",
-            traversable=False,
+            traversable=True,
         ),
         EdgeDef(
             start=nk.REPO_ROLE,
             end=nk.BRANCH,
             kind=ek.CAN_EDIT_PROTECTION,
             description="Role can modify or remove the branch protection rule governing this branch",
-            traversable=False,
+            traversable=True,
         ),
         EdgeDef(
             start=nk.REPO_ROLE,
@@ -741,7 +741,7 @@ class RepoRole(BaseAsset):
                     kind=kind,
                     start=EdgePath(value=self.node_id, match_by="id"),
                     end=EdgePath(value=self.repository_node_id, match_by="id"),
-                    properties=EdgeProperties(traversable=(kind == "GH_AdminTo")),
+                    properties=EdgeProperties(traversable=False),
                 )
 
             # Internal repos: org members get read access by default
@@ -773,7 +773,7 @@ class RepoRole(BaseAsset):
                 kind=ek.BYPASS_BRANCH_PROTECTION,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=self.repository_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property
@@ -895,7 +895,7 @@ class RepoRole(BaseAsset):
                 kind=ek.PUSH_PROTECTED_BRANCH,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=self.repository_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property
@@ -907,7 +907,7 @@ class RepoRole(BaseAsset):
                     kind=ek.CAN_CREATE_BRANCH,
                     start=EdgePath(value=self.node_id, match_by="id"),
                     end=EdgePath(value=self.repository_node_id, match_by="id"),
-                    properties=EdgeProperties(traversable=False),
+                    properties=EdgeProperties(traversable=True),
                 )
 
     @property
@@ -917,7 +917,7 @@ class RepoRole(BaseAsset):
                 kind=ek.EDIT_REPO_PROTECTIONS,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=self.repository_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property

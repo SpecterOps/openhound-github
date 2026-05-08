@@ -57,7 +57,7 @@ class GHRepoVariableProperties(GHNodeProperties):
             end=nk.REPO_VARIABLE,
             kind=ek.HAS_VARIABLE,
             description="Repository has access to variable",
-            traversable=False,
+            traversable=True,
         ),
     ],
 )
@@ -104,5 +104,5 @@ class RepoVariable(BaseAsset):
             kind=ek.HAS_VARIABLE,
             start=EdgePath(value=self.repository_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+            properties=EdgeProperties(traversable=True),
         )

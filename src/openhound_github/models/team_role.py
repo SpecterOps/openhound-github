@@ -51,7 +51,7 @@ class GHTeamRoleProperties(GHNodeProperties):
             end=nk.TEAM,
             kind=ek.ADD_MEMBER,
             description="Maintainers role can add members to team",
-            traversable=False,
+            traversable=True,
         ),
     ],
 )
@@ -95,7 +95,7 @@ class TeamRole(BaseAsset):
                 kind=ek.ADD_MEMBER,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=self.team_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
+                properties=EdgeProperties(traversable=True),
             )
 
     @property

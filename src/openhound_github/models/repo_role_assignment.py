@@ -36,14 +36,14 @@ TEAM_PERMISSION_MAP: dict[str, str] = {
             end=nk.BRANCH,
             kind=ek.CAN_WRITE_BRANCH,
             description="User can push commits to this branch via actor-level bypass allowances",
-            traversable=False,
+            traversable=True,
         ),
         EdgeDef(
             start=nk.TEAM,
             end=nk.BRANCH,
             kind=ek.CAN_WRITE_BRANCH,
             description="Team can push commits to this branch via actor-level bypass allowances",
-            traversable=False,
+            traversable=True,
         ),
     ],
 )
