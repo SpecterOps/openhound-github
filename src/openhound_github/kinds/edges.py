@@ -50,6 +50,13 @@ INSTALLED_AS = "GH_InstalledAs"
 HAS_SECRET_SCANNING_ALERT = "GH_HasSecretScanningAlert"
 VALID_TOKEN = "GH_ValidToken"
 HAS_WORKFLOW = "GH_HasWorkflow"
+HAS_JOB = "GH_HasJob"
+HAS_STEP = "GH_HasStep"
+DEPENDS_ON = "GH_DependsOn"
+DEPLOYS_TO = "GH_DeploysTo"
+CALLS_WORKFLOW = "GH_CallsWorkflow"
+USES_SECRET = "GH_UsesSecret"
+USES_VARIABLE = "GH_UsesVariable"
 HAS_ENVIRONMENT = "GH_HasEnvironment"
 
 

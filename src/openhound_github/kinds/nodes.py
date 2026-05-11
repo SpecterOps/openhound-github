@@ -55,6 +55,8 @@ USER = "GH_User"
 
 # Workflow nodes
 WORKFLOW = "GH_Workflow"
+WORKFLOW_JOB = "GH_WorkflowJob"
+WORKFLOW_STEP = "GH_WorkflowStep"
 
 
 # Enterprise nodes
