@@ -25,7 +25,7 @@ _FOREIGN_USER_KIND: dict[str, str] = {
 @dataclass
 class GHExternalIdentityProperties(GHNodeProperties):
     """External identity properties and accordion panel queries.
-    
+
     Attributes:
         guid: The GUID of the external identity.
         saml_identity_username: The username from the SAML identity.
@@ -107,7 +107,7 @@ class User(BaseModel):
 class ExternalIdentity(BaseAsset):
     """One record from `external_identities` → one GH_ExternalIdentity node + mapping edges."""
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True)
 
     guid: str
     id: str
