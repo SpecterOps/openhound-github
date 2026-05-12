@@ -1,7 +1,10 @@
+import base64
+import binascii
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterator
 
+import dlt
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
@@ -61,6 +64,8 @@ from openhound_github.models import (
     TeamRole,
     User,
     Workflow,
+    WorkflowJob,
+    WorkflowStep,
 )
 from openhound_github.models.repo_role_assignment import TEAM_PERMISSION_MAP
 from openhound_github.models.repository_role import DEFAULT_REPO_ROLES
@@ -388,7 +393,6 @@ def teams(ctx: SourceContext):
             "query": TEAMS_QUERY,
             "variables": {"login": org_name, "count": 100, "after": None},
         }
-
         for page_data in client.paginate(
             "/graphql",
             method="POST",
@@ -452,6 +456,10 @@ def team_members(team: Team, ctx: SourceContext):
     )
 
     if team.members.page_info.has_next_page:
+        if not team.members.page_info.end_cursor:
+            raise RuntimeError(
+                f"GitHub team {team.org_login}/{team.slug} has more members but no endCursor"
+            )
         client = _client_for_org(ctx, team.org_login)
         data = {
             "query": TEAM_MEMBERS_OVERFLOW_QUERY,
@@ -846,19 +854,52 @@ def workflows(repo: Repository, ctx: SourceContext):
     Yields:
         Workflow (Workflow): An active workflow record.
     """
+
+    @dlt.defer
+    def _workflow_file_contents(
+        client: RESTClient, repo: Repository, workflow: dict[str, Any]
+    ) -> dict | None:
+        path = workflow.get("path")
+        if not path:
+            return None
+
+        params = {"ref": repo.default_branch} if repo.default_branch else None
+        response = client.get(
+            f"/repos/{repo.full_name}/contents/{path}", params=params
+        ).json()
+
+        content = response.get("content")
+        if not content:
+            return None
+
+        return {
+            **workflow,
+            "contents": content,
+            "branch": repo.default_branch,
+            "repository_name": repo.name,
+            "repository_node_id": repo.node_id,
+            "org_login": repo.org_login,
+        }
+
     client = _client_for_org(ctx, repo.org_login)
     for page in client.paginate(
         f"/repos/{repo.full_name}/actions/workflows", params={"per_page": 100}
     ):
         for workflow in page:
-            # TODO: Check if we should only store active workflows
             if workflow.get("state") == "active":
-                yield {
-                    **workflow,
-                    "repository_name": repo.name,
-                    "repository_node_id": repo.node_id,
-                    "org_login": repo.org_login,
-                }
+                yield _workflow_file_contents(client, repo, workflow)
+
+
+@app.transformer(name="workflow_jobs", columns=WorkflowJob, parallelized=True)
+def workflow_jobs(workflow: Workflow):
+    for row in workflow.workflow_job_rows():
+        yield row
+
+
+@app.transformer(name="workflow_steps", columns=WorkflowStep, parallelized=True)
+def workflow_steps(workflow: Workflow):
+    for row in workflow.workflow_step_rows():
+        yield row
 
 
 @app.transformer(name="environments", columns=Environment, parallelized=True)
@@ -1451,6 +1492,7 @@ def external_identities(ctx: SourceContext):
             cursor_variable="after",
             cursor_field="endCursor",
             has_next_field="hasNextPage",
+            allow_missing_page_info=True,
         )
         data = {
             "query": SAML_IDENTITIES_QUERY,
@@ -1511,6 +1553,7 @@ def organization_resources(ctx: SourceContext):
     roles_resource = org_roles(ctx)
     repo_roles_base = list(repository_roles_base(ctx))
     repos_resource = repositories(ctx)
+    workflows_resource = repos_resource | workflows(ctx)
     environments_resource = repos_resource | environments(ctx)
     personal_access_tokens_resource = personal_access_tokens(ctx)
 
@@ -1535,7 +1578,9 @@ def organization_resources(ctx: SourceContext):
         actions_permissions(ctx),
         repos_resource,
         repos_resource | repository_roles(repo_roles_base),
-        repos_resource | workflows(ctx),
+        workflows_resource,
+        workflows_resource | workflow_jobs(),
+        workflows_resource | workflow_steps(),
         repos_resource | repo_runners(ctx),
         repos_resource | repository_secrets(ctx),
         repos_resource | repository_variables(ctx),
