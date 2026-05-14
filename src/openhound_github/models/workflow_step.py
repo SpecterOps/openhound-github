@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from typing import Any, ClassVar
 
+from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import (  # type: ignore[import-untyped]
     BaseAsset,
     EdgeDef,
@@ -34,18 +36,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
         type: The step type: `uses`, `run`, or `unknown`.
         action: The full action reference from `uses`.
         action_slug: The action owner/name without ref.
-        auth_provider: The detected auth provider for known login actions.
         action_owner: The action owner.
         action_name: The action name.
         action_ref: The action ref.
         is_pinned: Whether the action ref is a full commit SHA.
-        has_injection_risk: Whether user-controlled expressions were found.
-        runs_local_script: Whether a local script path was referenced.
         run: The shell command body for `run` steps.
-        with_args: The compact JSON representation of `with` arguments.
-        contents: The compact JSON representation of the full step definition.
-        injection_risks: JSON array of detected injection risk expressions.
-        local_script_refs: JSON array of referenced local script paths.
+        with_args: The step `with` arguments.
+        contents: The full parsed step definition.
         job_node_id: The parent workflow job node ID.
         workflow_node_id: The parent workflow node ID.
         repository_name: The containing repository name.
@@ -57,18 +54,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
     type: str | None = None
     action: str | None = None
     action_slug: str | None = None
-    auth_provider: str | None = None
     action_owner: str | None = None
     action_name: str | None = None
     action_ref: str | None = None
     is_pinned: bool = False
-    has_injection_risk: bool = False
-    runs_local_script: bool = False
     run: str | None = None
-    with_args: str | None = None
-    contents: str | None = None
-    injection_risks: str | None = None
-    local_script_refs: str | None = None
+    with_args: dict[str, Any] | None = None
+    contents: dict[str, Any] | None = None
     job_node_id: str | None = None
     workflow_node_id: str | None = None
     repository_name: str | None = None
@@ -123,6 +115,7 @@ class GHWorkflowStepProperties(GHNodeProperties):
 )
 class WorkflowStep(BaseAsset):
     """One record from `workflow_steps` -> one GH_WorkflowStep node."""
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
     node_id: str
     name: str | None = None
@@ -135,18 +128,13 @@ class WorkflowStep(BaseAsset):
     org_login: str
     action: str | None = None
     action_slug: str | None = None
-    auth_provider: str | None = None
     action_owner: str | None = None
     action_name: str | None = None
     action_ref: str | None = None
     is_pinned: bool = False
-    has_injection_risk: bool = False
-    runs_local_script: bool = False
     run: str | None = None
-    with_args: str | None = None
-    contents: str | None = None
-    injection_risks: str | None = None
-    local_script_refs: str | None = None
+    with_args: dict[str, Any] | None = None
+    contents: dict[str, Any] | None = None
     secret_references: list[WorkflowReference] = Field(default_factory=list)
     variable_references: list[WorkflowReference] = Field(default_factory=list)
 
@@ -167,18 +155,13 @@ class WorkflowStep(BaseAsset):
                 type=self.type,
                 action=self.action,
                 action_slug=self.action_slug,
-                auth_provider=self.auth_provider,
                 action_owner=self.action_owner,
                 action_name=self.action_name,
                 action_ref=self.action_ref,
                 is_pinned=self.is_pinned,
-                has_injection_risk=self.has_injection_risk,
-                runs_local_script=self.runs_local_script,
                 run=self.run,
                 with_args=self.with_args,
                 contents=self.contents,
-                injection_risks=self.injection_risks,
-                local_script_refs=self.local_script_refs,
                 job_node_id=self.job_node_id,
                 workflow_node_id=self.workflow_node_id,
                 repository_name=self.repository_name,
@@ -243,7 +226,6 @@ class WorkflowStep(BaseAsset):
                 ),
                 properties=EdgeProperties(traversable=False),
             )
-
 
     @property
     def _has_step_edge(self):

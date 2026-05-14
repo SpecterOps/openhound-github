@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from typing import Any, ClassVar
 
+from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import (  # type: ignore[import-untyped]
     BaseAsset,
     EdgeDef,
@@ -35,7 +37,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
         is_self_hosted: Whether the job targets self-hosted runners.
         container: The optional container configuration.
         environment: The deployment environment name.
-        permissions: Effective job permissions as compact JSON.
+        permissions: Effective job permissions.
         uses_reusable: The reusable workflow reference used by this job.
         workflow_node_id: The parent workflow node ID.
         repository_name: The containing repository name.
@@ -44,11 +46,11 @@ class GHWorkflowJobProperties(GHNodeProperties):
     """
 
     job_key: str | None = None
-    runs_on: str | None = None
+    runs_on: Any = None
     is_self_hosted: bool = False
-    container: str | None = None
+    container: Any = None
     environment: str | None = None
-    permissions: str | None = None
+    permissions: Any = None
     uses_reusable: str | None = None
     workflow_node_id: str | None = None
     repository_name: str | None = None
@@ -125,6 +127,8 @@ class GHWorkflowJobProperties(GHNodeProperties):
 class WorkflowJob(BaseAsset):
     """One record from `workflow_jobs` -> one GH_WorkflowJob node."""
 
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
     node_id: str
     name: str
     job_key: str
@@ -132,11 +136,11 @@ class WorkflowJob(BaseAsset):
     repository_name: str
     repository_node_id: str
     org_login: str
-    runs_on: str | None = None
+    runs_on: Any = None
     is_self_hosted: bool = False
-    container: str | None = None
+    container: Any = None
     environment: str | None = None
-    permissions: str | None = None
+    permissions: Any = None
     uses_reusable: str | None = None
     dependency_node_ids: list[str] = Field(default_factory=list)
     secret_references: list[WorkflowReference] = Field(default_factory=list)

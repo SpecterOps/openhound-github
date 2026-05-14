@@ -48,6 +48,8 @@ from .team_member import TeamMember
 from .team_role import TeamRole
 from .user import User
 from .workflow import Workflow
+from .workflow_job import WorkflowJob
+from .workflow_step import WorkflowStep
 
 __all__ = [
     "Organization",
@@ -68,6 +70,8 @@ __all__ = [
     "RepositoryQL",
     "BranchPushAllowance",
     "Workflow",
+    "WorkflowJob",
+    "WorkflowStep",
     "Environment",
     "EnvironmentSecret",
     "EnvironmentVariable",
