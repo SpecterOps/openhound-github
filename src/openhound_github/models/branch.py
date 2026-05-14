@@ -29,7 +29,7 @@ class GHBranchProperties(GHNodeProperties):
     short_name: str | None = None
     commit_hash: str | None = None
     protected: bool = False
-    repository_name: str = None
+    repository_name: str | None = None
     repository_id: str | None = None
     environment_name: str | None = None
     query_branch_write: str | None = None
