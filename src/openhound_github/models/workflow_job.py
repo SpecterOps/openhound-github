@@ -50,7 +50,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
     is_self_hosted: bool = False
     container: Any = None
     environment: str | None = None
-    permissions: Any = None
+    permissions: list[str] | None = None
     uses_reusable: str | None = None
     workflow_node_id: str | None = None
     repository_name: str | None = None
@@ -151,6 +151,12 @@ class WorkflowJob(BaseAsset):
         return self._lookup.org_id_for_login(self.org_login)
 
     @property
+    def _flatten_permissions(self) -> list[str] | None:
+        if isinstance(self.permissions, dict):
+            return [f"{key}:{value}" for key, value in self.permissions.items()]
+        return None
+
+    @property
     def as_node(self) -> GHNode:
         return GHNode(
             kinds=[nk.WORKFLOW_JOB],
@@ -163,7 +169,7 @@ class WorkflowJob(BaseAsset):
                 is_self_hosted=self.is_self_hosted,
                 container=self.container,
                 environment=self.environment,
-                permissions=self.permissions,
+                permissions=self._flatten_permissions,
                 uses_reusable=self.uses_reusable,
                 workflow_node_id=self.workflow_node_id,
                 repository_name=self.repository_name,
