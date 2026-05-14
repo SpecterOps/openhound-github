@@ -57,7 +57,7 @@ class MemberEdge(BaseModel):
 
 
 class PageInfo(BaseModel):
-    end_cursor: str = Field(alias="endCursor")
+    end_cursor: str | None = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
@@ -95,7 +95,7 @@ class Team(BaseAsset):
 
     name: str
     id: str
-    database_id: int = Field(alias="databaseId")
+    database_id: int | None = Field(alias="databaseId", default=None)
     slug: str
     description: str | None = None
     privacy: str | None = None
