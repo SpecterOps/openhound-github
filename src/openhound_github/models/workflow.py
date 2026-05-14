@@ -1,3 +1,4 @@
+import base64
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -276,7 +277,6 @@ class Workflow(BaseAsset):
     html_url: str | None = None
     branch: str | None = None
     contents: str | None = None
-    # query_repository: str
 
     # Custom fields added
     org_login: str
@@ -291,10 +291,12 @@ class Workflow(BaseAsset):
     def document(self) -> WorkflowDocument | None:
         if not self.contents or not self.contents.strip():
             return None
-        parsed = yaml.load(self.contents, Loader=GithubActionsLoader)
-        if not isinstance(parsed, dict):
-            return None
         try:
+            decoded = base64.b64decode(self.contents)
+            parsed = yaml.load(decoded, Loader=GithubActionsLoader)
+            if not isinstance(parsed, dict):
+                return None
+
             return WorkflowDocument.model_validate(parsed)
         except ValidationError:
             return None
