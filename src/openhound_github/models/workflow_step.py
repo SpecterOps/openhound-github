@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -59,8 +60,7 @@ class GHWorkflowStepProperties(GHNodeProperties):
     action_ref: str | None = None
     is_pinned: bool = False
     run: str | None = None
-    with_args: dict[str, Any] | None = None
-    contents: dict[str, Any] | None = None
+    contents: str | None = None
     job_node_id: str | None = None
     workflow_node_id: str | None = None
     repository_name: str | None = None
@@ -115,6 +115,7 @@ class GHWorkflowStepProperties(GHNodeProperties):
 )
 class WorkflowStep(BaseAsset):
     """One record from `workflow_steps` -> one GH_WorkflowStep node."""
+
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
     node_id: str
@@ -160,8 +161,7 @@ class WorkflowStep(BaseAsset):
                 action_ref=self.action_ref,
                 is_pinned=self.is_pinned,
                 run=self.run,
-                with_args=self.with_args,
-                contents=self.contents,
+                contents=json.dumps(self.contents),
                 job_node_id=self.job_node_id,
                 workflow_node_id=self.workflow_node_id,
                 repository_name=self.repository_name,
@@ -181,7 +181,9 @@ class WorkflowStep(BaseAsset):
                     kind=nk.REPO_SECRET,
                     property_matchers=[
                         PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(key="repository_id", value=self.repository_node_id),
+                        PropertyMatch(
+                            key="repository_id", value=self.repository_node_id
+                        ),
                     ],
                 ),
                 properties=EdgeProperties(traversable=False),
@@ -209,7 +211,9 @@ class WorkflowStep(BaseAsset):
                     kind=nk.REPO_VARIABLE,
                     property_matchers=[
                         PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(key="repository_id", value=self.repository_node_id),
+                        PropertyMatch(
+                            key="repository_id", value=self.repository_node_id
+                        ),
                     ],
                 ),
                 properties=EdgeProperties(traversable=False),
