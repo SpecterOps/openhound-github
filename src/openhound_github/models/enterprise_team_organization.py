@@ -61,7 +61,7 @@ class EnterpriseTeamOrganization(BaseAsset):
             end=ConditionalEdgePath(
                 kind=nk.TEAM,
                 property_matchers=[
-                    PropertyMatch(key="environmentid", value=self.node_id),
+                    PropertyMatch(key="environmentid", value=self.node_id.upper()),
                     PropertyMatch(key="slug", value=self.projected_slug),
                 ],
             ),
