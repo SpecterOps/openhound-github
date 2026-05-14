@@ -203,7 +203,9 @@ class WorkflowJob(BaseAsset):
                     kind=nk.ORG_SECRET,
                     property_matchers=[
                         PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(key="environmentid", value=self.org_node_id),
+                        PropertyMatch(
+                            key="environmentid", value=self.org_node_id.upper()
+                        ),
                     ],
                 ),
                 properties=EdgeProperties(traversable=False),
@@ -233,7 +235,9 @@ class WorkflowJob(BaseAsset):
                     kind=nk.ORG_VARIABLE,
                     property_matchers=[
                         PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(key="environmentid", value=self.org_node_id),
+                        PropertyMatch(
+                            key="environmentid", value=self.org_node_id.upper()
+                        ),
                     ],
                 ),
                 properties=EdgeProperties(traversable=False),
