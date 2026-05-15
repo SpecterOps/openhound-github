@@ -69,7 +69,7 @@ def enterprise(ctx: SourceContext):
     name="enterprise_organizations", columns=EnterpriseOrganization, parallelized=True
 )
 def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
-    orgs = enterprise_data.organizations.get("nodes", [])
+    orgs = (enterprise_data.organizations or {}).get("nodes", [])
     for org in orgs:
         yield {
             **org,
