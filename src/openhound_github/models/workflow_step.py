@@ -174,34 +174,36 @@ class WorkflowStep(BaseAsset):
     @property
     def _uses_secret_edges(self):
         for ref in self.secret_references:
-            yield Edge(
-                kind=ek.USES_SECRET,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=nk.REPO_SECRET,
-                    property_matchers=[
-                        PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(
-                            key="repository_id", value=self.repository_node_id
-                        ),
-                    ],
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
-            yield Edge(
-                kind=ek.USES_SECRET,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=nk.ORG_SECRET,
-                    property_matchers=[
-                        PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(
-                            key="environmentid", value=self.org_node_id.upper()
-                        ),
-                    ],
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
+            if self._lookup.repo_secret(ref.name, self.repository_node_id):
+                yield Edge(
+                    kind=ek.USES_SECRET,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=ConditionalEdgePath(
+                        kind=nk.REPO_SECRET,
+                        property_matchers=[
+                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(
+                                key="repository_id", value=self.repository_node_id
+                            ),
+                        ],
+                    ),
+                    properties=EdgeProperties(traversable=False),
+                )
+            if self._lookup.org_secret(ref.name, self.org_login):
+                yield Edge(
+                    kind=ek.USES_SECRET,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=ConditionalEdgePath(
+                        kind=nk.ORG_SECRET,
+                        property_matchers=[
+                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(
+                                key="environmentid", value=self.org_node_id.upper()
+                            ),
+                        ],
+                    ),
+                    properties=EdgeProperties(traversable=False),
+                )
 
     @property
     def _uses_variable_edges(self):

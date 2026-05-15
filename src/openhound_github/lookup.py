@@ -124,10 +124,6 @@ class GithubLookup(LookupManager):
             [role_id, repository_node_id],
         )
 
-    # ROLES TO HERE
-
-    # USERS/TEAMS FROM HERE
-    ## GH_BypassPullRequestAllowances
     @lru_cache
     def bypass_pull_request_allowances(self, actor_id: str):
         """Returns the node_ids of users/teams that bypass PR review requirements on branches in a repository (GH_BypassPullRequestAllowances)"""
@@ -236,4 +232,34 @@ class GithubLookup(LookupManager):
                 AND is_admin_enforced = false
             """,
             [repo_node_id],
+        )
+
+    @lru_cache
+    def org_secret(self, secret_name: str, org_login: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.organization_secrets
+            WHERE name = ? AND org_login = ?
+            """,
+            [secret_name, org_login],
+        )
+
+    @lru_cache
+    def repo_secret(self, secret_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.repository_secrets
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [secret_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_secret(self, secret_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_secrets
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [secret_name, repository_id],
         )
