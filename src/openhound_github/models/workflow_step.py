@@ -223,7 +223,7 @@ class WorkflowStep(BaseAsset):
                     ),
                     properties=EdgeProperties(traversable=False),
                 )
-            if self._lookup.org_variable(ref.name, self.repository_node_id):
+            if self._lookup.org_variable(ref.name, self.org_login):
                 yield Edge(
                     kind=ek.USES_VARIABLE,
                     start=EdgePath(value=self.node_id, match_by="id"),
