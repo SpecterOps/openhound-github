@@ -263,3 +263,33 @@ class GithubLookup(LookupManager):
             """,
             [secret_name, repository_id],
         )
+
+    @lru_cache
+    def org_variable(self, var_name: str, org_login: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.organization_variables
+            WHERE name = ? AND org_login = ?
+            """,
+            [var_name, org_login],
+        )
+
+    @lru_cache
+    def repo_variable(self, var_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.repository_variables
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [var_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_variable(self, var_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_variables
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [var_name, repository_id],
+        )

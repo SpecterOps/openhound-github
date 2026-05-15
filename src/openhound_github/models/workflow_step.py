@@ -208,34 +208,36 @@ class WorkflowStep(BaseAsset):
     @property
     def _uses_variable_edges(self):
         for ref in self.variable_references:
-            yield Edge(
-                kind=ek.USES_VARIABLE,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=nk.REPO_VARIABLE,
-                    property_matchers=[
-                        PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(
-                            key="repository_id", value=self.repository_node_id
-                        ),
-                    ],
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
-            yield Edge(
-                kind=ek.USES_VARIABLE,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=nk.ORG_VARIABLE,
-                    property_matchers=[
-                        PropertyMatch(key="name", value=ref.name),
-                        PropertyMatch(
-                            key="environmentid", value=self.org_node_id.upper()
-                        ),
-                    ],
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
+            if self._lookup.repo_variable(ref.name, self.repository_node_id):
+                yield Edge(
+                    kind=ek.USES_VARIABLE,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=ConditionalEdgePath(
+                        kind=nk.REPO_VARIABLE,
+                        property_matchers=[
+                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(
+                                key="repository_id", value=self.repository_node_id
+                            ),
+                        ],
+                    ),
+                    properties=EdgeProperties(traversable=False),
+                )
+            if self._lookup.org_variable(ref.name, self.repository_node_id):
+                yield Edge(
+                    kind=ek.USES_VARIABLE,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=ConditionalEdgePath(
+                        kind=nk.ORG_VARIABLE,
+                        property_matchers=[
+                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(
+                                key="environmentid", value=self.org_node_id.upper()
+                            ),
+                        ],
+                    ),
+                    properties=EdgeProperties(traversable=False),
+                )
 
     @property
     def _has_step_edge(self):
