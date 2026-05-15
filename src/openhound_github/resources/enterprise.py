@@ -285,6 +285,7 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
         cursor_variable="after",
         cursor_field="endCursor",
         has_next_field="hasNextPage",
+        allow_missing_page_info=True,
     )
     data = {
         "query": ENTERPRISE_ADMINS_QUERY,
