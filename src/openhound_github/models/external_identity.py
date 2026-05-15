@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import (
@@ -24,46 +24,35 @@ _FOREIGN_USER_KIND: dict[str, str] = {
 
 @dataclass
 class GHExternalIdentityProperties(GHNodeProperties):
-    """External identity properties and accordion panel queries."""
+    """External identity properties and accordion panel queries.
 
-    guid: str | None = field(
-        default=None, metadata={"description": "The GUID of the external identity."}
-    )
-    saml_identity_username: str | None = field(
-        default=None, metadata={"description": "The username from the SAML identity."}
-    )
-    saml_identity_name_id: str | None = field(
-        default=None, metadata={"description": "The SAML NameID attribute."}
-    )
-    saml_identity_given_name: str | None = field(
-        default=None, metadata={"description": "The given name from the SAML identity."}
-    )
-    saml_identity_family_name: str | None = field(
-        default=None,
-        metadata={"description": "The family name from the SAML identity."},
-    )
-    scim_identity_username: str | None = field(
-        default=None, metadata={"description": "The username from the SCIM identity."}
-    )
-    scim_identity_given_name: str | None = field(
-        default=None, metadata={"description": "The given name from the SCIM identity."}
-    )
-    scim_identity_family_name: str | None = field(
-        default=None,
-        metadata={"description": "The family name from the SCIM identity."},
-    )
-    github_username: str | None = field(
-        default=None, metadata={"description": "The GitHub login of the linked user."}
-    )
-    github_user_id: str | None = field(
-        default=None,
-        metadata={"description": "The GraphQL ID of the linked GitHub user."},
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    query_mapped_users: str = ""
+    Attributes:
+        guid: The GUID of the external identity.
+        saml_identity_username: The username from the SAML identity.
+        saml_identity_name_id: The SAML NameID attribute.
+        saml_identity_given_name: The given name from the SAML identity.
+        saml_identity_family_name: The family name from the SAML identity.
+        scim_identity_username: The username from the SCIM identity.
+        scim_identity_given_name: The given name from the SCIM identity.
+        scim_identity_family_name: The family name from the SCIM identity.
+        github_username: The GitHub login of the linked user.
+        github_user_id: The GraphQL ID of the linked GitHub user.
+        environment_name: The name of the environment (GitHub organization).
+        query_mapped_users: Query for mapped users.
+    """
+
+    guid: str | None = None
+    saml_identity_username: str | None = None
+    saml_identity_name_id: str | None = None
+    saml_identity_given_name: str | None = None
+    saml_identity_family_name: str | None = None
+    scim_identity_username: str | None = None
+    scim_identity_given_name: str | None = None
+    scim_identity_family_name: str | None = None
+    github_username: str | None = None
+    github_user_id: str | None = None
+    environment_name: str | None = None
+    query_mapped_users: str | None = None
 
 
 class SCIMIdentity(BaseModel):
@@ -118,13 +107,20 @@ class User(BaseModel):
 class ExternalIdentity(BaseAsset):
     """One record from `external_identities` → one GH_ExternalIdentity node + mapping edges."""
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True)
 
     guid: str
     id: str
     saml_identity: SAMLIdentity = Field(alias="samlIdentity")
     scim_identity: SCIMIdentity | None = Field(alias="scimIdentity")
     user: User | None = None
+
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def node_id(self) -> str:
@@ -163,8 +159,8 @@ class ExternalIdentity(BaseAsset):
                 else None,
                 github_username=self.user.login if self.user else None,
                 github_user_id=self.user.id if self.user else None,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_mapped_users=f"MATCH p=(:GH_ExternalIdentity {{node_id:'{self.node_id.upper()}'}})-[:GH_MapsToUser]->() RETURN p",
             ),
         )
@@ -187,7 +183,9 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def idp(self) -> dict:
-        ext_idp = self._lookup.idp()
+        ext_idp = self._lookup.idp_for_org(self.org_login)
+        if not ext_idp:
+            return {"id": None, "issuer": None, "sso_url": None}
         id, issuer, sso_url = ext_idp[0]
         return {
             "id": id,

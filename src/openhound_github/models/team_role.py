@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -11,24 +11,27 @@ from openhound_github.main import app
 
 @dataclass
 class GHTeamRoleProperties(GHNodeProperties):
-    """Team role properties and accordion panel queries."""
+    """Team role properties and accordion panel queries.
+    
+    Attributes:
+        short_name: The short role name: `member` or `maintainer`.
+        type: Always `default` for team roles.
+        team_name: The team name property.
+        team_id: The team id property.
+        environment_name: The name of the environment (GitHub organization).
+        query_team: Query for team.
+        query_members: Query for members.
+        query_repositories: Query for repositories.
+    """
 
-    short_name: str = field(
-        default="",
-        metadata={"description": "The short role name: `member` or `maintainer`."},
-    )
-    type: str = field(
-        default="", metadata={"description": "Always `default` for team roles."}
-    )
-    team_name: str = ""
-    team_id: str = ""
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    query_team: str = ""
-    query_members: str = ""
-    query_repositories: str = ""
+    short_name: str | None = None
+    type: str | None = None
+    team_name: str | None = None
+    team_id: str | None = None
+    environment_name: str | None = None
+    query_team: str | None = None
+    query_members: str | None = None
+    query_repositories: str | None = None
 
 
 @app.asset(
@@ -63,6 +66,13 @@ class TeamRole(BaseAsset):
     team_name: str
     team_slug: str
 
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
     @property
     def node_id(self):
         return f"{self.team_node_id}_{self.type}"
@@ -73,15 +83,15 @@ class TeamRole(BaseAsset):
         return GHNode(
             kinds=["GH_TeamRole", "GH_Role"],
             properties=GHTeamRoleProperties(
-                name=f"{self._lookup.org_login()}/{self.team_slug}/{self.type}",
+                name=f"{self.org_login}/{self.team_slug}/{self.type}",
                 displayname=self.type,
                 node_id=rid,
                 short_name=self.type,
                 type="team",
                 team_name=self.team_name,
                 team_id=self.team_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_team=f"MATCH p=(:GH_TeamRole {{node_id:'{rid}'}})-[:GH_MemberOf]->(:GH_Team) RETURN p",
                 query_members=f"MATCH p=(:GH_User)-[GH_HasRole]->(:GH_TeamRole {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_TeamRole {{node_id:'{rid}'}})-[:GH_MemberOf]->(:GH_Team)-[:GH_HasRole|GH_HasBaseRole*1..]->(:GH_RepoRole)-[]->(:GH_Repository) RETURN p",

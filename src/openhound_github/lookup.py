@@ -18,6 +18,13 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def org_id_for_login(self, org_login: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT node_id FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
     def org_login(self) -> str | None:
         res = self._find_single_object(
             f"""SELECT login FROM {self.schema}.organizations"""
@@ -25,9 +32,28 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def enterprise_id(self) -> str | None:
+        res = self._find_single_object(f"""SELECT id FROM {self.schema}.enterprise""")
+        return res
+
+    @lru_cache
+    def org_login_for_id(self, org_node_id: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT login FROM {self.schema}.organizations WHERE node_id = ?""",
+            [org_node_id],
+        )
+
+    @lru_cache
     def repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories""",
+        )
+
+    @lru_cache
+    def repository_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ?""",
+            [org_login],
         )
 
     @lru_cache
@@ -37,16 +63,36 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def private_repository_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ? AND (visibility = 'private' or visibility = 'internal')""",
+            [org_login],
+        )
+
+    @lru_cache
     def idp(self) -> list:
         return self._find_all_objects(
             f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider"""
         )
 
     @lru_cache
-    def app_node_id(self, app_slug: str) -> str | None:
+    def idp_for_org(self, org_login: str) -> list:
+        return self._find_all_objects(
+            f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider WHERE org_login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def app_node_id(self, app_slug: str, org_login: str | None = None) -> str | None:
+        if org_login is None:
+            return self._find_single_object(
+                f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
+                [app_slug],
+            )
+
         return self._find_single_object(
-            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
-            [app_slug],
+            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ? AND org_login = ?""",
+            [app_slug, org_login],
         )
 
     @lru_cache
@@ -78,10 +124,6 @@ class GithubLookup(LookupManager):
             [role_id, repository_node_id],
         )
 
-    # ROLES TO HERE
-
-    # USERS/TEAMS FROM HERE
-    ## GH_BypassPullRequestAllowances
     @lru_cache
     def bypass_pull_request_allowances(self, actor_id: str):
         """Returns the node_ids of users/teams that bypass PR review requirements on branches in a repository (GH_BypassPullRequestAllowances)"""
@@ -190,4 +232,64 @@ class GithubLookup(LookupManager):
                 AND is_admin_enforced = false
             """,
             [repo_node_id],
+        )
+
+    @lru_cache
+    def org_secret(self, secret_name: str, org_login: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.organization_secrets
+            WHERE name = ? AND org_login = ?
+            """,
+            [secret_name, org_login],
+        )
+
+    @lru_cache
+    def repo_secret(self, secret_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.repository_secrets
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [secret_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_secret(self, secret_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_secrets
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [secret_name, repository_id],
+        )
+
+    @lru_cache
+    def org_variable(self, var_name: str, org_login: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.organization_variables
+            WHERE name = ? AND org_login = ?
+            """,
+            [var_name, org_login],
+        )
+
+    @lru_cache
+    def repo_variable(self, var_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.repository_variables
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [var_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_variable(self, var_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_variables
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [var_name, repository_id],
         )

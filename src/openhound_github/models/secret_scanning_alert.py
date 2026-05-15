@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
@@ -36,43 +36,30 @@ class Repository(BaseModel):
 
 @dataclass
 class GHSecretScanningAlertProperties(GHNodeProperties):
-    """Secret scanning alert properties and accordion panel queries."""
+    """Secret scanning alert properties and accordion panel queries.
+    
+    Attributes:
+        repository_name: The name of the repository where the secret was detected.
+        secret_type: The type of secret detected (e.g., `github_personal_access_token`, `aws_access_key_id`).
+        secret_type_display_name: A human-readable name for the secret type.
+        validity: The validity status of the detected secret (e.g., `active`, `inactive`, `unknown`).
+        state: The alert state (e.g., `open`, `resolved`).
+        url: The HTML URL to view the alert on GitHub.
+        query_repository: Query for repository.
+        query_alert_viewers: Query for alert viewers.
+    """
 
     # TODO: Check the following fields
     # repository_id, repository_url, created_at, updated_at
 
-    repository_name: str = field(
-        default="",
-        metadata={
-            "description": "The name of the repository where the secret was detected."
-        },
-    )
-    secret_type: str | None = field(
-        default=None,
-        metadata={
-            "description": "The type of secret detected (e.g., `github_personal_access_token`, `aws_access_key_id`)."
-        },
-    )
-    secret_type_display_name: str | None = field(
-        default=None,
-        metadata={"description": "A human-readable name for the secret type."},
-    )
-    validity: str | None = field(
-        default=None,
-        metadata={
-            "description": "The validity status of the detected secret (e.g., `active`, `inactive`, `unknown`)."
-        },
-    )
-    state: str | None = field(
-        default=None,
-        metadata={"description": "The alert state (e.g., `open`, `resolved`)."},
-    )
-    url: str | None = field(
-        default=None,
-        metadata={"description": "The HTML URL to view the alert on GitHub."},
-    )
-    query_repository: str = ""
-    query_alert_viewers: str = ""
+    repository_name: str | None = None
+    secret_type: str | None = None
+    secret_type_display_name: str | None = None
+    validity: str | None = None
+    state: str | None = None
+    url: str | None = None
+    query_repository: str | None = None
+    query_alert_viewers: str | None = None
 
 
 @app.asset(
@@ -128,6 +115,7 @@ class SecretScanningAlert(BaseAsset):
     validity: str | None = None
 
     # Additional
+    org_login: str
     valid_token_user_node_id: str | None = (
         None  # based on lookup of users with valid tokens matching the secret
     )
@@ -142,7 +130,7 @@ class SecretScanningAlert(BaseAsset):
     def org_node_id(self) -> str | None:
         if self.repository and self.repository.owner:
             return self.repository.owner.node_id
-        return None
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def as_node(self) -> GHNode:
@@ -153,7 +141,7 @@ class SecretScanningAlert(BaseAsset):
                 name=str(self.number),
                 displayname=self.secret_type_display_name or str(self.number),
                 node_id=aid,
-                environmentid=self._lookup.org_id(),
+                environmentid=self.org_node_id,
                 repository_name=self.repository.name if self.repository else "",
                 secret_type=self.secret_type,
                 secret_type_display_name=self.secret_type_display_name,

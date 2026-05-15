@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -46,26 +46,25 @@ class Organization(BaseModel):
 
 @dataclass
 class GHOrgRoleProperties(GHNodeProperties):
-    """Org role properties and accordion panel queries."""
+    """Org role properties and accordion panel queries.
+    
+    Attributes:
+        short_name: The short display name of the role (e.g., `Owners`, `Members`, or the custom role name).
+        type: `default` for built-in roles (Owner, Member) or `custom` for custom organization roles.
+        environment_name: The name of the environment (GitHub organization).
+        query_explicit_members: Query for explicit members.
+        query_unrolled_members: Query for unrolled members.
+        query_org_permissions: Query for org permissions.
+        query_repo_permissions: Query for repo permissions.
+    """
 
-    short_name: str = field(
-        metadata={
-            "description": "The short display name of the role (e.g., `Owners`, `Members`, or the custom role name)."
-        }
-    )
-    type: str = field(
-        metadata={
-            "description": "`default` for built-in roles (Owner, Member) or `custom` for custom organization roles."
-        }
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    query_explicit_members: str = ""
-    query_unrolled_members: str = ""
-    query_org_permissions: str = ""
-    query_repo_permissions: str = ""
+    short_name: str
+    type: str
+    environment_name: str | None = None
+    query_explicit_members: str | None = None
+    query_unrolled_members: str | None = None
+    query_org_permissions: str | None = None
+    query_repo_permissions: str | None = None
 
 
 @app.asset(
@@ -176,8 +175,8 @@ class OrgRole(BaseAsset):
                 node_id=self.node_id,
                 short_name=self.name,
                 type="custom",
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_explicit_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_OrgRole {{node_id:'{self.node_id}'}}) RETURN p",
                 query_unrolled_members=f"MATCH p=(:GH_User)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf*1..]->(:GH_OrgRole {{node_id:'{self.node_id}'}}) RETURN p",
                 query_org_permissions=f"MATCH p=(:GH_OrgRole {{node_id:'{self.node_id}'}})-[]->(:GH_Organization) RETURN p",

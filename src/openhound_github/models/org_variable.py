@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -14,28 +14,23 @@ from openhound_github.main import app
 
 @dataclass
 class GHOrgVariableProperties(GHNodeProperties):
-    """Org variable properties and accordion panel queries."""
+    """Org variable properties and accordion panel queries.
+    
+    Attributes:
+        visibility: The variable's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos).
+        environment_name: The name of the environment (GitHub organization).
+        value: The plaintext value of the variable.
+        created_at: When the variable was created.
+        updated_at: When the variable was last updated.
+        query_visible_repositories: Query for visible repositories.
+    """
 
-    visibility: str = field(
-        default="",
-        metadata={
-            "description": "The variable's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos)."
-        },
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    value: str | None = field(
-        default=None, metadata={"description": "The plaintext value of the variable."}
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the variable was created."}
-    )
-    updated_at: str | None = field(
-        default=None, metadata={"description": "When the variable was last updated."}
-    )
-    query_visible_repositories: str = ""
+    visibility: str | None = None
+    environment_name: str | None = None
+    value: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    query_visible_repositories: str | None = None
 
 
 @app.asset(
@@ -66,10 +61,16 @@ class OrgVariable(BaseAsset):
     updated_at: datetime | None = None
     visibility: str
 
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
     @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgVariable_{org_node_id}_{self.name}"
+        return f"GH_OrgVariable_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self) -> GHNode:
@@ -81,8 +82,8 @@ class OrgVariable(BaseAsset):
                 displayname=self.name,
                 node_id=vid,
                 visibility=self.visibility,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 value=self.value,
                 created_at=str(self.created_at) if self.created_at else None,
                 updated_at=str(self.updated_at) if self.updated_at else None,
@@ -119,11 +120,15 @@ class SelectedOrgVariable(BaseAsset):
 
     name: str
     repository_node_id: str
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgVariable_{org_node_id}_{self.name}"
+        return f"GH_OrgVariable_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self):

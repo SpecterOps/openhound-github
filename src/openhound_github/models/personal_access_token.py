@@ -1,6 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
+from typing import ClassVar
 
+from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 from pydantic import BaseModel
@@ -25,58 +27,39 @@ class Owner(BaseModel):
 
 @dataclass
 class GHPersonalAccessTokenProperties(GHNodeProperties):
-    """PAT properties and accordion panel queries."""
+    """PAT properties and accordion panel queries.
+    
+    Attributes:
+        environment_name: The name of the environment (GitHub organization) where the token has access.
+        owner_id: The GitHub ID of the token owner.
+        owner_node_id: The GraphQL node ID of the token owner.
+        token_expires_at: The ISO 8601 timestamp of when the token expires.
+        token_last_used_at: The ISO 8601 timestamp of when the token was last used.
+        access_granted_at: The ISO 8601 timestamp of when the token was granted to the organization. |
+        token_name: The user-assigned display name of the token.
+        owner_login: The login handle of the user who owns the token.
+        repository_selection: Whether the token has access to `all`, `subset`, or `none` of the organization's repositories.
+        token_expired: Whether the token has expired.
+        query_organization_permissions: Query for organization permissions.
+        query_user: Query for user.
+        query_repositories: Query for repositories.
+    """
 
-    environment_name: str = field(
-        metadata={
-            "description": "The name of the environment (GitHub organization) where the token has access."
-        }
-    )
-    owner_id: str | None = field(
-        default=None, metadata={"description": "The GitHub ID of the token owner."}
-    )
+    environment_name: str
+    owner_id: str | None = None
     # TODO: owner_node_id?
-    owner_node_id: str | None = field(
-        default=None,
-        metadata={"description": "The GraphQL node ID of the token owner."},
-    )
-    token_expires_at: datetime | None = field(
-        default=None,
-        metadata={"description": "The ISO 8601 timestamp of when the token expires."},
-    )
-    token_last_used_at: datetime | None = field(
-        default=None,
-        metadata={
-            "description": "The ISO 8601 timestamp of when the token was last used."
-        },
-    )
+    owner_node_id: str | None = None
+    token_expires_at: datetime | None = None
+    token_last_used_at: datetime | None = None
     # TODO: permissions:
-    access_granted_at: datetime | None = field(
-        default=None,
-        metadata={
-            "description": "The ISO 8601 timestamp of when the token was granted to the organization. |"
-        },
-    )
-    token_name: str = field(
-        default="",
-        metadata={"description": "The user-assigned display name of the token."},
-    )
-    owner_login: str | None = field(
-        default=None,
-        metadata={"description": "The login handle of the user who owns the token."},
-    )
-    repository_selection: str | None = field(
-        default=None,
-        metadata={
-            "description": "Whether the token has access to `all`, `subset`, or `none` of the organization's repositories."
-        },
-    )
-    token_expired: bool | None = field(
-        default=None, metadata={"description": "Whether the token has expired."}
-    )
-    query_organization_permissions: str = ""
-    query_user: str = ""
-    query_repositories: str = ""
+    access_granted_at: datetime | None = None
+    token_name: str | None = None
+    owner_login: str | None = None
+    repository_selection: str | None = None
+    token_expired: bool | None = None
+    query_organization_permissions: str | None = None
+    query_user: str | None = None
+    query_repositories: str | None = None
 
 
 @app.asset(
@@ -113,6 +96,8 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
 class PersonalAccessToken(BaseAsset):
     """One record from `personal_access_tokens` → one GH_PersonalAccessToken node + edges."""
 
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
     id: int
     owner: Owner
     repository_selection: str | None = None
@@ -126,11 +111,17 @@ class PersonalAccessToken(BaseAsset):
     token_expires_at: datetime | None = None
     token_last_used_at: datetime | None = None
 
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
     @property
     def node_id(self) -> str:
         """Construct a synthetic node_id for this PAT based on org node ID and token ID. This is needed to link users to their PATs via edges, since GH doesn't return unique IDs for PATs."""
-        org_node_id = self._lookup.org_id()
-        return f"GH_PAT_{org_node_id}_{self.id}"
+        return f"GH_PAT_{self.org_node_id}_{self.id}"
 
     @property
     def as_node(self) -> GHNode:
@@ -145,8 +136,8 @@ class PersonalAccessToken(BaseAsset):
                 owner_login=self.owner.login,
                 repository_selection=self.repository_selection,
                 token_expired=self.token_expired,
-                environmentid=self._lookup.org_id(),
-                environment_name=self._lookup.org_login(),
+                environmentid=self.org_node_id,
+                environment_name=self.org_login,
                 token_expires_at=self.token_expires_at,
                 owner_id=self.owner.id if self.owner else None,
                 token_last_used_at=self.token_last_used_at,
@@ -170,14 +161,14 @@ class PersonalAccessToken(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
         yield Edge(
             kind=ek.CAN_ACCESS,
             start=EdgePath(value=self.node_id, match_by="id"),
-            end=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            end=EdgePath(value=self.org_node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
         yield from self._owner_edge

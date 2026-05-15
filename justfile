@@ -1,16 +1,16 @@
 set dotenv-load := true
 
-collect +args:
+collect +args='github /tmp/output/raw/':
     @echo "Collecting data"
-    uv run src/main.py collect github {{args}}
+    uv run src/main.py collect {{args}}
 
-preprocess +args:
-    @echo "Collecting data"
-    uv run src/main.py preprocess github {{args}}
+preprocess +args='github /tmp/output/raw/github':
+    @echo "Preprocessing data"
+    uv run openhound preprocess {{args}}
 
-convert +args:
+convert +args='github /tmp/output/raw/github /tmp/output/graph/github':
     @echo "Converting data"
-    uv run src/main.py convert github {{args}}
+    uv run openhound convert {{args}}
 
 sync:
     @echo "Syncing dependencies"

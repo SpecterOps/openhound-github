@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -13,46 +13,33 @@ from openhound_github.main import app
 
 @dataclass
 class GHRunnerGroupProperties(GHNodeProperties):
-    group_id: int | None = field(
-        default=None, metadata={"description": "The GitHub runner group ID."}
-    )
-    group_name: str | None = field(
-        default=None, metadata={"description": "The runner group display name."}
-    )
-    visibility: str | None = field(
-        default=None,
-        metadata={
-            "description": "Which repositories can use this group: `all`, `private`, or `selected`."
-        },
-    )
-    default: bool | None = field(
-        default=None,
-        metadata={"description": "Whether this is the default runner group."},
-    )
-    inherited: bool | None = field(
-        default=None,
-        metadata={"description": "Whether this runner group is inherited."},
-    )
-    allows_public_repositories: bool | None = field(
-        default=None,
-        metadata={"description": "Whether public repositories may use this group."},
-    )
-    restricted_to_workflows: bool | None = field(
-        default=None,
-        metadata={"description": "Whether access is restricted to selected workflows."},
-    )
-    selected_workflows: str | None = field(
-        default=None,
-        metadata={"description": "JSON array of selected workflows, if configured."},
-    )
-    runners_url: str | None = field(
-        default=None,
-        metadata={"description": "API URL for runners in this group."},
-    )
-    environment_name: str | None = field(
-        default=None,
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
+    """Properties for GHRunnerGroupProperties.
+    
+    Attributes:
+        group_id: The GitHub runner group ID.
+        group_name: The runner group display name.
+        visibility: Which repositories can use this group: `all`, `private`, or `selected`.
+        default: Whether this is the default runner group.
+        inherited: Whether this runner group is inherited.
+        allows_public_repositories: Whether public repositories may use this group.
+        restricted_to_workflows: Whether access is restricted to selected workflows.
+        selected_workflows: JSON array of selected workflows, if configured.
+        runners_url: API URL for runners in this group.
+        environment_name: The name of the environment (GitHub organization).
+        query_runners: Query for runners.
+        query_repositories: Query for repositories.
+    """
+
+    group_id: int | None = None
+    group_name: str | None = None
+    visibility: str | None = None
+    default: bool | None = None
+    inherited: bool | None = None
+    allows_public_repositories: bool | None = None
+    restricted_to_workflows: bool | None = None
+    selected_workflows: str | None = None
+    runners_url: str | None = None
+    environment_name: str | None = None
     query_runners: str | None = None
     query_repositories: str | None = None
 
@@ -85,9 +72,16 @@ class RunnerGroup(BaseAsset):
     selected_workflows: list[str] | None = None
     runners_url: str | None = None
 
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
     @property
     def node_id(self) -> str:
-        return f"{self._lookup.org_id()}_runner_group_{self.id}"
+        return f"{self.org_node_id}_runner_group_{self.id}"
 
     @property
     def as_node(self) -> GHNode:
@@ -95,7 +89,7 @@ class RunnerGroup(BaseAsset):
         return GHNode(
             kinds=[nk.RUNNER_GROUP],
             properties=GHRunnerGroupProperties(
-                name=f"{self._lookup.org_login()}/{self.name}",
+                name=f"{self.org_login}/{self.name}",
                 displayname=self.name,
                 node_id=gid,
                 group_id=self.id,
@@ -107,8 +101,8 @@ class RunnerGroup(BaseAsset):
                 restricted_to_workflows=self.restricted_to_workflows,
                 selected_workflows=json.dumps(self.selected_workflows or []),
                 runners_url=self.runners_url,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_runners=f"MATCH p=(:GH_RunnerGroup {{node_id:'{gid}'}})-[:GH_Contains]->(:GH_OrgRunner) RETURN p",
                 query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunner)<-[:GH_Contains]-(:GH_RunnerGroup {{node_id:'{gid}'}}) RETURN p",
             ),
@@ -118,7 +112,7 @@ class RunnerGroup(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
@@ -126,61 +120,41 @@ class RunnerGroup(BaseAsset):
 
 @dataclass
 class GHRunnerProperties(GHNodeProperties):
-    scope: str = field(
-        default="",
-        metadata={
-            "description": "Whether the runner is organization or repository scoped."
-        },
-    )
-    runner_id: int | None = field(
-        default=None, metadata={"description": "The GitHub runner ID."}
-    )
-    os: str | None = field(
-        default=None, metadata={"description": "The runner operating system."}
-    )
-    status: str | None = field(
-        default=None, metadata={"description": "The runner status."}
-    )
-    busy: bool | None = field(
-        default=None, metadata={"description": "Whether the runner is currently busy."}
-    )
-    ephemeral: bool | None = field(
-        default=None,
-        metadata={"description": "Whether the runner is ephemeral."},
-    )
-    labels: str | None = field(
-        default=None, metadata={"description": "JSON array of runner labels."}
-    )
-    runner_group_id: int | None = field(
-        default=None, metadata={"description": "The associated runner group ID."}
-    )
-    runner_group_name: str | None = field(
-        default=None, metadata={"description": "The associated runner group name."}
-    )
-    runner_group_visibility: str | None = field(
-        default=None,
-        metadata={"description": "Runner group visibility when organization scoped."},
-    )
-    repository_name: str | None = field(
-        default=None,
-        metadata={"description": "The repository name for repository-scoped runners."},
-    )
-    repository_id: str | None = field(
-        default=None,
-        metadata={
-            "description": "The repository node_id for repository-scoped runners."
-        },
-    )
-    repository_full_name: str | None = field(
-        default=None,
-        metadata={
-            "description": "The full repository name for repository-scoped runners."
-        },
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
+    """Properties for GHRunnerProperties.
+    
+    Attributes:
+        scope: Whether the runner is organization or repository scoped.
+        runner_id: The GitHub runner ID.
+        os: The runner operating system.
+        status: The runner status.
+        busy: Whether the runner is currently busy.
+        ephemeral: Whether the runner is ephemeral.
+        labels: JSON array of runner labels.
+        runner_group_id: The associated runner group ID.
+        runner_group_name: The associated runner group name.
+        runner_group_visibility: Runner group visibility when organization scoped.
+        repository_name: The repository name for repository-scoped runners.
+        repository_id: The repository node_id for repository-scoped runners.
+        repository_full_name: The full repository name for repository-scoped runners.
+        environment_name: The name of the environment (GitHub organization).
+        query_group: Query for group.
+        query_repositories: Query for repositories.
+    """
+
+    scope: str | None = None
+    runner_id: int | None = None
+    os: str | None = None
+    status: str | None = None
+    busy: bool | None = None
+    ephemeral: bool | None = None
+    labels: str | None = None
+    runner_group_id: int | None = None
+    runner_group_name: str | None = None
+    runner_group_visibility: str | None = None
+    repository_name: str | None = None
+    repository_id: str | None = None
+    repository_full_name: str | None = None
+    environment_name: str | None = None
     query_group: str | None = None
     query_repositories: str | None = None
 
@@ -202,9 +176,16 @@ class OrgRunner(BaseAsset):
     ephemeral: bool | None = None
     labels: list[dict] = Field(default_factory=list)
 
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
     @property
     def node_id(self) -> str:
-        return f"{self._lookup.org_id()}_org_runner_{self.id}"
+        return f"{self.org_node_id}_org_runner_{self.id}"
 
     @property
     def as_node(self) -> GHNode:
@@ -222,8 +203,8 @@ class OrgRunner(BaseAsset):
                 busy=self.busy,
                 ephemeral=self.ephemeral,
                 labels=json.dumps(self.labels),
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_group=f"MATCH p=(:GH_RunnerGroup)-[:GH_Contains]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
             ),
@@ -257,20 +238,27 @@ class OrgRunnerGroupMembership(BaseAsset):
     runner_id: int
     accessible_repo_node_ids: list[str] = Field(default_factory=list)
 
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
     @property
     def as_node(self):
         return None
 
     @property
     def _runner_node_id(self):
-        return f"{self._lookup.org_id()}_org_runner_{self.runner_id}"
+        return f"{self.org_node_id}_org_runner_{self.runner_id}"
 
     @property
     def _contains_edge(self):
         yield Edge(
             kind=ek.CONTAINS,
             start=EdgePath(
-                value=f"{self._lookup.org_id()}_runner_group_{self.runner_group_id}",
+                value=f"{self.org_node_id}_runner_group_{self.runner_group_id}",
                 match_by="id",
             ),
             end=EdgePath(value=self._runner_node_id, match_by="id"),
@@ -329,6 +317,13 @@ class RepoRunner(BaseAsset):
     repository_node_id: str
     repository_full_name: str
 
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
     @property
     def node_id(self) -> str:
         return f"{self.repository_node_id}_repo_runner_{self.id}"
@@ -352,8 +347,8 @@ class RepoRunner(BaseAsset):
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
                 repository_full_name=self.repository_full_name,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_repositories=f"MATCH p=(:GH_Repository {{node_id:'{self.repository_node_id}'}})-[:GH_CanUseRunner]->(:GH_RepoRunner {{node_id:'{rid}'}}) RETURN p",
             ),
         )

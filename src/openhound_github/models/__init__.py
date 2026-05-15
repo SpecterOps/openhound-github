@@ -4,6 +4,22 @@ from .branch import Branch
 from .branch_pr_bypass_allowance import BranchPrBypassAllowance
 from .branch_protection_rule import BranchProtectionRule, BranchProtectionRuleActor
 from .branch_push_allowance import BranchPushAllowance
+from .enterprise import Enterprise
+from .enterprise_admin import EnterpriseAdmin
+from .enterprise_external_identity import EnterpriseExternalIdentity
+from .enterprise_helpers import enterprise_role_node_id, enterprise_team_node_id
+from .enterprise_managed_user import EnterpriseManagedUser
+from .enterprise_member import BaseUser, flatten_enterprise_member
+from .enterprise_organization import EnterpriseOrganization
+from .enterprise_role import EnterpriseRole
+from .enterprise_role_team import EnterpriseRoleTeam
+from .enterprise_role_user import EnterpriseRoleUser
+from .enterprise_saml_provider import EnterpriseSamlProvider
+from .enterprise_team import EnterpriseTeam
+from .enterprise_team_member import EnterpriseTeamMember
+from .enterprise_team_organization import EnterpriseTeamOrganization
+from .enterprise_team_role import EnterpriseTeamRole
+from .enterprise_user import EnterpriseUser
 from .env_secret import EnvironmentSecret
 from .env_variable import EnvironmentVariable
 from .environment import Environment
@@ -32,6 +48,8 @@ from .team_member import TeamMember
 from .team_role import TeamRole
 from .user import User
 from .workflow import Workflow
+from .workflow_job import WorkflowJob
+from .workflow_step import WorkflowStep
 
 __all__ = [
     "Organization",
@@ -52,6 +70,8 @@ __all__ = [
     "RepositoryQL",
     "BranchPushAllowance",
     "Workflow",
+    "WorkflowJob",
+    "WorkflowStep",
     "Environment",
     "EnvironmentSecret",
     "EnvironmentVariable",
@@ -78,4 +98,26 @@ __all__ = [
     "ExternalIdentity",
     "ScimResource",
     "RepoRoleAssignment",
+    "Environment",
+    "EnvironmentSecret",
+    "EnvironmentVariable",
+    "EnvironmentBranchPolicy",
+    "Enterprise",
+    "EnterpriseAdmin",
+    "EnterpriseExternalIdentity",
+    "EnterpriseManagedUser",
+    "EnterpriseOrganization",
+    "EnterpriseRole",
+    "EnterpriseRoleTeam",
+    "EnterpriseRoleUser",
+    "EnterpriseSamlProvider",
+    "EnterpriseTeam",
+    "EnterpriseTeamMember",
+    "EnterpriseTeamOrganization",
+    "EnterpriseTeamRole",
+    "EnterpriseUser",
+    "BaseUser",
+    "enterprise_role_node_id",
+    "enterprise_team_node_id",
+    "flatten_enterprise_member",
 ]

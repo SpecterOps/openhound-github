@@ -42,8 +42,8 @@ def convert(ctx: CollectContext) -> Tuple[DltSource, dict]:
 def preproc(ctx: PreProcContext):
     """Build a DuckDB lookup database from collected data.
 
-    Loads `organizations` and `repositories` tables so the converter can
-    resolve cross-table references (org node IDs, repo visibility) without
+    Loads lookup tables so the converter can resolve cross-table references
+    (org node IDs, repo visibility, workflow secrets/variables) without
     re-reading the full dataset.
 
     Run before convert:
@@ -60,4 +60,15 @@ def preproc(ctx: PreProcContext):
         "repo_roles": "repo_roles",
         "saml_provider": "saml_provider",
         "applications": "applications",
+        "enterprise": "enterprise",
+        "environment_secrets": "environment_secrets",
+        "environment_variables": "environment_variables",
+        "organization_secrets": "organization_secrets",
+        "organization_variables": "organization_variables",
+        "repository_secrets": "repository_secrets",
+        "repository_variables": "repository_variables",
+        "selected_organization_secrets": "selected_organization_secrets",
+        "selected_organization_variables": "selected_organization_variables",
+        "workflow_jobs": "workflow_jobs",
+        "workflow_steps": "workflow_steps",
     }

@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -193,34 +193,35 @@ class BaseRepoRole(BaseModel):
     organization: Organization | None = None
     base_role: str
 
+    # Additional
+    org_login: str
+
 
 @dataclass
 class GHRepoRoleProperties(GHNodeProperties):
-    """Repository role-specific properties and accordion panel queries."""
+    """Repository role-specific properties and accordion panel queries.
+    
+    Attributes:
+        short_name: The short role name (e.g., `read`, `write`, `admin`, `triage`, `maintain`, or custom role name).
+        repository_name: The name of the repository this role belongs to.
+        repository_id: The node_id of the repository this role belongs to.
+        environment_name: The name of the environment (GitHub organization).
+        type: `default` for built-in roles or `custom` for custom repository roles.
+        query_explicit_users: Query for explicit users.
+        query_explicit_teams: Query for explicit teams.
+        query_unrolled_members: Query for unrolled members.
+        query_repository_permissions: Query for repository permissions.
+    """
 
-    short_name: str = field(
-        metadata={
-            "description": "The short role name (e.g., `read`, `write`, `admin`, `triage`, `maintain`, or custom role name)."
-        }
-    )
-    repository_name: str = field(
-        metadata={"description": "The name of the repository this role belongs to."}
-    )
-    repository_id: str = field(
-        metadata={"description": "The node_id of the repository this role belongs to."}
-    )
-    environment_name: str = field(
-        metadata={"description": "The name of the environment (GitHub organization)."}
-    )
-    type: str = field(
-        metadata={
-            "description": "`default` for built-in roles or `custom` for custom repository roles."
-        }
-    )
-    query_explicit_users: str = ""
-    query_explicit_teams: str = ""
-    query_unrolled_members: str = ""
-    query_repository_permissions: str = ""
+    short_name: str
+    repository_name: str
+    repository_id: str
+    environment_name: str
+    type: str
+    query_explicit_users: str | None = None
+    query_explicit_teams: str | None = None
+    query_unrolled_members: str | None = None
+    query_repository_permissions: str | None = None
 
 
 @app.asset(
@@ -680,6 +681,7 @@ class RepoRole(BaseAsset):
     base_role: str | None = None
 
     # Additional
+    org_login: str
     type: str
     repository_node_id: str
     repository_name: str
@@ -693,7 +695,7 @@ class RepoRole(BaseAsset):
 
     @property
     def org_node_id(self) -> str:
-        return self._lookup.org_id()
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def as_node(self) -> GHNode:
@@ -708,8 +710,8 @@ class RepoRole(BaseAsset):
                 type=self.type,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_explicit_users=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) RETURN p",
                 query_explicit_teams=f"MATCH p=(:GH_Team)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) RETURN p",
                 query_unrolled_members=(

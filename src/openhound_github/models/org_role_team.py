@@ -37,11 +37,12 @@ class OrgRoleTeam(BaseAsset):
     # Additional
     org_role_id: int
     org_role_name: str
+    org_node_id: str
+    org_login: str
 
     @property
     def org_role_node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"{org_node_id}_{self.org_role_name}"
+        return f"{self.org_node_id}_{self.org_role_name}"
 
     @property
     def as_node(self) -> None:

@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
@@ -12,29 +12,25 @@ from openhound_github.main import app
 
 @dataclass
 class GHRepoSecretProperties(GHNodeProperties):
-    """Repo secret properties and accordion panel queries."""
+    """Repo secret properties and accordion panel queries.
+    
+    Attributes:
+        repository_name: The name of the containing repository.
+        repository_id: The node_id of the containing repository.
+        environment_name: The name of the environment (GitHub organization).
+        created_at: When the secret was created.
+        updated_at: When the secret was last updated.
+        visibility: The secret's visibility scope.
+        query_visible_repositories: Query for visible repositories.
+    """
 
-    repository_name: str = field(
-        default="", metadata={"description": "The name of the containing repository."}
-    )
-    repository_id: str = field(
-        default="",
-        metadata={"description": "The node_id of the containing repository."},
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the secret was created."}
-    )
-    updated_at: str | None = field(
-        default=None, metadata={"description": "When the secret was last updated."}
-    )
-    visibility: str | None = field(
-        default=None, metadata={"description": "The secret's visibility scope."}
-    )
-    query_visible_repositories: str = ""
+    repository_name: str | None = None
+    repository_id: str | None = None
+    environment_name: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    visibility: str | None = None
+    query_visible_repositories: str | None = None
 
 
 @app.asset(
@@ -71,8 +67,13 @@ class RepoSecret(BaseAsset):
     selected_repositories_url: str | None = None
 
     # Additional
-    repository_name: str = ""
-    repository_node_id: str = ""
+    org_login: str
+    repository_name: str | None = None
+    repository_node_id: str | None = None
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def node_id(self) -> str:
@@ -89,8 +90,8 @@ class RepoSecret(BaseAsset):
                 node_id=sid,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 created_at=str(self.created_at) if self.created_at else None,
                 updated_at=str(self.updated_at) if self.updated_at else None,
                 visibility=self.visibility,
