@@ -298,7 +298,7 @@ class Workflow(BaseAsset):
                 return None
 
             return WorkflowDocument.model_validate(parsed)
-        except ValidationError:
+        except Exception:
             return None
 
     def workflow_job_rows(self) -> list[dict[str, Any]]:
