@@ -293,3 +293,23 @@ class GithubLookup(LookupManager):
             """,
             [var_name, repository_id],
         )
+
+    @lru_cache
+    def environment(self, env_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environments
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [env_name, repository_id],
+        )
+
+    @lru_cache
+    def workflow(self, repository_node_id: str, path: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.workflows
+            WHERE repository_node_id = ? AND path = ?
+            """,
+            [repository_node_id, path],
+        )
