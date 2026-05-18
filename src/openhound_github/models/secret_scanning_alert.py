@@ -37,7 +37,7 @@ class Repository(BaseModel):
 @dataclass
 class GHSecretScanningAlertProperties(GHNodeProperties):
     """Secret scanning alert properties and accordion panel queries.
-    
+
     Attributes:
         repository_name: The name of the repository where the secret was detected.
         secret_type: The type of secret detected (e.g., `github_personal_access_token`, `aws_access_key_id`).
@@ -161,7 +161,7 @@ class SecretScanningAlert(BaseAsset):
     def edges(self):
         if self.repository:
             yield Edge(
-                kind=ek.HAS_SECRET_SCANNING_ALERT,
+                kind=ek.CONTAINS,
                 start=EdgePath(value=self.repository.node_id, match_by="id"),
                 end=EdgePath(value=self.node_id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
