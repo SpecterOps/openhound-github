@@ -51,7 +51,6 @@ class GithubSession:
         self.private_key_path = private_key_path
         self.client = RESTClient(
             base_url=self.api_uri,
-            headers=self.jwt_headers,
             paginator=HeaderLinkPaginator(),
         )
 
@@ -100,6 +99,7 @@ class GithubInstallation(GithubSession):
         response = self.client.post(
             f"{self.api_uri}app/installations/{self.installation_id}/access_tokens",
             timeout=10,
+            headers=self.jwt_headers,
         )
         response.raise_for_status()
         return TokenResponse(**response.json())
@@ -120,14 +120,16 @@ class GithubApp(GithubSession):
     @property
     def installations(self) -> Iterator[InstallationResponse]:
         for page in self.client.paginate(
-            "/app/installations", params={"per_page": 100}
+            "/app/installations", params={"per_page": 100}, headers=self.jwt_headers
         ):
             for item in page:
                 yield InstallationResponse(**item)
 
     def install_id_for_org(self, org_login: str) -> int:
         logger.info(f"Getting app installation ID for org {org_login}")
-        response = self.client.get(f"/orgs/{org_login}/installation")
+        response = self.client.get(
+            f"/orgs/{org_login}/installation", headers=self.jwt_headers
+        )
         response.raise_for_status()
         return int(response.json()["id"])
 
@@ -155,7 +157,11 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         return datetime.now(timezone.utc) >= refresh_at
 
     def token(self, force_refresh: bool = False) -> str | None:
-        if not force_refresh and self.access_token is not None and not self._should_refresh():
+        if (
+            not force_refresh
+            and self.access_token is not None
+            and not self._should_refresh()
+        ):
             return self.access_token
 
         with self._token_lock:
