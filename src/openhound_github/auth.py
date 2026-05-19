@@ -16,6 +16,29 @@ from dlt.sources.helpers.rest_client.paginators import (
 )
 from joserfc import jwk, jwt
 from joserfc.jwk import RSAKey
+from pydantic import BaseModel
+
+
+class AccountConfig(BaseModel):
+    id: int
+    login: str | None = None
+    name: str | None = None
+    type: str | None = None
+    slug: str | None = None
+
+
+class InstallationResponse(BaseModel):
+    id: int
+    client_id: str
+    account: AccountConfig
+    target_type: str
+    app_id: int | None = None
+    app_slug: str | None = None
+
+
+class TokenResponse(BaseModel):
+    token: str
+    expires_at: datetime
 
 
 class GithubSession:
@@ -65,46 +88,47 @@ class GithubSession:
 class GithubInstallation(GithubSession):
     def __init__(
         self,
-        org_name: str,
+        # org_name: str,
         installation_id: str,
         client_id: str,
         private_key_path: str,
         api_uri: str = "https://api.github.com/",
     ):
         self.installation_id = installation_id
-        self.org_name = org_name
+        # self.org_name = org_name
         super().__init__(client_id, private_key_path, api_uri)
 
     @property
-    def token(self) -> dict:
+    def token(self) -> TokenResponse:
         response = self.client.post(
             f"{self.api_uri}app/installations/{self.installation_id}/access_tokens",
             timeout=10,
         )
         response.raise_for_status()
-        return response.json()
+        return TokenResponse(**response.json())
 
 
 class GithubApp(GithubSession):
     def __init__(
         self,
-        enterprise_name: str,
+        # enterprise_name: str,
         client_id: str,
         private_key_path: str,
         api_uri: str = "https://api.github.com/",
     ):
-        self.enterprise_name = enterprise_name
+        # self.enterprise_name = enterprise_name
         self.client_id = client_id
         self.private_key_path = private_key_path
         self.api_uri = api_uri
         super().__init__(client_id, private_key_path, api_uri)
 
     @property
-    def installations(self) -> Iterator[dict]:
+    def installations(self) -> Iterator[InstallationResponse]:
         for page in self.client.paginate(
             "/app/installations", params={"per_page": 100}
         ):
-            yield from page
+            for item in page:
+                yield InstallationResponse(**item)
 
     def install_id_for_org(self, org_login: str) -> int:
         response = self.client.get(f"/orgs/{org_login}/installation")
@@ -310,6 +334,42 @@ class GitHubJwtSession:
             "Authorization": f"Bearer {token}",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+
+
+@configspec
+class GitHubAppInstallationAuth2(AuthConfigBase):
+    """Requests auth that refreshes GitHub App installation tokens as needed."""
+
+    def __init__(
+        self,
+        installation: GithubInstallation,
+        refresh_margin_seconds: int = 300,
+    ):
+        self.installation = installation
+        self.refresh_margin_seconds = refresh_margin_seconds
+        self.access_token: str | None = None
+        self.expires_at: datetime | None = None
+
+    def _should_refresh(self) -> bool:
+        if self.expires_at is None:
+            return True
+
+        refresh_at = self.expires_at - timedelta(seconds=self.refresh_margin_seconds)
+        return datetime.now(timezone.utc) >= refresh_at
+
+    def token(self, force_refresh: bool = False) -> str | None:
+        if (force_refresh or self._should_refresh()) or self.access_token is None:
+            get_token = self.installation.token
+            self.access_token = get_token.token
+            self.expires_at = get_token.expires_at
+
+        return self.access_token
+
+    def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
+        request.headers["Authorization"] = f"Bearer {self.token()}"
+        return request
+
+    #
 
 
 @configspec
