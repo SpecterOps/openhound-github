@@ -16,10 +16,7 @@ from dlt.sources.helpers.rest_client.paginators import (
 from openhound_github.auth import (
     GithubApp,
     GitHubAppInstallationAuth,
-    GitHubAppInstallationAuth2,
     GithubInstallation,
-    GitHubJwtSession,
-    create_github_jwt_session,
 )
 from openhound_github.main import app
 
@@ -42,14 +39,12 @@ def _response_message(response: requests.Response) -> str:
 @dataclass
 class OrgContext:
     client: RESTClient
-    # graphql_client: RESTClient
     org_name: str
     enterprise_name: str | None = None
 
 
 @dataclass
 class SourceContext:
-    # graphql_client: RESTClient
     organizations: list[OrgContext] | None = field(default_factory=list)
     client: RESTClient | None = None
     enterprise_name: str | None = None
@@ -80,17 +75,6 @@ class GithubEnterpriseAppCredentials(CredentialsConfiguration):
     def auth(self) -> str:
         return "enterprise_app"
 
-    # @property
-    # def header(self) -> str:
-    #     github_app_session = create_github_jwt_session(
-    #         org_name=self.enterprise_name,
-    #         client_id=self.client_id,
-    #         private_key_path=self.key_path,
-    #         app_id=self.app_id,
-    #         api_uri=self.api_uri,
-    #     )
-    #     return github_app_session.get_access_token()
-
 
 @configspec
 class GithubOrgAppCredentials(CredentialsConfiguration):
@@ -103,39 +87,6 @@ class GithubOrgAppCredentials(CredentialsConfiguration):
     @property
     def auth(self) -> str:
         return "org_app"
-
-    # @property
-    # def header(self) -> str:
-    #     github_app_session = create_github_jwt_session(
-    #         org_name=self.org_name,
-    #         client_id=self.client_id,
-    #         private_key_path=self.key_path,
-    #         app_id=self.app_id,
-    #         api_uri=self.api_uri,
-    #     )
-    #     return github_app_session.get_access_token()
-
-
-@configspec
-class GithubAppCredentials(GithubCredentials):
-    client_id: str = None
-    app_id: str = None
-    key_path: str = None
-    api_uri: str = "https://api.github.com"
-
-    def auth(self) -> str:
-        return "app"
-
-    @property
-    def header(self) -> str:
-        github_app_session = create_github_jwt_session(
-            org_name=self.org_name,
-            client_id=self.client_id,
-            private_key_path=self.key_path,
-            app_id=self.app_id,
-            api_uri=self.api_uri,
-        )
-        return github_app_session.get_access_token()
 
 
 @configspec
@@ -231,9 +182,6 @@ def source(
         host (str): The base GitHub API URL used for API calls.
     """
 
-    # if credentials.enterprise_name and credentials.org_name:
-    #     raise ValueError("Specify exactly one of enterprise_name and org_name")
-
     def client(auth) -> RESTClient:
         return RESTClient(
             base_url=host,
@@ -265,7 +213,7 @@ def source(
                     OrgContext(
                         org_name=installation.account.login,
                         client=client(
-                            GitHubAppInstallationAuth2(installation=org_installation)
+                            GitHubAppInstallationAuth(installation=org_installation)
                         ),
                         enterprise_name=credentials.enterprise_name,
                     )
@@ -277,7 +225,7 @@ def source(
                     private_key_path=credentials.key_path,
                 )
                 ctx.client = client(
-                    GitHubAppInstallationAuth2(installation=es_installation)
+                    GitHubAppInstallationAuth(installation=es_installation)
                 )
 
         return (*enterprise_resources(ctx), *organization_resources(ctx))
@@ -292,69 +240,26 @@ def source(
         ctx.organizations.append(
             OrgContext(
                 org_name=credentials.org_name,
-                client=client(
-                    GitHubAppInstallationAuth2(installation=org_installation)
-                ),
+                client=client(GitHubAppInstallationAuth(installation=org_installation)),
             )
         )
 
         return organization_resources(ctx)
 
-    #
-    # if isinstance(credentials, GithubAppCredentials):
-    #     github_app_session = create_github_jwt_session(
-    #         org_name=credentials.org_name,
-    #         client_id=credentials.client_id,
-    #         private_key_path=credentials.key_path,
-    #         app_id=credentials.app_id,
-    #         api_uri=credentials.api_uri,
-    #     )
-    #     if credentials.org_name:
-    #         installation_id = github_app_session.installation_id_for_org(
-    #             credentials.org_name
-    #         )
-    #     else:
-    #         installation_id = int(credentials.app_id)
-    #     root_auth = GitHubAppInstallationAuth(github_app_session, installation_id)
-    # else:
-    #     root_auth = BearerTokenAuth(token=credentials.header)
-
-    # ctx = SourceContext(client=client(root_auth), graphql_client=client(root_auth))
-
-    # This will run when a single org_name is specified
-    # if credentials.org_name:
-    #     ctx.organizations = [
-    #         OrgContext(
-    #             client=ctx.client,
-    #             org_name=credentials.org_name,
-    #             graphql_client=ctx.graphql_client,
-    #         )
-    #     ]
-    #     return organization_resources(ctx)
-
-    # This will run when enterprise collection is used
-    # We fetch all orgs for the enterprise and create a client for each org using the GitHub App installation token
-    # elif credentials.enterprise_name:
-    #     ctx.enterprise_name = credentials.enterprise_name
-    #     if isinstance(credentials, GithubAppCredentials):
-    #         if github_app_session is None:
-    #             raise ValueError("GitHub App session was not initialized")
-    #         ctx.organizations = []
-    #         for installation in github_app_session.list_installations():
-    #             if installation.get("account", {}).get("type") != "Organization":
-    #                 continue
-    #             org_auth = GitHubAppInstallationAuth(
-    #                 github_app_session, installation["id"]
-    #             )
-    #             ctx.organizations.append(
-    #                 OrgContext(
-    #                     client=client(org_auth),
-    #                     org_name=installation["account"]["login"],
-    #                     enterprise_name=credentials.enterprise_name,
-    #                     graphql_client=client(org_auth),
-    #                 )
-    #             )
-    #     return (*enterprise_resources(ctx), *organization_resources(ctx))
-    #
-    # else:
-    #     raise ValueError("Must specify either enterprise_name or org_name")
+    else:
+        ctx = SourceContext()
+        ctx = ctx.organizations.append(
+            OrgContext(
+                org_name=credentials.org_name,
+                client=RESTClient(
+                    base_url=host,
+                    headers={
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                    auth=BearerTokenAuth(token=credentials.token),
+                    paginator=HeaderLinkPaginator(),
+                ),
+            )
+        )
+        return organization_resources(ctx)
