@@ -1,6 +1,8 @@
 import json
 from dataclasses import dataclass
+from typing import ClassVar
 
+from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 from pydantic import Field
@@ -62,6 +64,8 @@ class GHRunnerGroupProperties(GHNodeProperties):
     ],
 )
 class RunnerGroup(BaseAsset):
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
     id: int
     name: str
     visibility: str | None = None
