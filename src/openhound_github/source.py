@@ -163,11 +163,6 @@ def _retry_policy_for(auth):
     return retry_policy
 
 
-@dlt.resource()
-def dummy_resource():
-    yield {"1": 1, "2": 2}
-
-
 @app.source(name="github", max_table_nesting=0)
 def source(
     credentials: Union[
