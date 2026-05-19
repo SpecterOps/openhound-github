@@ -102,60 +102,35 @@ class GithubTokenCredentials(GithubCredentials):
         return f"{self.token}"
 
 
-def _retry_policy_for(auth):
+def github_retry_policy(auth: GitHubAppInstallationAuth):
     def retry_policy(
         response: Optional[requests.Response], exception: Optional[BaseException]
     ) -> bool:
-        if response is None:
-            return False
-
+        message = _response_message(response).lower()
         headers = response.headers
-
-        if response.status_code == 401:
-            if isinstance(auth, GitHubAppInstallationAuth):
-                should_retry = auth.should_retry_unauthorized(response)
-                if should_retry:
-                    logger.warning(
-                        "GitHub App installation token rejected; refreshing and retrying"
-                    )
-                return should_retry
-            message = _response_message(response).lower()
-            if "bad credentials" in message:
-                logger.warning(
-                    "GitHub credentials were rejected; not retrying static token auth"
-                )
-            return False
-
         if response.status_code not in (403, 429):
             return False
 
-        message = _response_message(response).lower()
-
-        if headers.get("Retry-After"):
-            return True
-
-        reset_at = headers.get("x-ratelimit-reset")
-        logger.warning("Rate limit reached, retrying at %s", reset_at)
-        is_primary_limit = (
+        if (
             headers.get("x-ratelimit-remaining") == "0"
             or "api rate limit exceeded" in message
-        )
-        if is_primary_limit:
+        ):
+            reset_at = headers.get("x-ratelimit-reset")
             if reset_at:
-                try:
-                    delay = max(5, int(reset_at) - int(time.time()) + 5)
-                except ValueError:
-                    delay = 60
+                delay = int(reset_at) - int(time.time())
             else:
                 delay = 60
+
             headers["Retry-After"] = str(delay)
-            logger.warning("Rate limit reached, retrying in %s seconds", delay)
+            logger.warning("Primary rate limit reached, retrying in %s seconds", delay)
             return True
 
         if "secondary rate limit" in message or "abuse detection" in message:
             logger.warning("Secondary rate limit reached, retrying in 60 seconds")
-
             headers["Retry-After"] = "60"
+            return True
+
+        if headers.get("Retry-After"):
             return True
 
         return False
@@ -177,7 +152,7 @@ def source(
         host (str): The base GitHub API URL used for API calls.
     """
 
-    def client(auth) -> RESTClient:
+    def client(auth: GitHubAppInstallationAuth) -> RESTClient:
         return RESTClient(
             base_url=host,
             headers={
@@ -187,7 +162,7 @@ def source(
             auth=auth,
             paginator=HeaderLinkPaginator(),
             session=requests.Client(
-                retry_condition=_retry_policy_for(auth),
+                retry_condition=github_retry_policy(auth),
             ).session,
         )
 
