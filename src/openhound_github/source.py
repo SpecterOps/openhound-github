@@ -19,30 +19,13 @@ from openhound_github.auth import (
     GitHubAppInstallationAuth,
     GithubInstallation,
 )
+from openhound_github.helpers import github_retry_policy
 from openhound_github.main import app
 
 from .resources.enterprise import enterprise_resources
 from .resources.organization import organization_resources
 
 logger = logging.getLogger(__name__)
-
-
-def _response_message(response: requests.Response) -> str:
-    try:
-        response_data = response.json()
-    except ValueError:
-        return getattr(response, "text", "")
-    if isinstance(response_data, dict):
-        return response_data.get("message", "")
-    return ""
-
-
-def _has_graphql_errors(response: requests.Response) -> bool:
-    try:
-        response_data = response.json()
-    except ValueError:
-        return False
-    return isinstance(response_data, dict) and bool(response_data.get("errors"))
 
 
 @dataclass
@@ -114,60 +97,6 @@ class GithubTokenCredentials(GithubCredentials):
     @property
     def header(self) -> str:
         return f"{self.token}"
-
-
-def github_retry_policy(auth: GitHubAppInstallationAuth):
-    def retry_policy(
-        response: Optional[requests.Response], exception: Optional[BaseException]
-    ) -> bool:
-        if response is None:
-            return False
-
-        headers = response.headers
-        now = int(time.time())
-        if (
-            response.status_code == 200
-            and headers.get("x-ratelimit-resource") == "graphql"
-            and _has_graphql_errors(response)
-        ):
-            if headers.get("Retry-After"):
-                return True
-
-            if headers.get("x-ratelimit-remaining") == "0":
-                reset_at = headers.get("x-ratelimit-reset")
-                delay = int(reset_at) - now if reset_at else 0
-                headers["Retry-After"] = str(delay)
-                logger.warning(
-                    "Primary rate limit reached, retrying in %s seconds", delay
-                )
-                return True
-            return False
-
-        message = _response_message(response).lower()
-        if response.status_code not in (403, 429):
-            return False
-
-        if (
-            headers.get("x-ratelimit-remaining") == "0"
-            or "api rate limit exceeded" in message
-        ):
-            reset_at = headers.get("x-ratelimit-reset")
-            delay = int(reset_at) - now if reset_at else 0
-            headers["Retry-After"] = str(delay)
-            logger.warning("Primary rate limit reached, retrying in %s seconds", delay)
-            return True
-
-        if "secondary rate limit" in message or "abuse detection" in message:
-            logger.warning("Secondary rate limit reached, retrying in 60 seconds")
-            headers["Retry-After"] = "60"
-            return True
-
-        if headers.get("Retry-After"):
-            return True
-
-        return False
-
-    return retry_policy
 
 
 @app.source(name="github", max_table_nesting=0)
