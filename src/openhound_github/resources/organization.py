@@ -1,7 +1,9 @@
 import base64
 import binascii
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
+from threading import Lock
 from typing import Any, Iterator
 
 import dlt
@@ -83,6 +85,29 @@ class SourceContext:
     client: RESTClient
     organizations: list[OrgContext] = field(default_factory=list)
     enterprise_name: str | None = None
+    cache_lock: Lock = field(default_factory=Lock)
+    app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+class RepositoryRoleCache:
+    def __init__(self, ctx: SourceContext):
+        self.ctx = ctx
+        self._roles: list[dict[str, Any]] | None = None
+        self._lock = Lock()
+
+    @property
+    def roles(self) -> list[dict[str, Any]]:
+        if self._roles is None:
+            with self._lock:
+                if self._roles is None:
+                    self._roles = _repository_roles(self.ctx)
+        return self._roles
+
+    def __iter__(self):
+        return iter(self.roles)
 
 
 def _client_for_org(ctx: SourceContext, org_login: str) -> RESTClient:
@@ -105,58 +130,88 @@ def _repository_roles(ctx: SourceContext) -> list[dict[str, Any]]:
     return roles
 
 
-def _repositories_for_org(
-    client: RESTClient, org_login: str, repo_cache: dict[str, list[dict[str, Any]]]
-) -> list[dict[str, Any]]:
-    if org_login not in repo_cache:
-        repo_cache[org_login] = [
-            repo
-            for page in client.paginate(
-                f"/orgs/{org_login}/repos", params={"per_page": 100}
-            )
-            for repo in page
-        ]
-    return repo_cache[org_login]
-
-
-def _runner_group_repo_node_ids(
-    group: dict[str, Any],
+def _cached_org_response(
+    ctx: SourceContext,
+    cache: dict[str, dict[str, Any]],
     client: RESTClient,
-    org_login: str,
-    repo_cache: dict[str, list[dict[str, Any]]],
+    org_name: str,
+    path: str,
+) -> dict[str, Any]:
+    if org_name not in cache:
+        with ctx.cache_lock:
+            if org_name not in cache:
+                cache[org_name] = client.get(path).json()
+    return cache[org_name]
+
+
+def _actions_permissions(
+    ctx: SourceContext, client: RESTClient, org_name: str
+) -> dict[str, Any]:
+    return _cached_org_response(
+        ctx,
+        ctx.actions_permissions_cache,
+        client,
+        org_name,
+        f"/orgs/{org_name}/actions/permissions",
+    )
+
+
+def _runner_permissions(
+    ctx: SourceContext, client: RESTClient, org_name: str
+) -> dict[str, Any]:
+    return _cached_org_response(
+        ctx,
+        ctx.runner_permissions_cache,
+        client,
+        org_name,
+        f"/orgs/{org_name}/actions/permissions/self-hosted-runners",
+    )
+
+
+def _workflow_permissions(
+    ctx: SourceContext, client: RESTClient, org_name: str
+) -> dict[str, Any]:
+    return _cached_org_response(
+        ctx,
+        ctx.workflow_permissions_cache,
+        client,
+        org_name,
+        f"/orgs/{org_name}/actions/permissions/workflow",
+    )
+
+
+def _repo_permission_role(repo: dict[str, Any]) -> str:
+    role_name = repo.get("role_name")
+    if role_name:
+        return role_name
+
+    permissions = repo.get("permissions") or {}
+    for permission in ("admin", "maintain", "push", "triage", "pull"):
+        if permissions.get(permission):
+            return TEAM_PERMISSION_MAP[permission]
+    return ""
+
+
+def _selected_runner_group_repo_node_ids(
+    group: dict[str, Any], client: RESTClient, org_login: str
 ) -> list[str]:
     visibility = group.get("visibility")
-    if visibility == "selected":
-        repo_node_ids: list[str] = []
-        try:
-            for page in client.paginate(
-                f"/orgs/{org_login}/actions/runner-groups/{group['id']}/repositories",
-                params={"per_page": 100},
-                data_selector="repositories",
-            ):
-                repo_node_ids.extend(
-                    repo.get("node_id") for repo in page if repo.get("node_id")
-                )
-        except Exception:
-            return []
-        return repo_node_ids
-
-    if visibility not in {"all", "private"}:
+    if visibility != "selected":
         return []
 
-    repos = _repositories_for_org(client, org_login, repo_cache)
-    repo_node_ids = []
-    for repo in repos:
-        repo_node_id = repo.get("node_id")
-        repo_visibility = repo.get("visibility")
-        if visibility == "all":
-            repo_node_ids.append(repo_node_id)
-        elif visibility == "private" and repo_visibility in {
-            "private",
-            "internal",
-        }:
-            repo_node_ids.append(repo_node_id)
-    return [node_id for node_id in repo_node_ids if node_id]
+    repo_node_ids: list[str] = []
+    try:
+        for page in client.paginate(
+            f"/orgs/{org_login}/actions/runner-groups/{group['id']}/repositories",
+            params={"per_page": 100},
+            data_selector="repositories",
+        ):
+            repo_node_ids.extend(
+                repo.get("node_id") for repo in page if repo.get("node_id")
+            )
+    except Exception:
+        return []
+    return repo_node_ids
 
 
 @app.resource(name="organizations", columns=Organization, parallelized=True)
@@ -179,13 +234,9 @@ def organizations(ctx: SourceContext):
         client = org.client
         org_data = client.get(f"/orgs/{org_name}").json()
 
-        actions = client.get(f"/orgs/{org_name}/actions/permissions").json()
-        self_hosted_runners = client.get(
-            f"/orgs/{org_name}/actions/permissions/self-hosted-runners"
-        ).json()
-        workflow_perms = client.get(
-            f"/orgs/{org_name}/actions/permissions/workflow"
-        ).json()
+        actions = _actions_permissions(ctx, client, org_name)
+        self_hosted_runners = _runner_permissions(ctx, client, org_name)
+        workflow_perms = _workflow_permissions(ctx, client, org_name)
 
         org_data["actions_enabled_repositories"] = actions.get("enabled_repositories")
         org_data["actions_allowed_actions"] = actions.get("allowed_actions")
@@ -342,7 +393,12 @@ def applications(app_install: AppInstallation, ctx: SourceContext):
     app_slug = app_install.app_slug if app_install.app_slug else app_install.app_id
     if app_install.id:
         client = _client_for_org(ctx, app_install.org_login)
-        app_data = client.get(f"/apps/{app_slug}").json()
+        app_slug = str(app_slug)
+        if app_slug not in ctx.app_cache:
+            with ctx.cache_lock:
+                if app_slug not in ctx.app_cache:
+                    ctx.app_cache[app_slug] = client.get(f"/apps/{app_slug}").json()
+        app_data = ctx.app_cache[app_slug]
         if app_data.get("node_id"):
             yield {**app_data, "slug": app_slug, "org_login": app_install.org_login}
 
@@ -517,7 +573,7 @@ def actions_permissions(ctx):
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
-        actions = client.get(f"/orgs/{org_name}/actions/permissions").json()
+        actions = _actions_permissions(ctx, client, org_name)
         yield {
             **actions,
             "org_login": org_name,
@@ -537,10 +593,8 @@ def repositories(ctx: SourceContext):
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
-        actions = client.get(f"/orgs/{org_name}/actions/permissions").json()
-        runner_settings = client.get(
-            f"/orgs/{org_name}/actions/permissions/self-hosted-runners"
-        ).json()
+        actions = _actions_permissions(ctx, client, org_name)
+        runner_settings = _runner_permissions(ctx, client, org_name)
 
         enabled_repo_ids: set[str] | None = None
         if actions.get("enabled_repositories") == "selected":
@@ -592,18 +646,15 @@ def repositories(ctx: SourceContext):
     name="repo_role_assignments", columns=RepoRoleAssignment, parallelized=True
 )
 def repo_role_assignments(
-    repo: Repository, ctx: SourceContext, roles: list[dict]
+    repo: Repository, ctx: SourceContext, roles: Iterable[dict[str, Any]]
 ) -> Iterator[dict[str, Any]]:
-    """Fetch collaborator and team role assignments for each repository.
+    """Fetch direct collaborator role assignments for each repository.
 
-    For each repo, fetches direct collaborators (affiliation=direct) and team access,
-    mapping the GitHub permission/role_name to a deterministic repo role node ID
-    (base64 of "{repo_node_id}_{role_short_name}") that matches the IDs emitted by
-    the `repositories` resource.
+    Team assignments are collected by `team_repo_role_assignments` to avoid one
+    `/repos/{owner}/{repo}/teams` request per repository in large organizations.
 
     API endpoints:
     - GET /repos/{org}/{repo}/collaborators?affiliation=direct
-    - GET /repos/{org}/{repo}/teams
 
     Args:
         repo (Repository): The repository to fetch role assignments for.
@@ -611,7 +662,7 @@ def repo_role_assignments(
         roles (list[dict]): Custom role definitions from repository_roles_base.
 
     Yields:
-        RepoRoleAssignment (RepoRoleAssignment): Role assignment records for direct collaborators and teams.
+        RepoRoleAssignment (RepoRoleAssignment): Role assignment records for direct collaborators.
     """
 
     repo_node_id = repo.node_id
@@ -623,28 +674,6 @@ def repo_role_assignments(
     }
 
     client = _client_for_org(ctx, repo.org_login)
-
-    @dlt.defer
-    def collaborator(client):
-        for collab_page in client.paginate(
-            f"/repos/{repo.org_login}/{repo_name}/collaborators",
-            params={"affiliation": "direct", "per_page": 100},
-        ):
-            for collaborator in collab_page:
-                role = collaborator.get("role_name", "")
-                custom_role = custom_roles.get(role)
-                yield {
-                    **collaborator,
-                    "org_login": repo.org_login,
-                    "assignee_type": "user",
-                    "repo_node_id": repo_node_id,
-                    "repo_name": repo_name,
-                    "role_name": role,
-                    "base_role": custom_role.base_role if custom_role else None,
-                    "role_permissions": custom_role.permissions if custom_role else [],
-                }
-
-        # return
 
     for collab_page in client.paginate(
         f"/repos/{repo.org_login}/{repo_name}/collaborators",
@@ -664,21 +693,43 @@ def repo_role_assignments(
                 "role_permissions": custom_role.permissions if custom_role else [],
             }
 
-    # Team access
-    for team_page in client.paginate(
-        f"/repos/{repo.org_login}/{repo_name}/teams",
+
+@app.transformer(
+    name="team_repo_role_assignments",
+    table_name="repo_role_assignments",
+    columns=RepoRoleAssignment,
+    parallelized=True,
+)
+def team_repo_role_assignments(
+    team: Team, ctx: SourceContext, roles: Iterable[dict[str, Any]]
+) -> Iterator[dict[str, Any]]:
+    """Fetch repository role assignments for one team.
+
+    This writes to the existing `repo_role_assignments` table and preserves the
+    `RepoRoleAssignment` row shape while changing team grant collection from
+    repository-driven fan-out to team-driven fan-out.
+    """
+    custom_roles = {
+        role["name"]: BaseRepoRole(**role)
+        for role in roles
+        if role.get("org_login") == team.org_login
+    }
+    client = _client_for_org(ctx, team.org_login)
+    for repo_page in client.paginate(
+        f"/orgs/{team.org_login}/teams/{team.slug}/repos",
         params={"per_page": 100},
     ):
-        for team in team_page:
-            permission: str = team.get("permission", "")
-            role = TEAM_PERMISSION_MAP.get(permission, permission)
+        for repo in repo_page:
+            role = _repo_permission_role(repo)
             custom_role = custom_roles.get(role)
             yield {
-                **team,
+                "id": team.database_id or 0,
+                "node_id": team.node_id,
+                "type": "Team",
                 "assignee_type": "team",
-                "repo_node_id": repo_node_id,
-                "org_login": repo.org_login,
-                "repo_name": repo_name,
+                "repo_node_id": repo["node_id"],
+                "org_login": team.org_login,
+                "repo_name": repo["name"],
                 "role_name": role,
                 "base_role": custom_role.base_role if custom_role else None,
                 "role_permissions": custom_role.permissions if custom_role else [],
@@ -709,7 +760,7 @@ def repository_roles_base(ctx: SourceContext):
 
 
 @app.transformer(name="repo_roles", columns=RepoRole, parallelized=True)
-def repository_roles(repository: Repository, roles: list[dict]):
+def repository_roles(repository: Repository, roles: Iterable[dict[str, Any]]):
     """Yield default and custom repository role records for a repository.
 
     Emits the five built-in default roles (read, triage, write, maintain, admin) and
@@ -809,7 +860,7 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
         Branch (Branch): Branch record.
     """
     paginator = GraphQLCursorPaginator(
-        page_info_path="data.organization.repository.refs.pageInfo",
+        page_info_path="data.repository.refs.pageInfo",
         cursor_variable="after",
         cursor_field="endCursor",
         has_next_field="hasNextPage",
@@ -1026,53 +1077,39 @@ def org_runners(ctx: SourceContext):
                 }
 
 
-@app.resource(
+@app.transformer(
     name="org_runner_group_memberships",
     columns=OrgRunnerGroupMembership,
     parallelized=True,
 )
-def org_runner_group_memberships(ctx: SourceContext, repos: list | None = None):
-    repo_cache: dict[str, list[dict[str, Any]]] = {}
-    for repo in repos or []:
-        if isinstance(repo, Repository):
-            repo_row = {
-                "org_login": repo.org_login,
-                "node_id": repo.node_id,
-                "visibility": repo.visibility,
-            }
-        else:
-            repo_row = repo
-        org_login = repo_row.get("org_login")
-        if org_login:
-            repo_cache.setdefault(org_login, []).append(repo_row)
-
-    for org in ctx.organizations:
-        org_name = org.org_name
-        client = org.client
-        for group_page in client.paginate(
-            f"/orgs/{org_name}/actions/runner-groups",
+def org_runner_group_memberships(
+    group: RunnerGroup, ctx: SourceContext, repos: list | None = None
+):
+    org_name = group.org_login
+    client = _client_for_org(ctx, org_name)
+    group_row = {
+        "id": group.id,
+        "visibility": group.visibility,
+    }
+    accessible_repo_node_ids = _selected_runner_group_repo_node_ids(
+        group_row, client, org_name
+    )
+    try:
+        for runner_page in client.paginate(
+            f"/orgs/{org_name}/actions/runner-groups/{group.id}/runners",
             params={"per_page": 100},
-            data_selector="runner_groups",
+            data_selector="runners",
         ):
-            for group in group_page:
-                accessible_repo_node_ids = _runner_group_repo_node_ids(
-                    group, client, org_name, repo_cache
-                )
-                try:
-                    for runner_page in client.paginate(
-                        f"/orgs/{org_name}/actions/runner-groups/{group['id']}/runners",
-                        params={"per_page": 100},
-                        data_selector="runners",
-                    ):
-                        for runner in runner_page:
-                            yield {
-                                "runner_group_id": group["id"],
-                                "runner_id": runner["id"],
-                                "accessible_repo_node_ids": accessible_repo_node_ids,
-                                "org_login": org_name,
-                            }
-                except Exception:
-                    continue
+            for runner in runner_page:
+                yield {
+                    "runner_group_id": group.id,
+                    "runner_id": runner["id"],
+                    "runner_group_visibility": group.visibility,
+                    "accessible_repo_node_ids": accessible_repo_node_ids,
+                    "org_login": org_name,
+                }
+    except Exception:
+        return
 
 
 @app.transformer(name="repo_runners", columns=RepoRunner, parallelized=True)
@@ -1627,7 +1664,7 @@ def scim_users(ctx: SourceContext):
 def organization_resources(ctx: SourceContext):
     org_resource = organizations(ctx)
     roles_resource = org_roles(ctx)
-    repo_roles_base = _repository_roles(ctx)
+    repo_roles_base = RepositoryRoleCache(ctx)
     repos_resource = repositories(ctx)
     workflows_resource = repos_resource | workflows(ctx)
     environments_resource = repos_resource | environments(ctx)
@@ -1661,6 +1698,7 @@ def organization_resources(ctx: SourceContext):
         teams_resource,
         teams_resource | team_members(ctx),
         teams_resource | team_roles(),
+        teams_resource | team_repo_role_assignments(ctx, repo_roles_base),
         scim_users(ctx),
         repositories_graphql_resource,
         repositories_graphql_resource | branches(ctx),
@@ -1677,7 +1715,7 @@ def organization_resources(ctx: SourceContext):
         environments_resource | environment_branch_policies(ctx),
         runner_groups_resource,
         org_runners(ctx),
-        org_runner_group_memberships(ctx),
+        runner_groups_resource | org_runner_group_memberships(ctx),
         personal_access_tokens_resource,
         personal_access_tokens_resource | pat_repo_access(ctx),
         organization_secrets_resource,
