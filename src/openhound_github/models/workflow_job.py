@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -14,12 +15,14 @@ from openhound.core.models.entries_dataclass import (  # type: ignore[import-unt
     EdgeProperties,
     PropertyMatch,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+
+TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
 
 
 class WorkflowReference(BaseModel):
@@ -140,7 +143,7 @@ class WorkflowJob(BaseAsset):
     is_self_hosted: bool = False
     container: Any = None
     environment: str | None = None
-    permissions: Any = None
+    permissions: list[str] | None = None
     uses_reusable: str | None = None
     dependency_node_ids: list[str] = Field(default_factory=list)
     secret_references: list[WorkflowReference] = Field(default_factory=list)
@@ -150,11 +153,18 @@ class WorkflowJob(BaseAsset):
     def org_node_id(self) -> str | None:
         return self._lookup.org_id_for_login(self.org_login)
 
-    @property
-    def _flatten_permissions(self) -> list[str] | None:
-        if isinstance(self.permissions, dict):
-            return [f"{key}:{value}" for key, value in self.permissions.items()]
-        return None
+    @field_validator("permissions", mode="before")
+    @classmethod
+    def normalize_permissions(cls, value: Any) -> list[str] | None:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return [f"{key}:{permission}" for key, permission in value.items()]
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        return [str(value)]
 
     @property
     def as_node(self) -> GHNode:
@@ -169,7 +179,7 @@ class WorkflowJob(BaseAsset):
                 is_self_hosted=self.is_self_hosted,
                 container=self.container,
                 environment=self.environment,
-                permissions=self._flatten_permissions,
+                permissions=self.permissions,
                 uses_reusable=self.uses_reusable,
                 workflow_node_id=self.workflow_node_id,
                 repository_name=self.repository_name,
@@ -269,39 +279,41 @@ class WorkflowJob(BaseAsset):
 
     @property
     def _environment_edges(self):
-        if self.environment:
-            yield Edge(
-                kind=ek.DEPLOYS_TO,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=nk.ENVIRONMENT,
-                    property_matchers=[
-                        PropertyMatch(
-                            key="repository_id", value=self.repository_node_id
-                        ),
-                        PropertyMatch(key="short_name", value=self.environment),
-                    ],
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
+        if self.environment and not TEMPLATE_RE.search(self.environment):
+            if self._lookup.environment(self.environment, self.repository_node_id):
+                yield Edge(
+                    kind=ek.DEPLOYS_TO,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=ConditionalEdgePath(
+                        kind=nk.ENVIRONMENT,
+                        property_matchers=[
+                            PropertyMatch(
+                                key="repository_id", value=self.repository_node_id
+                            ),
+                            PropertyMatch(key="name", value=self.environment.upper()),
+                        ],
+                    ),
+                    properties=EdgeProperties(traversable=False),
+                )
 
     @property
     def _calls_workflows_edge(self):
         if self.uses_reusable and self.uses_reusable.startswith("./.github/workflows/"):
-            yield Edge(
-                kind=ek.CALLS_WORKFLOW,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=nk.WORKFLOW,
-                    property_matchers=[
-                        PropertyMatch(
-                            key="repository_id", value=self.repository_node_id
-                        ),
-                        PropertyMatch(key="path", value=self.uses_reusable[2:]),
-                    ],
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
+            if self._lookup.workflow(self.repository_node_id, self.uses_reusable[2:]):
+                yield Edge(
+                    kind=ek.CALLS_WORKFLOW,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=ConditionalEdgePath(
+                        kind=nk.WORKFLOW,
+                        property_matchers=[
+                            PropertyMatch(
+                                key="repository_id", value=self.repository_node_id
+                            ),
+                            PropertyMatch(key="path", value=self.uses_reusable[2:]),
+                        ],
+                    ),
+                    properties=EdgeProperties(traversable=False),
+                )
 
     @property
     def edges(self):
