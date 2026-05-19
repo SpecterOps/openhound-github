@@ -1,21 +1,15 @@
-"""GitHub authentication helpers for JWT-based app authentication."""
-
-import base64
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Iterator
 
 import requests
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
 from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
     HeaderLinkPaginator,
 )
-from joserfc import jwk, jwt
+from joserfc import jwt
 from joserfc.jwk import RSAKey
 from pydantic import BaseModel
 
@@ -101,6 +95,7 @@ class GithubInstallation(GithubSession):
 
     @property
     def token(self) -> TokenResponse:
+        logger.info(f"Getting access token for {self.installation_id}")
         response = self.client.post(
             f"{self.api_uri}app/installations/{self.installation_id}/access_tokens",
             timeout=10,
@@ -130,7 +125,7 @@ class GithubApp(GithubSession):
                 yield InstallationResponse(**item)
 
     def install_id_for_org(self, org_login: str) -> int:
-        logger.info(f"Installing org {org_login}")
+        logger.info(f"Getting app installation ID for org {org_login}")
         response = self.client.get(f"/orgs/{org_login}/installation")
         response.raise_for_status()
         return int(response.json()["id"])
@@ -159,6 +154,9 @@ class GitHubAppInstallationAuth(AuthConfigBase):
 
     def token(self, force_refresh: bool = False) -> str | None:
         if (force_refresh or self._should_refresh()) or self.access_token is None:
+            logger.info(
+                f"Refreshing access token for {self.installation.installation_id}"
+            )
             get_token = self.installation.token
             self.access_token = get_token.token
             self.expires_at = get_token.expires_at
