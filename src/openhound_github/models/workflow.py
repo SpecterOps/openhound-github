@@ -400,6 +400,19 @@ class Workflow(BaseAsset):
         return rows
 
     @property
+    def edges(self):
+        yield Edge(
+            kind=ek.HAS_WORKFLOW,
+            start=EdgePath(value=self.repository_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+
+    @property
+    def _decoded_contents(self):
+        return base64.b64decode(self.contents).decode() if self.contents else None
+
+    @property
     def as_node(self) -> GHNode:
         wid = self.node_id
         return GHNode(
@@ -414,7 +427,7 @@ class Workflow(BaseAsset):
                 url=self.url,
                 html_url=self.html_url,
                 branch=self.branch,
-                contents=self.contents,
+                contents=self._decoded_contents,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
@@ -426,13 +439,4 @@ class Workflow(BaseAsset):
                     f"MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) RETURN p,p1"
                 ),
             ),
-        )
-
-    @property
-    def edges(self):
-        yield Edge(
-            kind=ek.HAS_WORKFLOW,
-            start=EdgePath(value=self.repository_node_id, match_by="id"),
-            end=EdgePath(value=self.node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
         )
