@@ -1,7 +1,8 @@
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from threading import Lock
+from typing import Any, Optional, Union
 
 import dlt
 from dlt.common.configuration import configspec
@@ -36,6 +37,14 @@ def _response_message(response: requests.Response) -> str:
     return ""
 
 
+def _has_graphql_errors(response: requests.Response) -> bool:
+    try:
+        response_data = response.json()
+    except ValueError:
+        return False
+    return isinstance(response_data, dict) and bool(response_data.get("errors"))
+
+
 @dataclass
 class OrgContext:
     client: RESTClient
@@ -48,6 +57,14 @@ class SourceContext:
     organizations: list[OrgContext] | None = field(default_factory=list)
     client: RESTClient | None = None
     enterprise_name: str | None = None
+    cache_lock: Lock = field(default_factory=Lock)
+    app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    runner_group_repo_cache: dict[str, list[dict[str, Any]]] = field(
+        default_factory=dict
+    )
 
     @property
     def org_names(self) -> list[str]:
@@ -106,8 +123,30 @@ def github_retry_policy(auth: GitHubAppInstallationAuth):
     def retry_policy(
         response: Optional[requests.Response], exception: Optional[BaseException]
     ) -> bool:
-        message = _response_message(response).lower()
+        if response is None:
+            return False
+
         headers = response.headers
+        now = int(time.time())
+        if (
+            response.status_code == 200
+            and headers.get("x-ratelimit-resource") == "graphql"
+            and _has_graphql_errors(response)
+        ):
+            if headers.get("Retry-After"):
+                return True
+
+            if headers.get("x-ratelimit-remaining") == "0":
+                reset_at = headers.get("x-ratelimit-reset")
+                delay = int(reset_at) - now if reset_at else 0
+                headers["Retry-After"] = str(delay)
+                logger.warning(
+                    "Primary rate limit reached, retrying in %s seconds", delay
+                )
+                return True
+            return False
+
+        message = _response_message(response).lower()
         if response.status_code not in (403, 429):
             return False
 
@@ -116,11 +155,7 @@ def github_retry_policy(auth: GitHubAppInstallationAuth):
             or "api rate limit exceeded" in message
         ):
             reset_at = headers.get("x-ratelimit-reset")
-            if reset_at:
-                delay = int(reset_at) - int(time.time())
-            else:
-                delay = 60
-
+            delay = int(reset_at) - now if reset_at else 0
             headers["Retry-After"] = str(delay)
             logger.warning("Primary rate limit reached, retrying in %s seconds", delay)
             return True
@@ -162,6 +197,7 @@ def source(
             auth=auth,
             paginator=HeaderLinkPaginator(),
             session=requests.Client(
+                status_codes=tuple(range(500, 600)),
                 retry_condition=github_retry_policy(auth),
             ).session,
         )
