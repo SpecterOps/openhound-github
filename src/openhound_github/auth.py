@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Iterator
 
 import requests
@@ -144,6 +145,7 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         self.refresh_margin_seconds = refresh_margin_seconds
         self.access_token: str | None = None
         self.expires_at: datetime | None = None
+        self._token_lock = Lock()
 
     def _should_refresh(self) -> bool:
         if self.expires_at is None:
@@ -153,13 +155,17 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         return datetime.now(timezone.utc) >= refresh_at
 
     def token(self, force_refresh: bool = False) -> str | None:
-        if (force_refresh or self._should_refresh()) or self.access_token is None:
-            logger.info(
-                f"Refreshing access token for {self.installation.installation_id}"
-            )
-            get_token = self.installation.token
-            self.access_token = get_token.token
-            self.expires_at = get_token.expires_at
+        if not force_refresh and self.access_token is not None and not self._should_refresh():
+            return self.access_token
+
+        with self._token_lock:
+            if (force_refresh or self._should_refresh()) or self.access_token is None:
+                logger.info(
+                    f"Refreshing access token for {self.installation.installation_id}"
+                )
+                get_token = self.installation.token
+                self.access_token = get_token.token
+                self.expires_at = get_token.expires_at
 
         return self.access_token
 
