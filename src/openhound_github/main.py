@@ -61,6 +61,7 @@ def preproc(ctx: PreProcContext):
         "saml_provider": "saml_provider",
         "applications": "applications",
         "enterprise": "enterprise",
+        "environments": "environments",
         "environment_secrets": "environment_secrets",
         "environment_variables": "environment_variables",
         "organization_secrets": "organization_secrets",
@@ -71,4 +72,5 @@ def preproc(ctx: PreProcContext):
         "selected_organization_variables": "selected_organization_variables",
         "workflow_jobs": "workflow_jobs",
         "workflow_steps": "workflow_steps",
+        "workflows": "workflows",
     }
