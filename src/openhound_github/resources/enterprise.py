@@ -40,7 +40,6 @@ class SourceContext:
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
 def enterprise(ctx: SourceContext):
-
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.organizations.pageInfo",
         cursor_variable="after",
@@ -80,7 +79,6 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
 
 @app.transformer(name="enterprise_members", columns=BaseUser, parallelized=True)
 def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
-
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.members.pageInfo",
         cursor_variable="after",
@@ -120,8 +118,15 @@ def enterprise_users(base_user: BaseUser, ctx: SourceContext):
                 "enterprise_slug": ctx.enterprise_name,
                 "has_direct_enterprise_membership": False,
             }
+        elif base_user.id:
+            yield {
+                **base_user.model_dump(),
+                "enterprise_slug": ctx.enterprise_name,
+                "has_direct_enterprise_membership": False,
+            }
+        return
 
-    if base_user.id:
+    if base_user.typename == "User" and base_user.id:
         yield {
             **base_user.model_dump(),
             "enterprise_slug": ctx.enterprise_name,
@@ -357,7 +362,6 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
 def enterprise_external_identities(
     saml_provider: EnterpriseSamlProvider, ctx: SourceContext
 ):
-
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
         cursor_variable="after",

@@ -92,8 +92,38 @@ def _client_for_org(ctx: SourceContext, org_login: str) -> RESTClient:
     return ctx.client
 
 
+def _repository_roles(ctx: SourceContext) -> list[dict[str, Any]]:
+    roles: list[dict[str, Any]] = []
+    for org in ctx.organizations:
+        org_name = org.org_name
+        client = org.client
+        for page in client.paginate(
+            f"/orgs/{org_name}/custom-repository-roles", params={"per_page": 100}
+        ):
+            for item in page:
+                roles.append({**item, "org_login": org_name})
+    return roles
+
+
+def _repositories_for_org(
+    client: RESTClient, org_login: str, repo_cache: dict[str, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    if org_login not in repo_cache:
+        repo_cache[org_login] = [
+            repo
+            for page in client.paginate(
+                f"/orgs/{org_login}/repos", params={"per_page": 100}
+            )
+            for repo in page
+        ]
+    return repo_cache[org_login]
+
+
 def _runner_group_repo_node_ids(
-    group: dict[str, Any], client: RESTClient, repos: list, org_login: str
+    group: dict[str, Any],
+    client: RESTClient,
+    org_login: str,
+    repo_cache: dict[str, list[dict[str, Any]]],
 ) -> list[str]:
     visibility = group.get("visibility")
     if visibility == "selected":
@@ -111,19 +141,14 @@ def _runner_group_repo_node_ids(
             return []
         return repo_node_ids
 
+    if visibility not in {"all", "private"}:
+        return []
+
+    repos = _repositories_for_org(client, org_login, repo_cache)
     repo_node_ids = []
     for repo in repos:
-        repo_org_login = (
-            repo.org_login if isinstance(repo, Repository) else repo.get("org_login")
-        )
-        if repo_org_login != org_login:
-            continue
-        repo_node_id = (
-            repo.node_id if isinstance(repo, Repository) else repo.get("node_id")
-        )
-        repo_visibility = (
-            repo.visibility if isinstance(repo, Repository) else repo.get("visibility")
-        )
+        repo_node_id = repo.get("node_id")
+        repo_visibility = repo.get("visibility")
         if visibility == "all":
             repo_node_ids.append(repo_node_id)
         elif visibility == "private" and repo_visibility in {
@@ -581,7 +606,9 @@ def repo_role_assignments(
     - GET /repos/{org}/{repo}/teams
 
     Args:
+        repo (Repository): The repository to fetch role assignments for.
         ctx (SourceContext): The shared context containing the REST client and organization name.
+        roles (list[dict]): Custom role definitions from repository_roles_base.
 
     Yields:
         RepoRoleAssignment (RepoRoleAssignment): Role assignment records for direct collaborators and teams.
@@ -596,6 +623,29 @@ def repo_role_assignments(
     }
 
     client = _client_for_org(ctx, repo.org_login)
+
+    @dlt.defer
+    def collaborator(client):
+        for collab_page in client.paginate(
+            f"/repos/{repo.org_login}/{repo_name}/collaborators",
+            params={"affiliation": "direct", "per_page": 100},
+        ):
+            for collaborator in collab_page:
+                role = collaborator.get("role_name", "")
+                custom_role = custom_roles.get(role)
+                yield {
+                    **collaborator,
+                    "org_login": repo.org_login,
+                    "assignee_type": "user",
+                    "repo_node_id": repo_node_id,
+                    "repo_name": repo_name,
+                    "role_name": role,
+                    "base_role": custom_role.base_role if custom_role else None,
+                    "role_permissions": custom_role.permissions if custom_role else [],
+                }
+
+        # return
+
     for collab_page in client.paginate(
         f"/repos/{repo.org_login}/{repo_name}/collaborators",
         params={"affiliation": "direct", "per_page": 100},
@@ -835,6 +885,15 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
             data = {"query": PROTECTION_RULES_QUERY, "variables": {"ids": rules_chunk}}
             response = client.post("/graphql", json=data).json()
             for rule in response["data"].get("nodes", []):
+                # GitHub can return null actors for deleted or inaccessible allowance actors.
+                for allowance_key in ("bypassPullRequestAllowances", "pushAllowances"):
+                    allowances = rule.get(allowance_key)
+                    if allowances and allowances.get("nodes"):
+                        allowances["nodes"] = [
+                            node
+                            for node in allowances["nodes"]
+                            if node.get("actor") is not None
+                        ]
                 yield {
                     **rule,
                     "org_login": repository.org_login,
@@ -972,7 +1031,21 @@ def org_runners(ctx: SourceContext):
     columns=OrgRunnerGroupMembership,
     parallelized=True,
 )
-def org_runner_group_memberships(ctx: SourceContext, repos: list):
+def org_runner_group_memberships(ctx: SourceContext, repos: list | None = None):
+    repo_cache: dict[str, list[dict[str, Any]]] = {}
+    for repo in repos or []:
+        if isinstance(repo, Repository):
+            repo_row = {
+                "org_login": repo.org_login,
+                "node_id": repo.node_id,
+                "visibility": repo.visibility,
+            }
+        else:
+            repo_row = repo
+        org_login = repo_row.get("org_login")
+        if org_login:
+            repo_cache.setdefault(org_login, []).append(repo_row)
+
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
@@ -983,7 +1056,7 @@ def org_runner_group_memberships(ctx: SourceContext, repos: list):
         ):
             for group in group_page:
                 accessible_repo_node_ids = _runner_group_repo_node_ids(
-                    group, client, repos, org_name
+                    group, client, org_name, repo_cache
                 )
                 try:
                     for runner_page in client.paginate(
@@ -1074,7 +1147,7 @@ def environment_branch_policies(environment: Environment, ctx: SourceContext):
     Yields:
         EnvironmentBranchPolicy (EnvironmentBranchPolicy): Environment branch policy record.
     """
-    has_custom = environment.deployment_branch_policy
+    has_custom = environment.has_custom_branch_policies
     if has_custom:
         full_repo_name = environment.repository_full_name
         repo_name = environment.repository_name
@@ -1395,6 +1468,9 @@ def pat_repo_access(pat: PersonalAccessToken, ctx: SourceContext):
     Yields:
         PatRepoAccess (PatRepoAccess): PAT-to-repository access record.
     """
+    if pat.repository_selection == "all" or pat.repository_selection == "none":
+        return
+
     client = _client_for_org(ctx, pat.org_login)
     for page in client.paginate(
         f"/orgs/{pat.org_login}/personal-access-tokens/{pat.id}/repositories",
@@ -1551,7 +1627,7 @@ def scim_users(ctx: SourceContext):
 def organization_resources(ctx: SourceContext):
     org_resource = organizations(ctx)
     roles_resource = org_roles(ctx)
-    repo_roles_base = list(repository_roles_base(ctx))
+    repo_roles_base = _repository_roles(ctx)
     repos_resource = repositories(ctx)
     workflows_resource = repos_resource | workflows(ctx)
     environments_resource = repos_resource | environments(ctx)
@@ -1578,30 +1654,13 @@ def organization_resources(ctx: SourceContext):
         actions_permissions(ctx),
         repos_resource,
         repos_resource | repository_roles(repo_roles_base),
-        workflows_resource,
-        workflows_resource | workflow_jobs(),
-        workflows_resource | workflow_steps(),
+        repos_resource | repo_role_assignments(ctx, repo_roles_base),
         repos_resource | repo_runners(ctx),
         repos_resource | repository_secrets(ctx),
         repos_resource | repository_variables(ctx),
-        repos_resource | repo_role_assignments(ctx, repo_roles_base),
-        environments_resource,
-        environments_resource | environment_variables(ctx),
-        environments_resource | environment_secrets(ctx),
-        environments_resource | environment_branch_policies(ctx),
         teams_resource,
         teams_resource | team_members(ctx),
         teams_resource | team_roles(),
-        runner_groups_resource,
-        org_runners(ctx),
-        org_runner_group_memberships(ctx, list(repos_resource)),
-        personal_access_tokens_resource,
-        personal_access_tokens_resource | pat_repo_access(ctx),
-        organization_secrets_resource,
-        organization_secrets_resource | selected_organization_secrets(ctx),
-        organization_vars_resource,
-        organization_vars_resource | selected_organization_variables(ctx),
-        personal_access_token_requests(ctx),
         scim_users(ctx),
         repositories_graphql_resource,
         repositories_graphql_resource | branches(ctx),
@@ -1609,4 +1668,21 @@ def organization_resources(ctx: SourceContext):
         secret_scanning_alerts(ctx),
         saml_provider(ctx),
         external_identities(ctx),
+        workflows_resource,
+        workflows_resource | workflow_jobs(),
+        workflows_resource | workflow_steps(),
+        environments_resource,
+        environments_resource | environment_variables(ctx),
+        environments_resource | environment_secrets(ctx),
+        environments_resource | environment_branch_policies(ctx),
+        runner_groups_resource,
+        org_runners(ctx),
+        org_runner_group_memberships(ctx),
+        personal_access_tokens_resource,
+        personal_access_tokens_resource | pat_repo_access(ctx),
+        organization_secrets_resource,
+        organization_secrets_resource | selected_organization_secrets(ctx),
+        organization_vars_resource,
+        organization_vars_resource | selected_organization_variables(ctx),
+        personal_access_token_requests(ctx),
     )
