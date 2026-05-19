@@ -218,7 +218,7 @@ def source(
 
     else:
         ctx = SourceContext()
-        ctx = ctx.organizations.append(
+        ctx.organizations.append(
             OrgContext(
                 org_name=credentials.org_name,
                 client=RESTClient(
