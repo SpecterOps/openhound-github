@@ -240,6 +240,7 @@ class OrgRunner(BaseAsset):
 class OrgRunnerGroupMembership(BaseAsset):
     runner_group_id: int
     runner_id: int
+    runner_group_visibility: str | None = None
     accessible_repo_node_ids: list[str] = Field(default_factory=list)
 
     # Additional
@@ -271,7 +272,18 @@ class OrgRunnerGroupMembership(BaseAsset):
 
     @property
     def _can_use_runner_edges(self):
-        for repo_node_id in self.accessible_repo_node_ids:
+        if self.runner_group_visibility == "all":
+            repo_node_ids = self._lookup.repository_node_ids_for_org(self.org_login)
+        elif self.runner_group_visibility == "private":
+            repo_node_ids = self._lookup.private_repository_node_ids_for_org(
+                self.org_login
+            )
+        else:
+            repo_node_ids = [
+                (repo_node_id,) for repo_node_id in self.accessible_repo_node_ids
+            ]
+
+        for (repo_node_id,) in repo_node_ids:
             yield Edge(
                 kind=ek.CAN_USE_RUNNER,
                 start=EdgePath(value=repo_node_id, match_by="id"),
