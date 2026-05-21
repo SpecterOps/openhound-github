@@ -8,7 +8,7 @@ from openhound.core.preproc import PreProcContext
 from .lookup import GithubLookup
 from .transforms import transforms
 
-app = OpenHound("github", source_kind="Github", help="OpenGraph collector for GitHub")
+app = OpenHound("github", source_kind="GitHub", help="OpenGraph collector for GitHub")
 
 
 @app.collect()
