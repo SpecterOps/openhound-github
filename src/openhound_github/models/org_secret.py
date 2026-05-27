@@ -6,7 +6,7 @@ from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 
-from openhound_github.graph import GHNode, GHNodeProperties
+from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
@@ -53,6 +53,13 @@ class GHOrgSecretProperties(GHNodeProperties):
             end=nk.ORG_SECRET,
             kind=ek.HAS_SECRET,
             description="Repository can access org secret",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORG_SECRET,
+            kind=ek.CAN_READ_SECRET,
+            description="Org role can read org secret by creating a repository in scope",
             traversable=True,
         ),
     ],
@@ -120,6 +127,45 @@ class OrgSecret(BaseAsset):
                         properties=EdgeProperties(traversable=True),
                     )
 
+    def _read_secret_query(self, role_node_id: str) -> str:
+        return (
+            f"MATCH p=(:GH_OrgRole {{node_id:'{role_node_id}'}})"
+            f"-[:GH_CanCreateRepositories|GH_CanCreatePublicRepositories|"
+            f"GH_CanCreateInternalRepositories|GH_CanCreatePrivateRepositories]->"
+            f"(:GH_Organization)-[:GH_Contains]->"
+            f"(:GH_OrgSecret {{node_id:'{self.node_id}'}}) RETURN p"
+        )
+
+    @property
+    def _composed_read_edges(self):
+        if self.visibility != "all":
+            return
+
+        owners_role_id = f"{self.org_node_id}_owners"
+        yield Edge(
+            kind=ek.CAN_READ_SECRET,
+            start=EdgePath(value=owners_role_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=GHEdgeProperties(
+                traversable=True,
+                composed=True,
+                query_composition=self._read_secret_query(owners_role_id),
+            ),
+        )
+
+        if self._lookup.members_can_create_any_repositories(self.org_login):
+            members_role_id = f"{self.org_node_id}_members"
+            yield Edge(
+                kind=ek.CAN_READ_SECRET,
+                start=EdgePath(value=members_role_id, match_by="id"),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    query_composition=self._read_secret_query(members_role_id),
+                ),
+            )
+
     @property
     def edges(self):
         yield Edge(
@@ -130,6 +176,7 @@ class OrgSecret(BaseAsset):
         )
         yield from self._all_repo_edges
         yield from self._private_repo_edges
+        yield from self._composed_read_edges
 
 
 @app.asset(

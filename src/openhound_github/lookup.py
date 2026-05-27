@@ -69,6 +69,51 @@ class GithubLookup(LookupManager):
             [org_login],
         )
 
+    def _find_single_bool(self, query: str, params: list[str]) -> bool:
+        result = self._find_single_object(query, params)
+        if result is None:
+            return False
+        return result.strip().lower() in {"1", "true", "t", "yes", "y"}
+
+    @lru_cache
+    def members_can_create_repositories(self, org_login: str) -> bool:
+        return self._find_single_bool(
+            f"""SELECT members_can_create_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def members_can_create_public_repositories(self, org_login: str) -> bool:
+        return self._find_single_bool(
+            f"""SELECT members_can_create_public_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def members_can_create_internal_repositories(self, org_login: str) -> bool:
+        return self._find_single_bool(
+            f"""SELECT members_can_create_internal_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def members_can_create_private_repositories(self, org_login: str) -> bool:
+        return self._find_single_bool(
+            f"""SELECT members_can_create_private_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def members_can_create_any_repositories(self, org_login: str) -> bool:
+        return any(
+            (
+                self.members_can_create_repositories(org_login),
+                self.members_can_create_public_repositories(org_login),
+                self.members_can_create_internal_repositories(org_login),
+                self.members_can_create_private_repositories(org_login),
+            )
+        )
+
     @lru_cache
     def idp(self) -> list:
         return self._find_all_objects(

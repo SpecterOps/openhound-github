@@ -92,8 +92,29 @@ class GHOrgRoleProperties(GHNodeProperties):
         EdgeDef(
             start=nk.ORG_ROLE,
             end=nk.ORGANIZATION,
-            kind=ek.CREATE_REPOSITORY,
+            kind=ek.CAN_CREATE_REPOSITORIES,
             description="Role can create repositories in the organization",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORGANIZATION,
+            kind=ek.CAN_CREATE_PUBLIC_REPOSITORIES,
+            description="Role can create public repositories in the organization",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORGANIZATION,
+            kind=ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+            description="Role can create internal repositories in the organization",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORGANIZATION,
+            kind=ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+            description="Role can create private repositories in the organization",
             traversable=False,
         ),
         EdgeDef(
@@ -174,7 +195,7 @@ class OrgRole(BaseAsset):
                 displayname=f"{self.org_login}/{self.name}",
                 node_id=self.node_id,
                 short_name=self.name,
-                type="custom",
+                type=self.type,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
                 query_explicit_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_OrgRole {{node_id:'{self.node_id}'}}) RETURN p",
@@ -195,7 +216,25 @@ class OrgRole(BaseAsset):
             )
 
             yield Edge(
-                kind=ek.CREATE_REPOSITORY,
+                kind=ek.CAN_CREATE_REPOSITORIES,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(value=self.org_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=False),
+            )
+            yield Edge(
+                kind=ek.CAN_CREATE_PUBLIC_REPOSITORIES,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(value=self.org_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=False),
+            )
+            yield Edge(
+                kind=ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(value=self.org_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=False),
+            )
+            yield Edge(
+                kind=ek.CAN_CREATE_PRIVATE_REPOSITORIES,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=self.org_node_id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
@@ -235,12 +274,34 @@ class OrgRole(BaseAsset):
     @property
     def _members_edge(self):
         if self.type == "default" and self.name == "members":
-            yield Edge(
-                kind=ek.CREATE_REPOSITORY,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(value=self.org_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
-            )
+            if self._lookup.members_can_create_repositories(self.org_login):
+                yield Edge(
+                    kind=ek.CAN_CREATE_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
+            if self._lookup.members_can_create_public_repositories(self.org_login):
+                yield Edge(
+                    kind=ek.CAN_CREATE_PUBLIC_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
+            if self._lookup.members_can_create_internal_repositories(self.org_login):
+                yield Edge(
+                    kind=ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
+            if self._lookup.members_can_create_private_repositories(self.org_login):
+                yield Edge(
+                    kind=ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
             yield Edge(
                 kind=ek.CREATE_TEAM,
                 start=EdgePath(value=self.node_id, match_by="id"),

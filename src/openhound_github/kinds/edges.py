@@ -42,6 +42,7 @@ HAS_PERSONAL_ACCESS_TOKEN_REQUEST = "GH_HasPersonalAccessTokenRequest"
 # Secret and variable edges
 HAS_SECRET = "GH_HasSecret"
 HAS_VARIABLE = "GH_HasVariable"
+CAN_READ_SECRET = "GH_CanReadSecret"
 
 # App installation edges
 INSTALLED_AS = "GH_InstalledAs"
@@ -63,6 +64,10 @@ HAS_ENVIRONMENT = "GH_HasEnvironment"
 INVITE_MEMBER = "GH_InviteMember"
 ADD_COLLABORATOR = "GH_AddCollaborator"
 CREATE_REPOSITORY = "GH_CreateRepository"
+CAN_CREATE_REPOSITORIES = "GH_CanCreateRepositories"
+CAN_CREATE_PUBLIC_REPOSITORIES = "GH_CanCreatePublicRepositories"
+CAN_CREATE_INTERNAL_REPOSITORIES = "GH_CanCreateInternalRepositories"
+CAN_CREATE_PRIVATE_REPOSITORIES = "GH_CanCreatePrivateRepositories"
 CREATE_TEAM = "GH_CreateTeam"
 TRANSFER_REPOSITORY = "GH_TransferRepository"
 
