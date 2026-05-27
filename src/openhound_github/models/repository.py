@@ -256,7 +256,7 @@ class Repository(BaseAsset):
                 query_environments=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_HasEnvironment]->(:GH_Environment) RETURN p",
                 query_secrets=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasSecret]->(:GH_Secret) RETURN p",
                 query_variables=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasVariable]->(:GH_Variable) RETURN p",
-                query_secret_scanning_alerts=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasSecretScanningAlert]->(:GH_SecretScanningAlert) RETURN p",
+                query_secret_scanning_alerts=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_SecretScanningAlert) RETURN p",
                 query_explicit_readers=f"MATCH p=(role:GH_Role)-[:GH_HasBaseRole|GH_ReadRepoContents*1..]->(r:GH_Repository {{node_id:'{rid}'}}) MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) RETURN p,p1",
                 query_unrolled_readers=f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_ReadRepoContents*1..]->(r:GH_Repository {{node_id:'{rid}'}}) MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) RETURN p,p1",
                 query_explicit_writers=f"MATCH p=(role:GH_Role)-[:GH_HasBaseRole|GH_WriteRepoContents|GH_WriteRepoPullRequests*1..]->(r:GH_Repository {{node_id:'{rid}'}}) MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) RETURN p,p1",

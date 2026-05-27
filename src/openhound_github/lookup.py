@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+import duckdb
 from duckdb import DuckDBPyConnection
 from openhound.core.lookup import LookupManager
 
@@ -76,6 +77,22 @@ class GithubLookup(LookupManager):
         return result.strip().lower() in {"1", "true", "t", "yes", "y"}
 
     @lru_cache
+    def _table_exists(self, table_name: str) -> bool:
+        try:
+            self.client.execute(
+                """
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = ? AND table_name = ?
+                LIMIT 1
+                """,
+                [self.schema, table_name],
+            )
+            return self.client.fetchone() is not None
+        except duckdb.Error:
+            return False
+
+    @lru_cache
     def members_can_create_repositories(self, org_login: str) -> bool:
         return self._find_single_bool(
             f"""SELECT members_can_create_repositories FROM {self.schema}.organizations WHERE login = ?""",
@@ -112,6 +129,38 @@ class GithubLookup(LookupManager):
                 self.members_can_create_internal_repositories(org_login),
                 self.members_can_create_private_repositories(org_login),
             )
+        )
+
+    @lru_cache
+    def repo_role_node_ids_with_view_secret_scanning_alerts(
+        self, repository_node_id: str
+    ):
+        return self._find_all_objects(
+            f"""
+            SELECT repository_node_id || '_' || name
+            FROM {self.schema}.repo_roles
+            WHERE repository_node_id = ?
+              AND (
+                (type = 'default' AND name = 'admin')
+                OR json_contains(permissions, '"view_secret_scanning_alerts"')
+              )
+            """,
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def org_role_node_ids_with_view_secret_scanning_alerts(self, org_login: str):
+        return self._find_all_objects(
+            f"""
+            SELECT org_node_id || '_' || name
+            FROM {self.schema}.org_roles
+            WHERE org_login = ?
+              AND (
+                (type = 'default' AND name = 'owners')
+                OR json_contains(permissions, '"view_secret_scanning_alerts"')
+              )
+            """,
+            [org_login],
         )
 
     @lru_cache
@@ -311,6 +360,8 @@ class GithubLookup(LookupManager):
 
     @lru_cache
     def org_variable(self, var_name: str, org_login: str):
+        if not self._table_exists("organization_variables"):
+            return None
         return self._find_single_object(
             f"""
             SELECT name FROM {self.schema}.organization_variables
@@ -321,6 +372,8 @@ class GithubLookup(LookupManager):
 
     @lru_cache
     def repo_variable(self, var_name: str, repository_id: str):
+        if not self._table_exists("repository_variables"):
+            return None
         return self._find_single_object(
             f"""
             SELECT name FROM {self.schema}.repository_variables

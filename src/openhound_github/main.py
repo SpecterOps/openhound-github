@@ -51,6 +51,7 @@ def preproc(ctx: PreProcContext):
     """
     return {
         "organizations": "organizations",
+        "org_roles": "org_roles",
         "repositories": "repositories",
         "branch_protection_rules": "branch_protection_rules",
         "branch_push_allowances": "branch_push_allowances",

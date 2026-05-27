@@ -5,7 +5,7 @@ from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 from pydantic import BaseModel
 
-from openhound_github.graph import GHNode, GHNodeProperties
+from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
@@ -80,9 +80,23 @@ class GHSecretScanningAlertProperties(GHNodeProperties):
         EdgeDef(
             start=nk.REPOSITORY,
             end=nk.SECRET_SCANNING_ALERT,
-            kind=ek.HAS_SECRET_SCANNING_ALERT,
-            description="Repository has secret scanning alert",
+            kind=ek.CONTAINS,
+            description="Repository contains secret scanning alert",
             traversable=False,
+        ),
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.SECRET_SCANNING_ALERT,
+            kind=ek.CAN_READ_SECRET_SCANNING_ALERT,
+            description="Repository role can read secret scanning alert",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.SECRET_SCANNING_ALERT,
+            kind=ek.CAN_READ_SECRET_SCANNING_ALERT,
+            description="Organization role can read secret scanning alert",
+            traversable=True,
         ),
         EdgeDef(
             start=nk.SECRET_SCANNING_ALERT,
@@ -148,14 +162,68 @@ class SecretScanningAlert(BaseAsset):
                 validity=self.validity,
                 state=self.state,
                 url=self.url,
-                query_repository=f"MATCH p=(r:GH_SecretScanningAlert {{node_id:'{aid}'}})<-[:GH_HasSecretScanningAlert]-(repo:GH_Repository) RETURN p",
+                query_repository=f"MATCH p=(r:GH_SecretScanningAlert {{node_id:'{aid}'}})<-[:GH_Contains]-(repo:GH_Repository) RETURN p",
                 query_alert_viewers=(
-                    f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_ViewSecretScanningAlerts*1..]->"
-                    f"(:GH_Repository)-[:GH_HasSecretScanningAlert]->(:GH_SecretScanningAlert {{node_id:'{aid}'}}) "
+                    f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_CanReadSecretScanningAlert*1..]->"
+                    f"(:GH_SecretScanningAlert {{node_id:'{aid}'}}) "
                     f"MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) RETURN p,p1"
                 ),
             ),
         )
+
+    def _repo_alert_view_query(self, role_node_id: str) -> str:
+        return (
+            f"MATCH p=(:GH_RepoRole {{node_id:'{role_node_id}'}})"
+            f"-[:GH_ViewSecretScanningAlerts]->(:GH_Repository)"
+            f"-[:GH_Contains]->(:GH_SecretScanningAlert {{node_id:'{self.node_id}'}}) "
+            f"RETURN p"
+        )
+
+    def _org_alert_view_query(self, role_node_id: str) -> str:
+        return (
+            f"MATCH p=(:GH_OrgRole {{node_id:'{role_node_id}'}})"
+            f"-[:GH_ViewSecretScanningAlerts]->(:GH_Organization)"
+            f"-[:GH_Contains]->(:GH_SecretScanningAlert {{node_id:'{self.node_id}'}}) "
+            f"RETURN p"
+        )
+
+    @property
+    def _repo_viewer_edges(self):
+        if not self.repository:
+            return
+
+        for (role_node_id,) in self._lookup.repo_role_node_ids_with_view_secret_scanning_alerts(
+            self.repository.node_id
+        ):
+            yield Edge(
+                kind=ek.CAN_READ_SECRET_SCANNING_ALERT,
+                start=EdgePath(value=role_node_id, match_by="id"),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    query_composition=self._repo_alert_view_query(role_node_id),
+                ),
+            )
+
+    @property
+    def _org_viewer_edges(self):
+        if not self.org_node_id:
+            return
+
+        for (role_node_id,) in self._lookup.org_role_node_ids_with_view_secret_scanning_alerts(
+            self.org_login
+        ):
+            yield Edge(
+                kind=ek.CAN_READ_SECRET_SCANNING_ALERT,
+                start=EdgePath(value=role_node_id, match_by="id"),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    query_composition=self._org_alert_view_query(role_node_id),
+                ),
+            )
 
     @property
     def edges(self):
@@ -181,3 +249,6 @@ class SecretScanningAlert(BaseAsset):
                 end=EdgePath(value=self.valid_token_user_node_id, match_by="id"),
                 properties=EdgeProperties(traversable=True),
             )
+
+        yield from self._repo_viewer_edges
+        yield from self._org_viewer_edges
