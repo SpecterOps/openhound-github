@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+import json
 from typing import ClassVar
 
 from dlt.common.libs.pydantic import DltConfig
@@ -140,10 +141,8 @@ class AppInstallation(BaseAsset):
                 repositories_url=self.repositories_url,
                 repository_selection=self.repository_selection,
                 target_type=self.target_type,
-                permissions=self.permissions
-                if isinstance(self.permissions, str)
-                else None,
-                events=self.events if isinstance(self.events, str) else None,
+                permissions=json.dumps(self.permissions) if self.permissions else None,
+                events=json.dumps(self.events) if self.events else None,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
                 suspended_at=self.suspended_at,

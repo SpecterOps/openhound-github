@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+import json
 from typing import ClassVar
 
 from dlt.common.libs.pydantic import DltConfig
@@ -40,6 +41,8 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
         owner_login: The login handle of the user who owns the token.
         repository_selection: Whether the token has access to `all`, `subset`, or `none` of the organization's repositories.
         token_expired: Whether the token has expired.
+        organization_permissions: JSON string of the PAT's organization-scoped permissions.
+        repository_permissions: JSON string of the PAT's repository-scoped permissions.
         query_organization_permissions: Query for organization permissions.
         query_user: Query for user.
         query_repositories: Query for repositories.
@@ -57,6 +60,8 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
     owner_login: str | None = None
     repository_selection: str | None = None
     token_expired: bool | None = None
+    organization_permissions: str | None = None
+    repository_permissions: str | None = None
     query_organization_permissions: str | None = None
     query_user: str | None = None
     query_repositories: str | None = None
@@ -141,6 +146,16 @@ class PersonalAccessToken(BaseAsset):
                 token_expires_at=self.token_expires_at,
                 owner_id=self.owner.id if self.owner else None,
                 token_last_used_at=self.token_last_used_at,
+                organization_permissions=(
+                    json.dumps(self.permissions.organization)
+                    if self.permissions and self.permissions.organization
+                    else None
+                ),
+                repository_permissions=(
+                    json.dumps(self.permissions.repository)
+                    if self.permissions and self.permissions.repository
+                    else None
+                ),
                 query_organization_permissions=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess]->(:GH_Organization) RETURN p",
                 query_user=f"MATCH p=(:GH_User)-[:GH_HasPersonalAccessToken]->(:GH_PersonalAccessToken {{node_id:'{pid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess]->(:GH_Repository) RETURN p LIMIT 1000",
