@@ -1,4 +1,5 @@
 import base64
+import fnmatch
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -129,6 +130,14 @@ class WorkflowJobDefinition(BaseModel):
             return "self-hosted" in [str(item) for item in self.runs_on]
         return False
 
+    @property
+    def container_value(self) -> str | None:
+        if self.container is None:
+            return None
+        if isinstance(self.container, str):
+            return self.container
+        return str(self.container)
+
 
 class WorkflowDocument(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -241,6 +250,7 @@ class GHWorkflowProperties(GHNodeProperties):
     contents: str | None = None
     triggers: list[str] | None = None
     trigger_dispatch_inputs: list[str] | None = None
+    is_pwn_requestable: bool = False
     query_repository: str | None = None
     query_editors: str | None = None
     environment_name: str | None = None
@@ -260,6 +270,20 @@ class GHWorkflowProperties(GHNodeProperties):
             kind=ek.HAS_WORKFLOW,
             description="Repository contains workflow",
             traversable=False,
+        ),
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.REPOSITORY,
+            kind=ek.CAN_PWN_REQUEST,
+            description="Repo role can exploit a pwn-requestable workflow on the repository",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.BRANCH,
+            kind=ek.CAN_PWN_REQUEST,
+            description="Repo role can exploit a pwn-requestable workflow on a targeted branch",
+            traversable=True,
         ),
     ],
 )
@@ -338,6 +362,112 @@ class Workflow(BaseAsset):
 
         return [str(key) for key in inputs.keys()]
 
+    @property
+    def pull_request_target_branches(self) -> list[str] | None:
+        document = self.document
+        if not document:
+            return None
+
+        on_value = document.model_extra.get("on")
+        if not isinstance(on_value, dict):
+            return None
+
+        pull_request_target = on_value.get("pull_request_target")
+        if pull_request_target is None:
+            return None
+        if isinstance(pull_request_target, dict):
+            branches = pull_request_target.get("branches")
+            if isinstance(branches, str):
+                return [branches]
+            if isinstance(branches, list):
+                return [str(branch) for branch in branches]
+        return None
+
+    @property
+    def is_pwn_requestable(self) -> bool:
+        document = self.document
+        if not document:
+            return False
+
+        on_value = document.model_extra.get("on")
+        has_pull_request_target = False
+        if isinstance(on_value, str):
+            has_pull_request_target = on_value == "pull_request_target"
+        elif isinstance(on_value, list):
+            has_pull_request_target = "pull_request_target" in [
+                str(item) for item in on_value
+            ]
+        elif isinstance(on_value, dict):
+            has_pull_request_target = "pull_request_target" in on_value
+
+        if not has_pull_request_target:
+            return False
+
+        for job in document.jobs.values():
+            for step in job.steps:
+                if not step.uses or not step.with_:
+                    continue
+                action = action_parts(step.uses)
+                if action["action_slug"] != "actions/checkout":
+                    continue
+                ref = step.with_.get("ref")
+                if str(ref).strip() in {
+                    "${{ github.event.pull_request.head.sha }}",
+                    "${{ github.event.pull_request.head.ref }}",
+                    "${{ github.head_ref }}",
+                }:
+                    return True
+        return False
+
+    @property
+    def _repo_is_forkable_for_pwn_request(self) -> bool:
+        visibility = self._lookup.repository_visibility(self.repository_node_id)
+        if visibility == "public":
+            return True
+        if visibility in {"private", "internal"}:
+            return self._lookup.repository_allow_forking(
+                self.repository_node_id
+            ) and self._lookup.members_can_fork_private_repositories(self.org_login)
+        return False
+
+    @property
+    def _pwn_request_branch_ids(self) -> list[str]:
+        if not self.is_pwn_requestable:
+            return []
+
+        patterns = self.pull_request_target_branches
+        branches = self._lookup.branches_for_repository(self.repository_node_id)
+        if not patterns:
+            return [branch_id for branch_id, _ in branches]
+
+        matched = []
+        for branch_id, branch_name in branches:
+            if any(fnmatch.fnmatchcase(branch_name, pattern) for pattern in patterns):
+                matched.append(branch_id)
+        return matched
+
+    @property
+    def _can_pwn_request_edges(self):
+        if not self.is_pwn_requestable or not self._repo_is_forkable_for_pwn_request:
+            return
+
+        for (role_node_id,) in self._lookup.repo_role_node_ids_with_read_repo_contents(
+            self.repository_node_id
+        ):
+            yield Edge(
+                kind=ek.CAN_PWN_REQUEST,
+                start=EdgePath(value=role_node_id, match_by="id"),
+                end=EdgePath(value=self.repository_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
+            for branch_id in self._pwn_request_branch_ids:
+                yield Edge(
+                    kind=ek.CAN_PWN_REQUEST,
+                    start=EdgePath(value=role_node_id, match_by="id"),
+                    end=EdgePath(value=branch_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )
+
     def workflow_job_rows(self) -> list[dict[str, Any]]:
         document = self.document
         if not document:
@@ -367,7 +497,7 @@ class Workflow(BaseAsset):
                     "job_key": job_key,
                     "runs_on": job.runs_on,
                     "is_self_hosted": job.is_self_hosted,
-                    "container": job.container,
+                    "container": job.container_value,
                     "environment": job.environment_name,
                     "permissions": job.permissions
                     if job.permissions is not None
@@ -444,6 +574,7 @@ class Workflow(BaseAsset):
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
+        yield from self._can_pwn_request_edges
 
     @property
     def _decoded_contents(self):
@@ -467,6 +598,7 @@ class Workflow(BaseAsset):
                 contents=self._decoded_contents,
                 triggers=self.trigger_events,
                 trigger_dispatch_inputs=self.workflow_dispatch_inputs,
+                is_pwn_requestable=self.is_pwn_requestable,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,

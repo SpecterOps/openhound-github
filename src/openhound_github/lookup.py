@@ -58,6 +58,20 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def repository_visibility(self, repository_node_id: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT visibility FROM {self.schema}.repositories WHERE node_id = ?""",
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def repository_allow_forking(self, repository_node_id: str) -> bool:
+        return self._find_single_bool(
+            f"""SELECT allow_forking FROM {self.schema}.repositories WHERE node_id = ?""",
+            [repository_node_id],
+        )
+
+    @lru_cache
     def private_repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories WHERE visibility = 'private' or visibility = 'internal'""",
@@ -129,6 +143,33 @@ class GithubLookup(LookupManager):
                 self.members_can_create_internal_repositories(org_login),
                 self.members_can_create_private_repositories(org_login),
             )
+        )
+
+    @lru_cache
+    def members_can_fork_private_repositories(self, org_login: str) -> bool:
+        return self._find_single_bool(
+            f"""SELECT members_can_fork_private_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def repo_role_node_ids_with_read_repo_contents(self, repository_node_id: str):
+        return self._find_all_objects(
+            f"""
+            SELECT repository_node_id || '_' || name
+            FROM {self.schema}.repo_roles
+            WHERE repository_node_id = ?
+              AND type = 'default'
+              AND name IN ('read', 'write', 'admin')
+            """,
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def branches_for_repository(self, repository_node_id: str):
+        return self._find_all_objects(
+            f"""SELECT id, name FROM {self.schema}.branches WHERE repository_node_id = ?""",
+            [repository_node_id],
         )
 
     @lru_cache
