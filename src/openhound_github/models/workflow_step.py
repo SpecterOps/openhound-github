@@ -9,11 +9,9 @@ from openhound.core.asset import (  # type: ignore[import-untyped]
     NodeDef,
 )
 from openhound.core.models.entries_dataclass import (  # type: ignore[import-untyped]
-    ConditionalEdgePath,
     Edge,
     EdgePath,
     EdgeProperties,
-    PropertyMatch,
 )
 from pydantic import BaseModel, Field
 
@@ -99,6 +97,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
         ),
         EdgeDef(
             start=nk.WORKFLOW_STEP,
+            end=nk.ENVIRONMENT_SECRET,
+            kind=ek.USES_SECRET,
+            description="Workflow step references environment secret",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.WORKFLOW_STEP,
             end=nk.REPO_VARIABLE,
             kind=ek.USES_VARIABLE,
             description="Workflow step references repository variable",
@@ -109,6 +114,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
             end=nk.ORG_VARIABLE,
             kind=ek.USES_VARIABLE,
             description="Workflow step references organization variable",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.WORKFLOW_STEP,
+            end=nk.ENVIRONMENT_VARIABLE,
+            kind=ek.USES_VARIABLE,
+            description="Workflow step references environment variable",
             traversable=False,
         ),
     ],
@@ -173,69 +185,37 @@ class WorkflowStep(BaseAsset):
 
     @property
     def _uses_secret_edges(self):
+        environment_name = self._lookup.workflow_job_environment(self.job_node_id)
         for ref in self.secret_references:
-            if self._lookup.repo_secret(ref.name, self.repository_node_id):
+            target = self._lookup.secret_target(
+                ref.name,
+                self.repository_node_id,
+                self.org_login,
+                environment_name,
+            )
+            if target:
                 yield Edge(
                     kind=ek.USES_SECRET,
                     start=EdgePath(value=self.node_id, match_by="id"),
-                    end=ConditionalEdgePath(
-                        kind=nk.REPO_SECRET,
-                        property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
-                            PropertyMatch(
-                                key="repository_id", value=self.repository_node_id
-                            ),
-                        ],
-                    ),
-                    properties=EdgeProperties(traversable=False),
-                )
-            if self._lookup.org_secret(ref.name, self.org_login):
-                yield Edge(
-                    kind=ek.USES_SECRET,
-                    start=EdgePath(value=self.node_id, match_by="id"),
-                    end=ConditionalEdgePath(
-                        kind=nk.ORG_SECRET,
-                        property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
-                            PropertyMatch(
-                                key="environmentid", value=self.org_node_id.upper()
-                            ),
-                        ],
-                    ),
+                    end=EdgePath(value=target[1], match_by="id"),
                     properties=EdgeProperties(traversable=False),
                 )
 
     @property
     def _uses_variable_edges(self):
+        environment_name = self._lookup.workflow_job_environment(self.job_node_id)
         for ref in self.variable_references:
-            if self._lookup.repo_variable(ref.name, self.repository_node_id):
+            target = self._lookup.variable_target(
+                ref.name,
+                self.repository_node_id,
+                self.org_login,
+                environment_name,
+            )
+            if target:
                 yield Edge(
                     kind=ek.USES_VARIABLE,
                     start=EdgePath(value=self.node_id, match_by="id"),
-                    end=ConditionalEdgePath(
-                        kind=nk.REPO_VARIABLE,
-                        property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
-                            PropertyMatch(
-                                key="repository_id", value=self.repository_node_id
-                            ),
-                        ],
-                    ),
-                    properties=EdgeProperties(traversable=False),
-                )
-            if self._lookup.org_variable(ref.name, self.org_login):
-                yield Edge(
-                    kind=ek.USES_VARIABLE,
-                    start=EdgePath(value=self.node_id, match_by="id"),
-                    end=ConditionalEdgePath(
-                        kind=nk.ORG_VARIABLE,
-                        property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
-                            PropertyMatch(
-                                key="environmentid", value=self.org_node_id.upper()
-                            ),
-                        ],
-                    ),
+                    end=EdgePath(value=target[1], match_by="id"),
                     properties=EdgeProperties(traversable=False),
                 )
 

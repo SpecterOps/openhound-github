@@ -359,6 +359,51 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def environment_secret_for_environment(
+        self, secret_name: str, repository_id: str, environment_name: str
+    ):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_secrets
+            WHERE name = ? AND repository_node_id = ? AND environment_name = ?
+            """,
+            [secret_name, repository_id, environment_name],
+        )
+
+    @lru_cache
+    def repo_visible_org_secret(
+        self, secret_name: str, repository_id: str, org_login: str
+    ):
+        return self._find_single_object(
+            f"""
+            SELECT os.name
+            FROM {self.schema}.organization_secrets os
+            JOIN {self.schema}.repositories r
+              ON r.node_id = ?
+            WHERE os.name = ?
+              AND os.org_login = ?
+              AND (
+                os.visibility = 'all'
+                OR (
+                  os.visibility = 'private'
+                  AND r.visibility IN ('private', 'internal')
+                )
+                OR (
+                  os.visibility = 'selected'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM {self.schema}.selected_organization_secrets sos
+                    WHERE sos.name = os.name
+                      AND sos.org_login = os.org_login
+                      AND sos.repository_node_id = ?
+                  )
+                )
+              )
+            """,
+            [repository_id, secret_name, org_login, repository_id],
+        )
+
+    @lru_cache
     def org_variable(self, var_name: str, org_login: str):
         if not self._table_exists("organization_variables"):
             return None
@@ -393,6 +438,55 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def environment_variable_for_environment(
+        self, var_name: str, repository_id: str, environment_name: str
+    ):
+        if not self._table_exists("environment_variables"):
+            return None
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_variables
+            WHERE name = ? AND repository_node_id = ? AND environment_name = ?
+            """,
+            [var_name, repository_id, environment_name],
+        )
+
+    @lru_cache
+    def repo_visible_org_variable(
+        self, var_name: str, repository_id: str, org_login: str
+    ):
+        if not self._table_exists("organization_variables"):
+            return None
+        return self._find_single_object(
+            f"""
+            SELECT ov.name
+            FROM {self.schema}.organization_variables ov
+            JOIN {self.schema}.repositories r
+              ON r.node_id = ?
+            WHERE ov.name = ?
+              AND ov.org_login = ?
+              AND (
+                ov.visibility = 'all'
+                OR (
+                  ov.visibility = 'private'
+                  AND r.visibility IN ('private', 'internal')
+                )
+                OR (
+                  ov.visibility = 'selected'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM {self.schema}.selected_organization_variables sov
+                    WHERE sov.name = ov.name
+                      AND sov.org_login = ov.org_login
+                      AND sov.repository_node_id = ?
+                  )
+                )
+              )
+            """,
+            [repository_id, var_name, org_login, repository_id],
+        )
+
+    @lru_cache
     def environment(self, env_name: str, repository_id: str):
         return self._find_single_object(
             f"""
@@ -401,6 +495,83 @@ class GithubLookup(LookupManager):
             """,
             [env_name, repository_id],
         )
+
+    @lru_cache
+    def environment_node_id(self, env_name: str, repository_id: str) -> str | None:
+        return self._find_single_object(
+            f"""
+            SELECT node_id FROM {self.schema}.environments
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [env_name, repository_id],
+        )
+
+    @lru_cache
+    def workflow_job_environment(self, workflow_job_node_id: str) -> str | None:
+        return self._find_single_object(
+            f"""
+            SELECT environment FROM {self.schema}.workflow_jobs
+            WHERE node_id = ?
+            """,
+            [workflow_job_node_id],
+        )
+
+    @lru_cache
+    def secret_target(
+        self,
+        secret_name: str,
+        repository_id: str,
+        org_login: str,
+        environment_name: str | None = None,
+    ) -> tuple[str, str] | None:
+        if environment_name and self.environment_secret_for_environment(
+            secret_name, repository_id, environment_name
+        ):
+            environment_node_id = self.environment_node_id(
+                environment_name, repository_id
+            )
+            if environment_node_id:
+                return (
+                    "environment",
+                    f"GH_EnvironmentSecret_{environment_node_id}_{secret_name}",
+                )
+        if self.repo_secret(secret_name, repository_id):
+            return ("repository", f"GH_Secret_{repository_id}_{secret_name}")
+        if self.repo_visible_org_secret(secret_name, repository_id, org_login):
+            org_node_id = self.org_id_for_login(org_login)
+            if org_node_id:
+                return ("organization", f"GH_OrgSecret_{org_node_id}_{secret_name}")
+        return None
+
+    @lru_cache
+    def variable_target(
+        self,
+        var_name: str,
+        repository_id: str,
+        org_login: str,
+        environment_name: str | None = None,
+    ) -> tuple[str, str] | None:
+        if environment_name and self.environment_variable_for_environment(
+            var_name, repository_id, environment_name
+        ):
+            environment_node_id = self.environment_node_id(
+                environment_name, repository_id
+            )
+            if environment_node_id:
+                return (
+                    "environment",
+                    f"GH_EnvironmentVariable_{environment_node_id}_{var_name}",
+                )
+        if self.repo_variable(var_name, repository_id):
+            return ("repository", f"GH_Variable_{repository_id}_{var_name}")
+        if self.repo_visible_org_variable(var_name, repository_id, org_login):
+            org_node_id = self.org_id_for_login(org_login)
+            if org_node_id:
+                return (
+                    "organization",
+                    f"GH_OrgVariable_{org_node_id}_{var_name}",
+                )
+        return None
 
     @lru_cache
     def workflow(self, repository_node_id: str, path: str):

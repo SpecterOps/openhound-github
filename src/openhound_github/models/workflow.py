@@ -16,7 +16,7 @@ from openhound.core.models.entries_dataclass import (  # type: ignore[import-unt
     EdgePath,
     EdgeProperties,
 )
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
@@ -239,6 +239,8 @@ class GHWorkflowProperties(GHNodeProperties):
     html_url: str | None = None
     branch: str | None = None
     contents: str | None = None
+    triggers: list[str] | None = None
+    trigger_dispatch_inputs: list[str] | None = None
     query_repository: str | None = None
     query_editors: str | None = None
     environment_name: str | None = None
@@ -300,6 +302,41 @@ class Workflow(BaseAsset):
             return WorkflowDocument.model_validate(parsed)
         except Exception:
             return None
+
+    @property
+    def trigger_events(self) -> list[str] | None:
+        document = self.document
+        if not document:
+            return None
+
+        on_value = document.model_extra.get("on")
+        if isinstance(on_value, str):
+            return [on_value]
+        if isinstance(on_value, list):
+            return [str(item) for item in on_value]
+        if isinstance(on_value, dict):
+            return [str(key) for key in on_value.keys()]
+        return None
+
+    @property
+    def workflow_dispatch_inputs(self) -> list[str] | None:
+        document = self.document
+        if not document:
+            return None
+
+        on_value = document.model_extra.get("on")
+        if not isinstance(on_value, dict):
+            return None
+
+        workflow_dispatch = on_value.get("workflow_dispatch")
+        if not isinstance(workflow_dispatch, dict):
+            return None
+
+        inputs = workflow_dispatch.get("inputs")
+        if not isinstance(inputs, dict):
+            return None
+
+        return [str(key) for key in inputs.keys()]
 
     def workflow_job_rows(self) -> list[dict[str, Any]]:
         document = self.document
@@ -428,6 +465,8 @@ class Workflow(BaseAsset):
                 html_url=self.html_url,
                 branch=self.branch,
                 contents=self._decoded_contents,
+                triggers=self.trigger_events,
+                trigger_dispatch_inputs=self.workflow_dispatch_inputs,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
