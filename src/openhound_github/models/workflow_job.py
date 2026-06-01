@@ -51,7 +51,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
     job_key: str | None = None
     runs_on: Any = None
     is_self_hosted: bool = False
-    container: Any = None
+    container: str = None
     environment: str | None = None
     permissions: list[str] | None = None
     uses_reusable: str | None = None
@@ -123,6 +123,20 @@ class GHWorkflowJobProperties(GHNodeProperties):
             end=nk.ORG_VARIABLE,
             kind=ek.USES_VARIABLE,
             description="Workflow job references organization variable",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.WORKFLOW_JOB,
+            end=nk.ENVIRONMENT_VARIABLE,
+            kind=ek.USES_VARIABLE,
+            description="Workflow job references environment variable",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.WORKFLOW_JOB,
+            end=nk.ENVIRONMENT_SECRET,
+            kind=ek.USES_SECRET,
+            description="Workflow job references environment secret",
             traversable=False,
         ),
     ],
@@ -224,6 +238,29 @@ class WorkflowJob(BaseAsset):
                     properties=EdgeProperties(traversable=False),
                 )
 
+            if self.environment and "${{" not in self.environment:
+                if self._lookup.environment_secret_for_environment(
+                    ref.name, self.repository_node_id, self.environment
+                ):
+                    yield Edge(
+                        kind=ek.USES_SECRET,
+                        start=EdgePath(value=self.node_id, match_by="id"),
+                        end=ConditionalEdgePath(
+                            kind=nk.ENVIRONMENT_SECRET,
+                            property_matchers=[
+                                PropertyMatch(key="name", value=ref.name.upper()),
+                                PropertyMatch(
+                                    key="deployment_environment_name",
+                                    value=self.environment,
+                                ),
+                                PropertyMatch(
+                                    key="repository_id", value=self.repository_node_id
+                                ),
+                            ],
+                        ),
+                        properties=EdgeProperties(traversable=False),
+                    )
+
     @property
     def _uses_variable_edges(self):
         for ref in self.variable_references:
@@ -242,6 +279,31 @@ class WorkflowJob(BaseAsset):
                     ),
                     properties=EdgeProperties(traversable=False),
                 )
+
+            if self.environment and "${{" not in self.environment:
+                if self._lookup.environment_variable_for_environment(
+                    ref.name, self.repository_node_id, self.environment
+                ):
+                    yield Edge(
+                        kind=ek.USES_VARIABLE,
+                        start=EdgePath(value=self.node_id, match_by="id"),
+                        end=ConditionalEdgePath(
+                            kind=nk.ENVIRONMENT_VARIABLE,
+                            property_matchers=[
+                                PropertyMatch(key="name", value=ref.name.upper()),
+                                PropertyMatch(
+                                    key="deployment_environment_name",
+                                    value=self.environment,
+                                ),
+                                PropertyMatch(
+                                    key="repository_id",
+                                    value=self.repository_node_id,
+                                ),
+                            ],
+                        ),
+                        properties=EdgeProperties(traversable=False),
+                    )
+
             if self._lookup.org_variable(ref.name, self.org_login):
                 yield Edge(
                     kind=ek.USES_VARIABLE,
