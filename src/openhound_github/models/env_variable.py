@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
+from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 
 from openhound_github.graph import (
     GHNode,
@@ -15,7 +16,7 @@ from openhound_github.main import app
 @dataclass
 class GHEnvVariableProperties(GHNodeProperties):
     """Properties for GHEnvVariableProperties.
-    
+
     Attributes:
         environment_name: The name of the environment (GitHub organization).
         deployment_environment_name: The name of the deployment environment (GitHub organization).
@@ -31,6 +32,7 @@ class GHEnvVariableProperties(GHNodeProperties):
     created_at: datetime | None
     updated_at: datetime | None
     repository_name: str
+    deployment_environmentid: str | None = None
 
 
 @app.asset(
@@ -86,6 +88,7 @@ class EnvironmentVariable(BaseAsset):
                 environment_name=self.org_login,
                 repository_name=self.repository_name,
                 environmentid=self.org_node_id,
+                deployment_environmentid=self.environment_node_id,
                 updated_at=self.updated_at,
                 created_at=self.created_at,
                 value=self.value,
@@ -94,11 +97,9 @@ class EnvironmentVariable(BaseAsset):
 
     @property
     def edges(self):
-        # TODO: Check if this should indeed not return CONTAINS edge
-        return []
-        # yield Edge(
-        #     kind=ek.CONTAINS,
-        #     start=EdgePath(value=self.environment_node_id, match_by="id"),
-        #     end=EdgePath(value=self.node_id, match_by="id"),
-        #     properties=EdgeProperties(traversable=False),
-        # )
+        yield Edge(
+            kind=ek.CONTAINS,
+            start=EdgePath(value=self.environment_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
