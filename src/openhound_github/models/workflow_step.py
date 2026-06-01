@@ -111,6 +111,20 @@ class GHWorkflowStepProperties(GHNodeProperties):
             description="Workflow step references organization variable",
             traversable=False,
         ),
+        # EdgeDef(
+        #     start=nk.WORKFLOW_STEP,
+        #     end=nk.ENVIRONMENT_SECRET,
+        #     kind=ek.USES_SECRET,
+        #     description="Workflow step references environment secret",
+        #     traversable=False,
+        # ),
+        # EdgeDef(
+        #     start=nk.WORKFLOW_STEP,
+        #     end=nk.ENVIRONMENT_VARIABLE,
+        #     kind=ek.USES_VARIABLE,
+        #     description="Workflow step references environment variable",
+        #     traversable=False,
+        # ),
     ],
 )
 class WorkflowStep(BaseAsset):
@@ -123,6 +137,7 @@ class WorkflowStep(BaseAsset):
     step_index: int
     type: str
     job_node_id: str
+    job_environment: str | None = None
     workflow_node_id: str
     repository_name: str
     repository_node_id: str

@@ -565,6 +565,7 @@ class Workflow(BaseAsset):
                         "with_args": step.with_ or None,
                         "contents": step.model_dump(by_alias=True, exclude_none=True),
                         "job_node_id": job_node_id,
+                        "job_environment": job.environment_name,
                         "workflow_node_id": self.node_id,
                         "repository_name": self.repository_name,
                         "repository_node_id": self.repository_node_id,
