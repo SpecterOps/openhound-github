@@ -133,3 +133,13 @@ EDIT_REPO_CUSTOM_PROPERTIES_VALUES = "GH_EditRepoCustomPropertiesValues"
 
 READ_REPO_PULL_REQUEST = "GH_ReadRepoPullRequests"
 MANAGE_DISCUSSION_SPOTLIGHTS = "GH_ManageDiscussionSpotlights"
+
+
+# Added
+CAN_CREATE_REPOSITORIES = "GH_CanCreateRepositories"
+CAN_CREATE_PUBLIC_REPOSITORIES = "GH_CanCreatePublicRepositories"
+CAN_CREATE_INTERNAL_REPOSITORIES = "GH_CanCreateInternalRepositories"
+CAN_CREATE_PRIVATE_REPOSITORIES = "GH_CanCreatePrivateRepositories"
+CAN_PWN_REQUEST = "GH_CanPwnRequest"
+CAN_READ_SECRET = "GH_CanReadSecret"
+CAN_READ_SECRET_SCANNING_ALERT = "GH_CanReadSecretScanningAlert"
