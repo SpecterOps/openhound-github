@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
+from dlt.common import json
 from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -28,12 +29,14 @@ class Owner(BaseModel):
 @dataclass
 class GHPersonalAccessTokenProperties(GHNodeProperties):
     """PAT properties and accordion panel queries.
-    
+
     Attributes:
         environment_name: The name of the environment (GitHub organization) where the token has access.
         owner_id: The GitHub ID of the token owner.
         owner_node_id: The GraphQL node ID of the token owner.
         token_expires_at: The ISO 8601 timestamp of when the token expires.
+        organization_permissions: JSON string of the PAT's organization-scoped permissions.
+        repository_permissions: JSON string of the PAT's repository-scoped permissions.
         token_last_used_at: The ISO 8601 timestamp of when the token was last used.
         access_granted_at: The ISO 8601 timestamp of when the token was granted to the organization. |
         token_name: The user-assigned display name of the token.
@@ -51,8 +54,9 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
     owner_node_id: str | None = None
     token_expires_at: datetime | None = None
     token_last_used_at: datetime | None = None
-    # TODO: permissions:
     access_granted_at: datetime | None = None
+    organization_permissions: str | None = None
+    repository_permissions: str | None = None
     token_name: str | None = None
     owner_login: str | None = None
     repository_selection: str | None = None
@@ -140,6 +144,16 @@ class PersonalAccessToken(BaseAsset):
                 environment_name=self.org_login,
                 token_expires_at=self.token_expires_at,
                 owner_id=self.owner.id if self.owner else None,
+                organization_permissions=(
+                    json.dumps(self.permissions.organization)
+                    if self.permissions and self.permissions.organization
+                    else None
+                ),
+                repository_permissions=(
+                    json.dumps(self.permissions.repository)
+                    if self.permissions and self.permissions.repository
+                    else None
+                ),
                 token_last_used_at=self.token_last_used_at,
                 query_organization_permissions=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess]->(:GH_Organization) RETURN p",
                 query_user=f"MATCH p=(:GH_User)-[:GH_HasPersonalAccessToken]->(:GH_PersonalAccessToken {{node_id:'{pid}'}}) RETURN p",
