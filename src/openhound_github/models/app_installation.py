@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
+from dlt.common import json
 from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -16,7 +17,7 @@ from openhound_github.main import app
 @dataclass
 class GHAppInstallationProperties(GHNodeProperties):
     """App installation properties and accordion panel queries.
-    
+
     Attributes:
         id: The GitHub installation ID.
         app_id: The GitHub App's numeric ID (shared across all installations of the same app).
@@ -140,10 +141,8 @@ class AppInstallation(BaseAsset):
                 repositories_url=self.repositories_url,
                 repository_selection=self.repository_selection,
                 target_type=self.target_type,
-                permissions=self.permissions
-                if isinstance(self.permissions, str)
-                else None,
-                events=self.events if isinstance(self.events, str) else None,
+                permissions=json.dumps(self.permissions) if self.permissions else None,
+                events=json.dumps(self.events) if self.events else None,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
                 suspended_at=self.suspended_at,
@@ -195,7 +194,7 @@ class AppInstallation(BaseAsset):
 @dataclass
 class GHAppProperties(GHNodeProperties):
     """App definition properties and accordion panel queries.
-    
+
     Attributes:
         id: The GitHub App's numeric ID.
         client_id: The app's OAuth client ID.
