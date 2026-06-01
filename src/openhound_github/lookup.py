@@ -188,6 +188,38 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def repo_role_node_ids_with_view_secret_scanning_alerts(
+        self, repository_node_id: str
+    ):
+        return self._find_all_objects(
+            f"""
+                SELECT repository_node_id || '_' || name
+                FROM {self.schema}.repo_roles
+                WHERE repository_node_id = ?
+                  AND (
+                    (type = 'default' AND name = 'admin')
+                    OR json_contains(permissions, '"view_secret_scanning_alerts"')
+                  )
+                """,
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def org_role_node_ids_with_view_secret_scanning_alerts(self, org_login: str):
+        return self._find_all_objects(
+            f"""
+             SELECT org_node_id || '_' || name
+             FROM {self.schema}.org_roles
+             WHERE org_login = ?
+               AND (
+                 (type = 'default' AND name = 'owners')
+                 OR json_contains(permissions, '"view_secret_scanning_alerts"')
+               )
+             """,
+            [org_login],
+        )
+
+    @lru_cache
     def actor_gate_bypass(
         self,
         actor_node_id: str,
