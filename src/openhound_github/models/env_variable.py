@@ -24,6 +24,7 @@ class GHEnvVariableProperties(GHNodeProperties):
         created_at: When the variable was created.
         updated_at: When the variable was last updated.
         repository_name: The name of the containing repository.
+        repository_id: The id of the containing repository.
     """
 
     environment_name: str
@@ -32,6 +33,7 @@ class GHEnvVariableProperties(GHNodeProperties):
     created_at: datetime | None
     updated_at: datetime | None
     repository_name: str
+    repository_id: str
     deployment_environmentid: str | None = None
 
 
@@ -87,6 +89,7 @@ class EnvironmentVariable(BaseAsset):
                 deployment_environment_name=self.environment_name,
                 environment_name=self.org_login,
                 repository_name=self.repository_name,
+                repository_id=self.repository_node_id,
                 environmentid=self.org_node_id,
                 deployment_environmentid=self.environment_node_id,
                 updated_at=self.updated_at,
