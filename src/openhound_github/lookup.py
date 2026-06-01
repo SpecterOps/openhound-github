@@ -372,3 +372,39 @@ class GithubLookup(LookupManager):
             """,
             [repository_node_id, path],
         )
+
+    @lru_cache
+    def branches_for_repository(self, repository_node_id: str):
+        return self._find_all_objects(
+            f"""SELECT id, name FROM {self.schema}.branches WHERE repository_node_id = ?""",
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def members_can_fork_private_repositories(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT members_can_fork_private_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def repository_allow_forking(
+        self, repository_node_id: str
+    ) -> tuple[str, bool] | None:
+        return self._find_single_row(
+            f"""SELECT visibility, allow_forking FROM {self.schema}.repositories WHERE node_id = ?""",
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def repo_role_node_ids_with_read_repo_contents(self, repository_node_id: str):
+        return self._find_all_objects(
+            f"""
+            SELECT repository_node_id || '_' || name
+            FROM {self.schema}.repo_roles
+            WHERE repository_node_id = ?
+              AND type = 'default'
+              AND name IN ('read', 'write', 'admin')
+            """,
+            [repository_node_id],
+        )

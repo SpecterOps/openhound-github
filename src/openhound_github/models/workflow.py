@@ -1,7 +1,9 @@
 import base64
+import fnmatch
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from functools import cached_property
 from typing import Any, ClassVar
 
 import yaml  # type: ignore[import-untyped]
@@ -16,7 +18,7 @@ from openhound.core.models.entries_dataclass import (  # type: ignore[import-unt
     EdgePath,
     EdgeProperties,
 )
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
@@ -129,6 +131,14 @@ class WorkflowJobDefinition(BaseModel):
             return "self-hosted" in [str(item) for item in self.runs_on]
         return False
 
+    @property
+    def container_value(self) -> str | None:
+        if self.container is None:
+            return None
+        if isinstance(self.container, str):
+            return self.container
+        return str(self.container)
+
 
 class WorkflowDocument(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -239,6 +249,9 @@ class GHWorkflowProperties(GHNodeProperties):
     html_url: str | None = None
     branch: str | None = None
     contents: str | None = None
+    triggers: list[str] | None = None
+    trigger_dispatch_inputs: list[str] | None = None
+    is_pwn_requestable: bool = False
     query_repository: str | None = None
     query_editors: str | None = None
     environment_name: str | None = None
@@ -258,6 +271,20 @@ class GHWorkflowProperties(GHNodeProperties):
             kind=ek.HAS_WORKFLOW,
             description="Repository contains workflow",
             traversable=False,
+        ),
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.REPOSITORY,
+            kind=ek.CAN_PWN_REQUEST,
+            description="Repo role can exploit a pwn-requestable workflow on the repository",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.BRANCH,
+            kind=ek.CAN_PWN_REQUEST,
+            description="Repo role can exploit a pwn-requestable workflow on a targeted branch",
+            traversable=True,
         ),
     ],
 )
@@ -287,7 +314,8 @@ class Workflow(BaseAsset):
     def org_node_id(self) -> str | None:
         return self._lookup.org_id_for_login(self.org_login)
 
-    @property
+    @computed_field()
+    @cached_property
     def document(self) -> WorkflowDocument | None:
         if not self.contents or not self.contents.strip():
             return None
@@ -300,6 +328,154 @@ class Workflow(BaseAsset):
             return WorkflowDocument.model_validate(parsed)
         except Exception:
             return None
+
+    @property
+    def trigger_events(self) -> list[str] | None:
+        document = self.document
+        if not document:
+            return None
+
+        on_value = document.model_extra.get("on")
+        if isinstance(on_value, str):
+            return [on_value]
+        if isinstance(on_value, list):
+            return [str(item) for item in on_value]
+        if isinstance(on_value, dict):
+            return [str(key) for key in on_value.keys()]
+
+        return None
+
+    @property
+    def workflow_dispatch_inputs(self) -> list[str] | None:
+        document = self.document
+        if not document:
+            return None
+
+        on_value = document.model_extra.get("on")
+        if not isinstance(on_value, dict):
+            return None
+
+        workflow_dispatch = on_value.get("workflow_dispatch")
+        if not isinstance(workflow_dispatch, dict):
+            return None
+
+        inputs = workflow_dispatch.get("inputs")
+        if not isinstance(inputs, dict):
+            return None
+
+        return [str(key) for key in inputs.keys()]
+
+    @property
+    def pull_request_target_branches(self) -> list[str] | None:
+        document = self.document
+        if not document:
+            return None
+
+        on_value = document.model_extra.get("on")
+        if not isinstance(on_value, dict):
+            return None
+
+        pull_request_target = on_value.get("pull_request_target")
+        if pull_request_target is None:
+            return None
+        if isinstance(pull_request_target, dict):
+            branches = pull_request_target.get("branches")
+            if isinstance(branches, str):
+                return [branches]
+            if isinstance(branches, list):
+                return [str(branch) for branch in branches]
+        return None
+
+    @property
+    def is_pwn_requestable(self) -> bool:
+        document = self.document
+        if not document:
+            return False
+
+        on_value = document.model_extra.get("on")
+        has_pull_request_target = False
+        if isinstance(on_value, str):
+            has_pull_request_target = on_value == "pull_request_target"
+        elif isinstance(on_value, list):
+            has_pull_request_target = "pull_request_target" in [
+                str(item) for item in on_value
+            ]
+        elif isinstance(on_value, dict):
+            has_pull_request_target = "pull_request_target" in on_value
+
+        if not has_pull_request_target:
+            return False
+
+        for job in document.jobs.values():
+            for step in job.steps:
+                if not step.uses or not step.with_:
+                    continue
+                action = action_parts(step.uses)
+                if action["action_slug"] != "actions/checkout":
+                    continue
+                ref = step.with_.get("ref")
+                if str(ref).strip() in {
+                    "${{ github.event.pull_request.head.sha }}",
+                    "${{ github.event.pull_request.head.ref }}",
+                    "${{ github.head_ref }}",
+                }:
+                    return True
+        return False
+
+    @property
+    def _repo_is_forkable_for_pwn_request(self) -> bool:
+        visibility, allow_forking = self._lookup.repository_allow_forking(
+            self.repository_node_id
+        )
+
+        if visibility == "public":
+            return True
+        if visibility in {"private", "internal"}:
+            can_fork = self._lookup.members_can_fork_private_repositories(
+                self.org_login
+            )
+            return allow_forking and can_fork
+        return False
+
+    @property
+    def _can_pwn_request_edges(self):
+        if not self.is_pwn_requestable or not self._repo_is_forkable_for_pwn_request:
+            return
+
+        read_contents = self._lookup.repo_role_node_ids_with_read_repo_contents(
+            self.repository_node_id
+        )
+
+        for (role_node_id,) in read_contents:
+            yield Edge(
+                kind=ek.CAN_PWN_REQUEST,
+                start=EdgePath(value=role_node_id, match_by="id"),
+                end=EdgePath(value=self.repository_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
+
+        patterns = self.pull_request_target_branches
+        branches = self._lookup.branches_for_repository(self.repository_node_id)
+        if not patterns:
+            for branch_id, branch_name in branches:
+                yield Edge(
+                    kind=ek.CAN_PWN_REQUEST,
+                    start=EdgePath(value=role_node_id, match_by="id"),
+                    end=EdgePath(value=branch_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )
+
+        else:
+            for branch_id, branch_name in branches:
+                if any(
+                    fnmatch.fnmatchcase(branch_name, pattern) for pattern in patterns
+                ):
+                    yield Edge(
+                        kind=ek.CAN_PWN_REQUEST,
+                        start=EdgePath(value=role_node_id, match_by="id"),
+                        end=EdgePath(value=branch_id, match_by="id"),
+                        properties=EdgeProperties(traversable=True),
+                    )
 
     def workflow_job_rows(self) -> list[dict[str, Any]]:
         document = self.document
@@ -330,7 +506,7 @@ class Workflow(BaseAsset):
                     "job_key": job_key,
                     "runs_on": job.runs_on,
                     "is_self_hosted": job.is_self_hosted,
-                    "container": job.container,
+                    "container": job.container_value,
                     "environment": job.environment_name,
                     "permissions": job.permissions
                     if job.permissions is not None
@@ -400,15 +576,6 @@ class Workflow(BaseAsset):
         return rows
 
     @property
-    def edges(self):
-        yield Edge(
-            kind=ek.HAS_WORKFLOW,
-            start=EdgePath(value=self.repository_node_id, match_by="id"),
-            end=EdgePath(value=self.node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
-        )
-
-    @property
     def _decoded_contents(self):
         return base64.b64decode(self.contents).decode() if self.contents else None
 
@@ -428,6 +595,9 @@ class Workflow(BaseAsset):
                 html_url=self.html_url,
                 branch=self.branch,
                 contents=self._decoded_contents,
+                triggers=self.trigger_events,
+                trigger_dispatch_inputs=self.workflow_dispatch_inputs,
+                # is_pwn_requestable=self.is_pwn_requestable,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
@@ -440,3 +610,17 @@ class Workflow(BaseAsset):
                 ),
             ),
         )
+
+    @property
+    def _has_workflow_edge(self):
+        yield Edge(
+            kind=ek.HAS_WORKFLOW,
+            start=EdgePath(value=self.repository_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+
+    @property
+    def edges(self):
+        yield from self._has_workflow_edge
+        yield from self._can_pwn_request_edges
