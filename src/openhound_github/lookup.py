@@ -324,6 +324,18 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def environment_secret_for_environment(
+        self, secret_name: str, repository_id: str, environment_name: str
+    ):
+        return self._find_single_object(
+            f"""
+             SELECT name FROM {self.schema}.environment_secrets
+             WHERE name = ? AND repository_node_id = ? AND environment_name = ?
+             """,
+            [secret_name, repository_id, environment_name],
+        )
+
+    @lru_cache
     def org_variable(self, var_name: str, org_login: str):
         return self._find_single_object(
             f"""
@@ -351,6 +363,18 @@ class GithubLookup(LookupManager):
             WHERE name = ? AND repository_node_id = ?
             """,
             [var_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_variable_for_environment(
+        self, var_name: str, repository_id: str, environment_name: str
+    ):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_variables
+            WHERE name = ? AND repository_node_id = ? AND environment_name = ?
+            """,
+            [var_name, repository_id, environment_name],
         )
 
     @lru_cache
