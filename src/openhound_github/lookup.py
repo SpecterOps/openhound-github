@@ -1,7 +1,8 @@
 from functools import lru_cache
 
+import duckdb
 from duckdb import DuckDBPyConnection
-from openhound.core.lookup import LookupManager
+from openhound.core.lookup import LookupManager, logger
 
 
 class GithubLookup(LookupManager):
@@ -9,6 +10,20 @@ class GithubLookup(LookupManager):
         super().__init__(client, schema)
         self.schema = schema
         self.client = client
+
+    def _find_single_row(self, *args):
+        try:
+            self.client.execute(*args)
+            result = self.client.fetchone()
+            return result if result else None
+
+        except duckdb.CatalogException as err:
+            logger.error("DuckDB lookup failed, missing table: %s", err)
+            return None
+
+        except duckdb.Error as err:
+            logger.error("DuckDB lookup query failed: %s", err)
+            return None
 
     @lru_cache
     def org_id(self) -> str | None:
@@ -122,6 +137,18 @@ class GithubLookup(LookupManager):
         return self._find_single_object(
             f"""SELECT repository_node_id FROM {self.schema}.role_can_create_branch WHERE id = ? AND repository_node_id = ?""",
             [role_id, repository_node_id],
+        )
+
+    @lru_cache
+    def members_can_create_repository(self, org_login: str):
+        return self._find_single_row(
+            f"""SELECT
+                members_can_create_repositories,
+                members_can_create_public_repositories,
+                members_can_create_internal_repositories,
+                members_can_create_private_repositories
+            FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
         )
 
     @lru_cache
