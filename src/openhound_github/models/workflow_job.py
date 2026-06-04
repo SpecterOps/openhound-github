@@ -155,7 +155,7 @@ class WorkflowJob(BaseAsset):
     org_login: str
     runs_on: Any = None
     is_self_hosted: bool = False
-    container: Any = None
+    container: str = None
     environment: str | None = None
     permissions: list[str] | None = None
     uses_reusable: str | None = None
