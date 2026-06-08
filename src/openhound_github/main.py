@@ -61,6 +61,7 @@ def preproc(ctx: PreProcContext):
         "saml_provider": "saml_provider",
         "applications": "applications",
         "enterprise": "enterprise",
+        "org_roles": "org_roles",
         "environments": "environments",
         "environment_secrets": "environment_secrets",
         "environment_variables": "environment_variables",
