@@ -48,6 +48,7 @@ from openhound_github.models import (
     PatRepoAccess,
     PersonalAccessToken,
     PersonalAccessTokenRequest,
+    ProjectedEnterpriseTeam,
     RepoRole,
     RepoRoleAssignment,
     RepoRunner,
@@ -484,6 +485,25 @@ def teams(ctx: SourceContext):
             teams_data = page_data[0]["organization"]["teams"]
             for team in teams_data["nodes"]:
                 yield {**team, "org_login": org_name}
+
+
+@app.resource(
+    name="projected_enterprise_teams",
+    columns=ProjectedEnterpriseTeam,
+    parallelized=True,
+)
+def projected_enterprise_teams(ctx: SourceContext):
+    """Fetch REST-based enterprise teams (starts with ent:) since these are not returned via GraphQL."""
+
+    for org in ctx.organizations:
+        org_name = org.org_name
+        client = org.client
+        for page in client.paginate(
+            f"/orgs/{org_name}/teams", params={"per_page": 100}
+        ):
+            for team in page:
+                if str(team.get("slug", "")).startswith("ent:") and team.get("node_id"):
+                    yield {**team, "org_login": org_name}
 
 
 @app.transformer(name="team_roles", columns=TeamRole, parallelized=True)
@@ -1679,6 +1699,7 @@ def organization_resources(ctx: SourceContext):
     )
     organization_secrets_resource = organization_secrets(ctx)
     organization_vars_resource = organization_variables(ctx)
+    projected_enterprise_teams_resource = projected_enterprise_teams(ctx)
 
     return (
         org_resource,
@@ -1696,6 +1717,7 @@ def organization_resources(ctx: SourceContext):
         repos_resource | repository_secrets(ctx),
         repos_resource | repository_variables(ctx),
         teams_resource,
+        projected_enterprise_teams_resource,
         teams_resource | team_members(ctx),
         teams_resource | team_roles(),
         teams_resource | team_repo_role_assignments(ctx, repo_roles_base),
