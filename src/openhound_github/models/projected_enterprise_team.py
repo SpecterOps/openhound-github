@@ -43,7 +43,7 @@ class ProjectedEnterpriseTeam(BaseAsset):
             properties=GHTeamProperties(
                 name=self.name,
                 displayname=self.name,
-                node_id=self.node_id,
+                node_id=f"GH_Team_{self.org_node_id}_{self.node_id}",
                 github_team_id=self.node_id,
                 collected=False,
                 slug=self.slug,
