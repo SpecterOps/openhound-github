@@ -61,7 +61,7 @@ class GithubSession:
         claims = {
             "iss": self.client_id,
             "iat": int(now_utc - 10),  # Issued 10 seconds in the past
-            "exp": int(now_utc + 600),  # Expires in 10 minutes
+            "exp": int(now_utc + 540),  # Expires in 9 minutes (GitHub max is 10, leaving room for clock drift)
         }
 
         try:
