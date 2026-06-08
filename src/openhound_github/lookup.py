@@ -59,6 +59,13 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def projected_enterprise_team_exists(self, org_login: str, slug: str):
+        return self._find_single_object(
+            f"""SELECT slug FROM {self.schema}.projected_enterprise_teams WHERE org_login = ? AND slug = ?""",
+            [org_login, slug],
+        )
+
+    @lru_cache
     def repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories""",
