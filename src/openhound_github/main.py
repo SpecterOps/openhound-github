@@ -62,6 +62,7 @@ def preproc(ctx: PreProcContext):
         "applications": "applications",
         "enterprise": "enterprise",
         "org_roles": "org_roles",
+        "projected_enterprise_teams": "projected_enterprise_teams",
         "environments": "environments",
         "environment_secrets": "environment_secrets",
         "environment_variables": "environment_variables",
