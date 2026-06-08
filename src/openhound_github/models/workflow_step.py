@@ -196,7 +196,7 @@ class WorkflowStep(BaseAsset):
                     end=ConditionalEdgePath(
                         kind=nk.REPO_SECRET,
                         property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
                                 key="repository_id", value=self.repository_node_id
                             ),
@@ -211,7 +211,7 @@ class WorkflowStep(BaseAsset):
                     end=ConditionalEdgePath(
                         kind=nk.ORG_SECRET,
                         property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
                                 key="environmentid", value=self.org_node_id.upper()
                             ),
@@ -230,7 +230,7 @@ class WorkflowStep(BaseAsset):
                     end=ConditionalEdgePath(
                         kind=nk.REPO_VARIABLE,
                         property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
                                 key="repository_id", value=self.repository_node_id
                             ),
@@ -245,7 +245,7 @@ class WorkflowStep(BaseAsset):
                     end=ConditionalEdgePath(
                         kind=nk.ORG_VARIABLE,
                         property_matchers=[
-                            PropertyMatch(key="name", value=ref.name),
+                            PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
                                 key="environmentid", value=self.org_node_id.upper()
                             ),

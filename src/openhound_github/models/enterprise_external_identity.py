@@ -180,7 +180,7 @@ class EnterpriseExternalIdentity(BaseAsset):
 
         foreign_kind, _ = self.foreign_user
         if foreign_kind and self.foreign_username:
-            match = PropertyMatch(key="name", value=self.foreign_username)
+            match = PropertyMatch(key="name", value=self.foreign_username.upper())
             yield Edge(
                 kind=ek.MAPS_TO_USER,
                 start=EdgePath(value=self.node_id, match_by="id"),
