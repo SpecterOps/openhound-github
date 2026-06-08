@@ -48,22 +48,34 @@ class EnterpriseTeamOrganization(BaseAsset):
         return enterprise_team_node_id(self.enterprise_node_id, self.team_id)
 
     @property
-    def edges(self):
+    def _assigned_to_edge(self):
         yield Edge(
             kind=ek.ASSIGNED_TO,
             start=EdgePath(value=self.enterprise_team_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
-        yield Edge(
-            kind=ek.MEMBER_OF,
-            start=EdgePath(value=self.enterprise_team_node_id, match_by="id"),
-            end=ConditionalEdgePath(
-                kind=nk.TEAM,
-                property_matchers=[
-                    PropertyMatch(key="environmentid", value=self.node_id),
-                    PropertyMatch(key="slug", value=self.projected_slug),
-                ],
-            ),
-            properties=EdgeProperties(traversable=True),
-        )
+
+    @property
+    def member_of_team_edges(self):
+        org_login = self.login or self._lookup.org_login_for_id(self.node_id)
+        if org_login and self._lookup.projected_enterprise_team_exists(
+            org_login, self.projected_slug
+        ):
+            yield Edge(
+                kind=ek.MEMBER_OF,
+                start=EdgePath(value=self.enterprise_team_node_id, match_by="id"),
+                end=ConditionalEdgePath(
+                    kind=nk.TEAM,
+                    property_matchers=[
+                        PropertyMatch(key="environmentid", value=self.node_id.upper()),
+                        PropertyMatch(key="slug", value=self.projected_slug),
+                    ],
+                ),
+                properties=EdgeProperties(traversable=True),
+            )
+
+    @property
+    def edges(self):
+        yield from self._assigned_to_edge
+        yield from self.member_of_team_edges
