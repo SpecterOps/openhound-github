@@ -207,7 +207,7 @@ class ExternalIdentity(BaseAsset):
 
             # # GH_MapsToUser → foreign IdP user node (match by name)
             if foreign_kind and foreign_username:
-                match_with = PropertyMatch(key="name", value=foreign_username)
+                match_with = PropertyMatch(key="name", value=foreign_username.upper())
                 yield Edge(
                     kind=ek.MAPS_TO_USER,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -219,7 +219,7 @@ class ExternalIdentity(BaseAsset):
 
             # SyncedToGHUser: foreign IdP user → GitHub user (traversable, with composition)
             if foreign_kind and foreign_username and self.node_id:
-                match_with = PropertyMatch(key="name", value=foreign_username)
+                match_with = PropertyMatch(key="name", value=foreign_username.upper())
 
                 gh_id = self.node_id.upper()
                 q = (
