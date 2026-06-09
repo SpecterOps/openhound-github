@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Name(BaseModel):
@@ -20,3 +20,6 @@ class ScimResource(BaseModel):
     groups: Optional[list[dict]] = Field(default_factory=list)
     roles: Optional[list[dict]] = Field(default_factory=list)
     active: bool
+
+    # Additional
+    org_login: str

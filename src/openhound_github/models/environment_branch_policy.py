@@ -30,6 +30,11 @@ class EnvironmentBranchPolicy(BaseAsset):
     environment_name: str
     repository_name: str
     repository_node_id: str
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def policy_id(self) -> str:

@@ -22,6 +22,150 @@ query MembersWithRole($login: String!, $count: Int!, $after: String) {
 }
 """
 
+ENTERPRISE_QUERY = """
+query Enterprise($slug: String!, $after: String) {
+    enterprise(slug: $slug) {
+        id
+        databaseId
+        name
+        slug
+        description
+        location
+        url
+        websiteUrl
+        createdAt
+        updatedAt
+        billingEmail
+        securityContactEmail
+        viewerIsAdmin
+        organizations(first: 100, after: $after) {
+            nodes {
+                id
+                login
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+        }
+    }
+}
+"""
+
+ENTERPRISE_MEMBERS_QUERY = """
+query EnterpriseMembers($slug: String!, $count: Int = 100, $after: String = null) {
+    enterprise(slug: $slug) {
+        members(first: $count, after: $after) {
+            edges {
+                node {
+                    __typename
+                    ... on User {
+                        id
+                        databaseId
+                        login
+                        name
+                        email
+                        company
+                    }
+                    ... on EnterpriseUserAccount {
+                        id
+                        login
+                        name
+                        url
+                        createdAt
+                        updatedAt
+                        user {
+                            id
+                            databaseId
+                            login
+                            name
+                            email
+                            company
+                        }
+                    }
+                }
+            }
+            pageInfo {
+                endCursor
+                hasNextPage
+            }
+        }
+    }
+}
+"""
+
+ENTERPRISE_ADMINS_QUERY = """
+query EnterpriseAdmins($slug: String!, $count: Int = 100, $after: String = null) {
+    enterprise(slug: $slug) {
+        ownerInfo {
+            admins(first: $count, after: $after) {
+                edges {
+                    node {
+                        id
+                        login
+                    }
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+            }
+        }
+    }
+}
+"""
+
+ENTERPRISE_SAML_QUERY = """
+query EnterpriseSAML($slug: String!, $count: Int = 100, $after: String = null) {
+    enterprise(slug: $slug) {
+        id
+        name
+        slug
+        ownerInfo {
+            samlIdentityProvider {
+                id
+                issuer
+                ssoUrl
+                digestMethod
+                signatureMethod
+                idpCertificate
+                externalIdentities(first: $count, after: $after) {
+                    totalCount
+                    nodes {
+                        guid
+                        id
+                        samlIdentity {
+                            familyName
+                            givenName
+                            nameId
+                            username
+                        }
+                        scimIdentity {
+                            username
+                            givenName
+                            familyName
+                            emails {
+                                value
+                                primary
+                                type
+                            }
+                        }
+                        user {
+                            id
+                            login
+                        }
+                    }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                    }
+                }
+            }
+        }
+    }
+}
+"""
+
 TEAMS_QUERY = """
 query Teams($login: String!, $count: Int!, $after: String) {
     organization(login: $login) {
@@ -163,39 +307,38 @@ query ProtectionRulesByIds($ids: [ID!]!) {
 """
 
 SAML_QUERY = """
-query SAMLProvider($login: String!) {
+query SAML($login: String!, $count: Int = 100, $after: String = null) {
     organization(login: $login) {
         id
         name
+        login
         samlIdentityProvider {
-            id
-            issuer
-            ssoUrl
-            idpCertificate
-            signatureMethod
             digestMethod
-        }
-    }
-}
-"""
-
-SAML_IDENTITIES_QUERY = """
-query SAMLIdentities($login: String!, $count: Int!, $after: String) {
-    organization(login: $login) {
-        samlIdentityProvider {
             externalIdentities(first: $count, after: $after) {
                 nodes {
                     guid
                     id
                     samlIdentity {
+                        attributes {
+                            metadata
+                            name
+                            value
+                        }
                         familyName
                         givenName
+                        groups
                         nameId
                         username
                     }
                     scimIdentity {
+                        emails {
+                            primary
+                            type
+                            value
+                        }
                         familyName
                         givenName
+                        groups
                         username
                     }
                     user {
@@ -207,7 +350,69 @@ query SAMLIdentities($login: String!, $count: Int!, $after: String) {
                     endCursor
                     hasNextPage
                 }
+                totalCount
             }
+            id
+            idpCertificate
+            issuer
+            signatureMethod
+            ssoUrl
+        }
+    }
+}
+"""
+
+SAML_IDENTITIES_QUERY = """
+query SAML($login: String!, $count: Int = 100, $after: String = null) {
+    organization(login: $login) {
+        id
+        name
+        login
+        samlIdentityProvider {
+            digestMethod
+            externalIdentities(first: $count, after: $after) {
+                nodes {
+                    guid
+                    id
+                    samlIdentity {
+                        attributes {
+                            metadata
+                            name
+                            value
+                        }
+                        familyName
+                        givenName
+                        groups
+                        nameId
+                        username
+                    }
+                    scimIdentity {
+                        emails {
+                            primary
+                            type
+                            value
+                        }
+                        familyName
+                        givenName
+                        groups
+                        username
+                    }
+                    user {
+                        id
+                        login
+                    }
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+                totalCount
+            }
+            id
+            idpCertificate
+            issuer
+            signatureMethod
+            ssoUrl
         }
     }
 }

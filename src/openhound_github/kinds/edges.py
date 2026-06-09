@@ -1,11 +1,13 @@
 # Generic
 CONTAINS = "GH_Contains"
+ASSIGNED_TO = "GH_AssignedTo"
 
 # Administrative edges
 ADMIN_TO = "GH_AdminTo"
 OWNS = "GH_Owns"
 
 # Role and permission edges
+HAS_MEMBER = "GH_HasMember"
 HAS_ROLE = "GH_HasRole"
 HAS_BASE_ROLE = "GH_HasBaseRole"
 ADD_MEMBER = "GH_AddMember"
@@ -48,6 +50,13 @@ INSTALLED_AS = "GH_InstalledAs"
 HAS_SECRET_SCANNING_ALERT = "GH_HasSecretScanningAlert"
 VALID_TOKEN = "GH_ValidToken"
 HAS_WORKFLOW = "GH_HasWorkflow"
+HAS_JOB = "GH_HasJob"
+HAS_STEP = "GH_HasStep"
+DEPENDS_ON = "GH_DependsOn"
+DEPLOYS_TO = "GH_DeploysTo"
+CALLS_WORKFLOW = "GH_CallsWorkflow"
+USES_SECRET = "GH_UsesSecret"
+USES_VARIABLE = "GH_UsesVariable"
 HAS_ENVIRONMENT = "GH_HasEnvironment"
 
 
@@ -124,3 +133,13 @@ EDIT_REPO_CUSTOM_PROPERTIES_VALUES = "GH_EditRepoCustomPropertiesValues"
 
 READ_REPO_PULL_REQUEST = "GH_ReadRepoPullRequests"
 MANAGE_DISCUSSION_SPOTLIGHTS = "GH_ManageDiscussionSpotlights"
+
+
+# Added
+CAN_CREATE_REPOSITORIES = "GH_CanCreateRepositories"
+CAN_CREATE_PUBLIC_REPOSITORIES = "GH_CanCreatePublicRepositories"
+CAN_CREATE_INTERNAL_REPOSITORIES = "GH_CanCreateInternalRepositories"
+CAN_CREATE_PRIVATE_REPOSITORIES = "GH_CanCreatePrivateRepositories"
+CAN_PWN_REQUEST = "GH_CanPwnRequest"
+CAN_READ_SECRET = "GH_CanReadSecret"
+CAN_READ_SECRET_SCANNING_ALERT = "GH_CanReadSecretScanningAlert"

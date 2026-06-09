@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -6,7 +6,7 @@ from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 
-from openhound_github.graph import GHNode, GHNodeProperties
+from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
@@ -14,25 +14,22 @@ from openhound_github.main import app
 
 @dataclass
 class GHOrgSecretProperties(GHNodeProperties):
-    """Org secret properties and accordion panel queries."""
+    """Org secret properties and accordion panel queries.
 
-    visibility: str = field(
-        default="",
-        metadata={
-            "description": "The secret's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos)."
-        },
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    created_at: str | None = field(
-        default=None, metadata={"description": "When the secret was created."}
-    )
-    updated_at: str | None = field(
-        default=None, metadata={"description": "When the secret was last updated."}
-    )
-    query_visible_repositories: str = ""
+    Attributes:
+        visibility: The secret's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos).
+        environment_name: The name of the environment (GitHub organization).
+        created_at: When the secret was created.
+        updated_at: When the secret was last updated.
+        query_visible_repositories: Query for visible repositories.
+        selected_repositories_url: The selected repositories url property.
+    """
+
+    visibility: str | None = None
+    environment_name: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    query_visible_repositories: str | None = None
     selected_repositories_url: str | None = None
 
 
@@ -58,6 +55,13 @@ class GHOrgSecretProperties(GHNodeProperties):
             description="Repository can access org secret",
             traversable=True,
         ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORG_SECRET,
+            kind=ek.CAN_READ_SECRET,
+            description="Org role can read org secret by creating a repository in scope",
+            traversable=True,
+        ),
     ],
 )
 class OrgSecret(BaseAsset):
@@ -70,22 +74,16 @@ class OrgSecret(BaseAsset):
     updated_at: datetime | None = None
     visibility: str
 
-    # node_id: str  # synthetic: "GH_OrgSecret_{org_node_id}_{name}"
-    # org_name: str
-    # org_node_id: str
+    # Additional
+    org_login: str
 
-    # node_id: str
-    # name: str
-    # org_name: str
-    # org_node_id: str
-    # visibility: str
-    # created_at: str | None = None
-    # updated_at: str | None = None
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgSecret_{org_node_id}_{self.name}"
+        return f"GH_OrgSecret_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self) -> GHNode:
@@ -97,18 +95,27 @@ class OrgSecret(BaseAsset):
                 displayname=self.name,
                 node_id=sid,
                 visibility=self.visibility,
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 created_at=str(self.created_at) if self.created_at else None,
                 updated_at=str(self.updated_at) if self.updated_at else None,
                 query_visible_repositories=f"MATCH p=(:GH_OrgSecret {{node_id:'{sid}'}})<-[:GH_HasSecret]-(:GH_Repository) RETURN p",
             ),
         )
 
+    def _read_secret_query(self, role_node_id: str) -> str:
+        return (
+            f"MATCH p=(:GH_OrgRole {{node_id:'{role_node_id}'}})"
+            f"-[:GH_CanCreateRepositories|GH_CanCreatePublicRepositories|"
+            f"GH_CanCreateInternalRepositories|GH_CanCreatePrivateRepositories]->"
+            f"(:GH_Organization)-[:GH_Contains]->"
+            f"(:GH_OrgSecret {{node_id:'{self.node_id}'}}) RETURN p"
+        )
+
     @property
     def _all_repo_edges(self):
         if self.visibility == "all":
-            for repo in self._lookup.repository_node_ids():
+            for repo in self._lookup.repository_node_ids_for_org(self.org_login):
                 for repo_node_id in repo:
                     yield Edge(
                         kind=ek.HAS_SECRET,
@@ -120,7 +127,9 @@ class OrgSecret(BaseAsset):
     @property
     def _private_repo_edges(self):
         if self.visibility == "private":
-            for repo in self._lookup.private_repository_node_ids():
+            for repo in self._lookup.private_repository_node_ids_for_org(
+                self.org_login
+            ):
                 for repo_node_id in repo:
                     yield Edge(
                         kind=ek.HAS_SECRET,
@@ -130,15 +139,50 @@ class OrgSecret(BaseAsset):
                     )
 
     @property
-    def edges(self):
+    def _contains_edge(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
+
+    @property
+    def _composed_read_secret_edges(self):
+        if self.visibility != "all":
+            return
+
+        owners_role_id = f"{self.org_node_id}_owners"
+        yield Edge(
+            kind=ek.CAN_READ_SECRET,
+            start=EdgePath(value=owners_role_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=GHEdgeProperties(
+                traversable=True,
+                composed=True,
+                query_composition=self._read_secret_query(owners_role_id),
+            ),
+        )
+
+        if self._lookup.members_can_create_repository(self.org_login):
+            members_role_id = f"{self.org_node_id}_members"
+            yield Edge(
+                kind=ek.CAN_READ_SECRET,
+                start=EdgePath(value=members_role_id, match_by="id"),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    query_composition=self._read_secret_query(members_role_id),
+                ),
+            )
+
+    @property
+    def edges(self):
+        yield from self._contains_edge
         yield from self._all_repo_edges
         yield from self._private_repo_edges
+        yield from self._composed_read_secret_edges
 
 
 @app.asset(
@@ -158,28 +202,39 @@ class SelectedOrgSecret(BaseAsset):
     name: str
     repository_node_id: str
     repository_full_name: str
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def node_id(self) -> str:
-        org_node_id = self._lookup.org_id()
-        return f"GH_OrgSecret_{org_node_id}_{self.name}"
+        return f"GH_OrgSecret_{self.org_node_id}_{self.name}"
 
     @property
     def as_node(self) -> None:
         return None
 
     @property
-    def edges(self):
+    def _contains_edge(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(value=self._lookup.org_id(), match_by="id"),
+            start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
 
+    @property
+    def _has_secret_edge(self):
         yield Edge(
             kind=ek.HAS_SECRET,
             start=EdgePath(value=self.repository_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=True),
         )
+
+    @property
+    def edges(self):
+        yield from self._contains_edge
+        yield from self._has_secret_edge

@@ -1,7 +1,8 @@
 from functools import lru_cache
 
+import duckdb
 from duckdb import DuckDBPyConnection
-from openhound.core.lookup import LookupManager
+from openhound.core.lookup import LookupManager, logger
 
 
 class GithubLookup(LookupManager):
@@ -9,6 +10,20 @@ class GithubLookup(LookupManager):
         super().__init__(client, schema)
         self.schema = schema
         self.client = client
+
+    def _find_single_row(self, *args):
+        try:
+            self.client.execute(*args)
+            result = self.client.fetchone()
+            return result if result else None
+
+        except duckdb.CatalogException as err:
+            logger.error("DuckDB lookup failed, missing table: %s", err)
+            return None
+
+        except duckdb.Error as err:
+            logger.error("DuckDB lookup query failed: %s", err)
+            return None
 
     @lru_cache
     def org_id(self) -> str | None:
@@ -18,6 +33,13 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def org_id_for_login(self, org_login: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT node_id FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
     def org_login(self) -> str | None:
         res = self._find_single_object(
             f"""SELECT login FROM {self.schema}.organizations"""
@@ -25,9 +47,35 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def enterprise_id(self) -> str | None:
+        res = self._find_single_object(f"""SELECT id FROM {self.schema}.enterprise""")
+        return res
+
+    @lru_cache
+    def org_login_for_id(self, org_node_id: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT login FROM {self.schema}.organizations WHERE node_id = ?""",
+            [org_node_id],
+        )
+
+    @lru_cache
+    def projected_enterprise_team_exists(self, org_login: str, slug: str):
+        return self._find_single_object(
+            f"""SELECT slug FROM {self.schema}.projected_enterprise_teams WHERE org_login = ? AND slug = ?""",
+            [org_login, slug],
+        )
+
+    @lru_cache
     def repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories""",
+        )
+
+    @lru_cache
+    def repository_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ?""",
+            [org_login],
         )
 
     @lru_cache
@@ -37,16 +85,36 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def private_repository_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ? AND (visibility = 'private' or visibility = 'internal')""",
+            [org_login],
+        )
+
+    @lru_cache
     def idp(self) -> list:
         return self._find_all_objects(
             f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider"""
         )
 
     @lru_cache
-    def app_node_id(self, app_slug: str) -> str | None:
+    def idp_for_org(self, org_login: str) -> list:
+        return self._find_all_objects(
+            f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider WHERE org_login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def app_node_id(self, app_slug: str, org_login: str | None = None) -> str | None:
+        if org_login is None:
+            return self._find_single_object(
+                f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
+                [app_slug],
+            )
+
         return self._find_single_object(
-            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
-            [app_slug],
+            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ? AND org_login = ?""",
+            [app_slug, org_login],
         )
 
     @lru_cache
@@ -78,10 +146,18 @@ class GithubLookup(LookupManager):
             [role_id, repository_node_id],
         )
 
-    # ROLES TO HERE
+    @lru_cache
+    def members_can_create_repository(self, org_login: str):
+        return self._find_single_row(
+            f"""SELECT
+                members_can_create_repositories,
+                members_can_create_public_repositories,
+                members_can_create_internal_repositories,
+                members_can_create_private_repositories
+            FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
 
-    # USERS/TEAMS FROM HERE
-    ## GH_BypassPullRequestAllowances
     @lru_cache
     def bypass_pull_request_allowances(self, actor_id: str):
         """Returns the node_ids of users/teams that bypass PR review requirements on branches in a repository (GH_BypassPullRequestAllowances)"""
@@ -116,6 +192,38 @@ class GithubLookup(LookupManager):
                 AND is_admin_enforced = false
             """,
             [repo_node_id],
+        )
+
+    @lru_cache
+    def repo_role_node_ids_with_view_secret_scanning_alerts(
+        self, repository_node_id: str
+    ):
+        return self._find_all_objects(
+            f"""
+                SELECT repository_node_id || '_' || name
+                FROM {self.schema}.repo_roles
+                WHERE repository_node_id = ?
+                  AND (
+                    (type = 'default' AND name = 'admin')
+                    OR json_contains(permissions, '"view_secret_scanning_alerts"')
+                  )
+                """,
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def org_role_node_ids_with_view_secret_scanning_alerts(self, org_login: str):
+        return self._find_all_objects(
+            f"""
+             SELECT org_node_id || '_' || name
+             FROM {self.schema}.org_roles
+             WHERE org_login = ?
+               AND (
+                 (type = 'default' AND name = 'owners')
+                 OR json_contains(permissions, '"view_secret_scanning_alerts"')
+               )
+             """,
+            [org_login],
         )
 
     @lru_cache
@@ -190,4 +298,144 @@ class GithubLookup(LookupManager):
                 AND is_admin_enforced = false
             """,
             [repo_node_id],
+        )
+
+    @lru_cache
+    def org_secret(self, secret_name: str, org_login: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.organization_secrets
+            WHERE name = ? AND org_login = ?
+            """,
+            [secret_name, org_login],
+        )
+
+    @lru_cache
+    def repo_secret(self, secret_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.repository_secrets
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [secret_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_secret(self, secret_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_secrets
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [secret_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_secret_for_environment(
+        self, secret_name: str, repository_id: str, environment_name: str
+    ):
+        return self._find_single_object(
+            f"""
+             SELECT name FROM {self.schema}.environment_secrets
+             WHERE name = ? AND repository_node_id = ? AND environment_name = ?
+             """,
+            [secret_name, repository_id, environment_name],
+        )
+
+    @lru_cache
+    def org_variable(self, var_name: str, org_login: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.organization_variables
+            WHERE name = ? AND org_login = ?
+            """,
+            [var_name, org_login],
+        )
+
+    @lru_cache
+    def repo_variable(self, var_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.repository_variables
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [var_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_variable(self, var_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_variables
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [var_name, repository_id],
+        )
+
+    @lru_cache
+    def environment_variable_for_environment(
+        self, var_name: str, repository_id: str, environment_name: str
+    ):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environment_variables
+            WHERE name = ? AND repository_node_id = ? AND environment_name = ?
+            """,
+            [var_name, repository_id, environment_name],
+        )
+
+    @lru_cache
+    def environment(self, env_name: str, repository_id: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.environments
+            WHERE name = ? AND repository_node_id = ?
+            """,
+            [env_name, repository_id],
+        )
+
+    @lru_cache
+    def workflow(self, repository_node_id: str, path: str):
+        return self._find_single_object(
+            f"""
+            SELECT name FROM {self.schema}.workflows
+            WHERE repository_node_id = ? AND path = ?
+            """,
+            [repository_node_id, path],
+        )
+
+    @lru_cache
+    def branches_for_repository(self, repository_node_id: str):
+        return self._find_all_objects(
+            f"""SELECT id, name FROM {self.schema}.branches WHERE repository_node_id = ?""",
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def members_can_fork_private_repositories(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT members_can_fork_private_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def repository_allow_forking(
+        self, repository_node_id: str
+    ) -> tuple[str, bool] | None:
+        return self._find_single_row(
+            f"""SELECT visibility, allow_forking FROM {self.schema}.repositories WHERE node_id = ?""",
+            [repository_node_id],
+        )
+
+    @lru_cache
+    def repo_role_node_ids_with_read_repo_contents(self, repository_node_id: str):
+        return self._find_all_objects(
+            f"""
+            SELECT repository_node_id || '_' || name
+            FROM {self.schema}.repo_roles
+            WHERE repository_node_id = ?
+              AND type = 'default'
+              AND name IN ('read', 'write', 'admin')
+            """,
+            [repository_node_id],
         )

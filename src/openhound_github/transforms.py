@@ -40,7 +40,6 @@ def actor_allowances(con, schema: str = "github"):
 
 
 def role_can_create_branch(con, schema: str = "github"):
-    # TODO: Double check json_contains vs '' IN
     con.execute(f"""
         CREATE OR REPLACE TABLE {schema}.role_can_create_branch AS
         SELECT DISTINCT rr.id, rr.repository_node_id
@@ -53,7 +52,7 @@ def role_can_create_branch(con, schema: str = "github"):
             AND bpr.blocks_creations  = true
             AND NOT (
                 bpr.is_admin_enforced = false
-                AND json_contains(rr.permissions, 'push_protected_branch')
+                AND json_contains(rr.permissions, '"push_protected_branch"')
             )
         )""")
 
@@ -96,6 +95,6 @@ def transforms(con: duckdb.DuckDBPyConnection, schema: str = "github") -> None:
     """
     join_branch_bpr(con, schema)
     actor_allowances(con, schema)
-    role_can_create_branch(con, schema)
     unprotected_branches(con, schema)
     actor_branch_gates(con, schema)
+    role_can_create_branch(con, schema)

@@ -56,11 +56,16 @@ class RepoRoleAssignment(BaseAsset):
     role_name: str | None = None
 
     # Additional
+    org_login: str
     assignee_type: str  # "user" or "team"
     repo_node_id: str
     repo_name: str
     base_role: str | None = None
     role_permissions: list[str] = Field(default_factory=list)
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
 
     @property
     def as_node(self) -> None:

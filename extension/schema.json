@@ -7,6 +7,38 @@
   },
   "node_kinds": [
     {
+      "name": "GH_Enterprise",
+      "display_name": "GitHub Enterprise",
+      "description": "A GitHub Enterprise account that contains organizations, enterprise teams, roles, and managed users",
+      "is_display_kind": true,
+      "icon": "globe",
+      "color": "#6EA8FE"
+    },
+    {
+      "name": "GH_EnterpriseTeam",
+      "display_name": "GitHub Enterprise Team",
+      "description": "A team managed at the GitHub Enterprise level and assignable across organizations",
+      "is_display_kind": true,
+      "icon": "users-between-lines",
+      "color": "#9B8CFF"
+    },
+    {
+      "name": "GH_EnterpriseRole",
+      "display_name": "GitHub Enterprise Role",
+      "description": "The role a user or team has at the GitHub Enterprise level",
+      "is_display_kind": true,
+      "icon": "user-tie",
+      "color": "#B8D7FF"
+    },
+    {
+      "name": "GH_EnterpriseManagedUser",
+      "display_name": "GitHub Enterprise Managed User",
+      "description": "A GitHub Enterprise managed user account linked to an enterprise identity provider",
+      "is_display_kind": true,
+      "icon": "user-lock",
+      "color": "#7DD3FC"
+    },
+    {
       "name": "GH_Organization",
       "display_name": "GitHub Organization",
       "description": "A GitHub Organization—top-level container for repositories, teams, and settings",
@@ -149,6 +181,30 @@
       "is_display_kind": true,
       "icon": "lock-open",
       "color": "#E89B5C"
+    },
+    {
+      "name": "GH_RunnerGroup",
+      "display_name": "GitHub Runner Group",
+      "description": "A GitHub self-hosted runner group that controls runner access and visibility",
+      "is_display_kind": true,
+      "icon": "server",
+      "color": "#94A3B8"
+    },
+    {
+      "name": "GH_OrgRunner",
+      "display_name": "GitHub Org Runner",
+      "description": "An organization-scoped GitHub self-hosted runner available to selected repositories or workflows",
+      "is_display_kind": true,
+      "icon": "microchip",
+      "color": "#22C55E"
+    },
+    {
+      "name": "GH_RepoRunner",
+      "display_name": "GitHub Repo Runner",
+      "description": "A repository-scoped GitHub self-hosted runner available to jobs in a single repository",
+      "is_display_kind": true,
+      "icon": "microchip",
+      "color": "#38BDF8"
     },
     {
       "name": "GH_EnvironmentVariable",

@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
@@ -46,26 +46,25 @@ class Organization(BaseModel):
 
 @dataclass
 class GHOrgRoleProperties(GHNodeProperties):
-    """Org role properties and accordion panel queries."""
+    """Org role properties and accordion panel queries.
 
-    short_name: str = field(
-        metadata={
-            "description": "The short display name of the role (e.g., `Owners`, `Members`, or the custom role name)."
-        }
-    )
-    type: str = field(
-        metadata={
-            "description": "`default` for built-in roles (Owner, Member) or `custom` for custom organization roles."
-        }
-    )
-    environment_name: str = field(
-        default="",
-        metadata={"description": "The name of the environment (GitHub organization)."},
-    )
-    query_explicit_members: str = ""
-    query_unrolled_members: str = ""
-    query_org_permissions: str = ""
-    query_repo_permissions: str = ""
+    Attributes:
+        short_name: The short display name of the role (e.g., `Owners`, `Members`, or the custom role name).
+        type: `default` for built-in roles (Owner, Member) or `custom` for custom organization roles.
+        environment_name: The name of the environment (GitHub organization).
+        query_explicit_members: Query for explicit members.
+        query_unrolled_members: Query for unrolled members.
+        query_org_permissions: Query for org permissions.
+        query_repo_permissions: Query for repo permissions.
+    """
+
+    short_name: str
+    type: str
+    environment_name: str | None = None
+    query_explicit_members: str | None = None
+    query_unrolled_members: str | None = None
+    query_org_permissions: str | None = None
+    query_repo_permissions: str | None = None
 
 
 @app.asset(
@@ -93,8 +92,29 @@ class GHOrgRoleProperties(GHNodeProperties):
         EdgeDef(
             start=nk.ORG_ROLE,
             end=nk.ORGANIZATION,
-            kind=ek.CREATE_REPOSITORY,
+            kind=ek.CAN_CREATE_REPOSITORIES,
             description="Role can create repositories in the organization",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORGANIZATION,
+            kind=ek.CAN_CREATE_PUBLIC_REPOSITORIES,
+            description="Role can create public repositories in the organization",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORGANIZATION,
+            kind=ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+            description="Role can create internal repositories in the organization",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORGANIZATION,
+            kind=ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+            description="Role can create private repositories in the organization",
             traversable=False,
         ),
         EdgeDef(
@@ -175,15 +195,57 @@ class OrgRole(BaseAsset):
                 displayname=f"{self.org_login}/{self.name}",
                 node_id=self.node_id,
                 short_name=self.name,
-                type="custom",
-                environment_name=self._lookup.org_login(),
-                environmentid=self._lookup.org_id(),
+                type=self.type,
+                environment_name=self.org_login,
+                environmentid=self.org_node_id,
                 query_explicit_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_OrgRole {{node_id:'{self.node_id}'}}) RETURN p",
                 query_unrolled_members=f"MATCH p=(:GH_User)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf*1..]->(:GH_OrgRole {{node_id:'{self.node_id}'}}) RETURN p",
                 query_org_permissions=f"MATCH p=(:GH_OrgRole {{node_id:'{self.node_id}'}})-[]->(:GH_Organization) RETURN p",
                 query_repo_permissions=f"MATCH p=(s:GH_OrgRole {{node_id:'{self.node_id}'}})-[:GH_HasBaseRole]->(d:GH_OrgRole) WHERE s<>d RETURN p",
             ),
         )
+
+    @property
+    def _can_create_repos_edge(self):
+        if self.type == "default" and (self.name == "owners" or self.name == "members"):
+            (
+                members_can_create_repositories,
+                members_can_create_public_repositories,
+                members_can_create_internal_repositories,
+                members_can_create_private_repositories,
+            ) = self._lookup.members_can_create_repository(self.org_login)
+
+            if members_can_create_private_repositories:
+                yield Edge(
+                    kind=ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
+
+            if members_can_create_public_repositories:
+                yield Edge(
+                    kind=ek.CAN_CREATE_PUBLIC_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
+
+            if members_can_create_internal_repositories:
+                yield Edge(
+                    kind=ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
+
+            if members_can_create_repositories:
+                yield Edge(
+                    kind=ek.CAN_CREATE_REPOSITORIES,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.org_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
 
     @property
     def _owners_edge(self):
@@ -193,13 +255,6 @@ class OrgRole(BaseAsset):
                 end=EdgePath(value=f"{self.org_node_id}_all_repo_admin", match_by="id"),
                 kind=ek.HAS_BASE_ROLE,
                 properties=EdgeProperties(traversable=True),
-            )
-
-            yield Edge(
-                kind=ek.CREATE_REPOSITORY,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(value=self.org_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
             )
 
             yield Edge(
@@ -237,12 +292,6 @@ class OrgRole(BaseAsset):
     def _members_edge(self):
         if self.type == "default" and self.name == "members":
             yield Edge(
-                kind=ek.CREATE_REPOSITORY,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(value=self.org_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
-            )
-            yield Edge(
                 kind=ek.CREATE_TEAM,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=self.org_node_id, match_by="id"),
@@ -261,7 +310,6 @@ class OrgRole(BaseAsset):
 
     @property
     def _custom_edges(self):
-
         if self.type == "custom":
             if self.base_role and self.base_role in _ALL_REPO_PERMISSIONS:
                 yield Edge(
@@ -284,7 +332,7 @@ class OrgRole(BaseAsset):
                     )
 
     @property
-    def edges(self):
+    def _contains_edge(self):
         yield Edge(
             kind=ek.CONTAINS,
             start=EdgePath(value=self.org_node_id, match_by="id"),
@@ -292,6 +340,10 @@ class OrgRole(BaseAsset):
             properties=EdgeProperties(traversable=False),
         )
 
+    @property
+    def edges(self):
+        yield from self._contains_edge
         yield from self._owners_edge
         yield from self._members_edge
+        yield from self._can_create_repos_edge
         yield from self._custom_edges
