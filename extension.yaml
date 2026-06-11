@@ -1,5 +1,5 @@
 name: github
-version: 0.1.0
+version: 0.3.0
 description: "OpenFetch collector for Github organizations using OpenHound"
 authors:
   - name: Joey Dreijer
