@@ -1675,10 +1675,11 @@ def scim_users(ctx: SourceContext):
             paginator=scim_paginator,
             data_selector="Resources",
         ):
-            yield {
-                **page,
-                "org_login": org_name,
-            }
+            for user in page:
+                yield {
+                    **user,
+                    "org_login": org_name,
+                }
 
 
 def organization_resources(ctx: SourceContext):
