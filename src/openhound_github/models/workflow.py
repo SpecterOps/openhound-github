@@ -85,6 +85,9 @@ class Container(BaseModel):
     env: dict[str, str] | None = None
     ports: list[int] | None = None
 
+    def __str__(self) -> str:
+        return self.image
+
 
 class WorkflowJobDefinition(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
@@ -142,11 +145,7 @@ class WorkflowJobDefinition(BaseModel):
 
     @property
     def container_value(self) -> str | None:
-        if self.container is None:
-            return None
-        if isinstance(self.container, str):
-            return self.container
-        return str(self.container)
+        return str(self.container) if self.container else None
 
 
 class WorkflowDocument(BaseModel):
