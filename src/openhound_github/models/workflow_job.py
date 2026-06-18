@@ -49,7 +49,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
     """
 
     job_key: str | None = None
-    runs_on: Any = None
+    runs_on: str = None
     is_self_hosted: bool = False
     container: str | None = None
     environment: str | None = None
@@ -153,7 +153,7 @@ class WorkflowJob(BaseAsset):
     repository_name: str
     repository_node_id: str
     org_login: str
-    runs_on: Any = None
+    runs_on: str | list[str] | dict[str, str] = None
     is_self_hosted: bool = False
     container: str | None = None
     environment: str | None = None
@@ -162,6 +162,20 @@ class WorkflowJob(BaseAsset):
     dependency_node_ids: list[str] = Field(default_factory=list)
     secret_references: list[WorkflowReference] = Field(default_factory=list)
     variable_references: list[WorkflowReference] = Field(default_factory=list)
+
+    @property
+    def normalize_runs_on(self) -> str:
+        if isinstance(self.runs_on, str):
+            return self.runs_on
+
+        elif isinstance(self.runs_on, list):
+            return ",".join(self.runs_on)
+
+        elif isinstance(self.runs_on, dict):
+            return ",".join([f"{key}:{value}" for key, value in self.runs_on.items()])
+
+        else:
+            return str(self.runs_on)
 
     @property
     def org_node_id(self) -> str | None:
@@ -189,7 +203,7 @@ class WorkflowJob(BaseAsset):
                 displayname=self.job_key,
                 node_id=self.node_id,
                 job_key=self.job_key,
-                runs_on=self.runs_on,
+                runs_on=self.normalize_runs_on,
                 is_self_hosted=self.is_self_hosted,
                 container=self.container,
                 environment=self.environment,
