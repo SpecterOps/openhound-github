@@ -167,9 +167,9 @@ class WorkflowJob(BaseAsset):
     def org_node_id(self) -> str | None:
         return self._lookup.org_id_for_login(self.org_login)
 
-    @field_validator("runs_on", "permissions", mode="before")
+    @field_validator("permissions", mode="before")
     @classmethod
-    def normalize_mapping(cls, value: Any) -> list[str] | None:
+    def normalize_permissions(cls, value: Any) -> list[str] | None:
         if value is None:
             return None
 
@@ -181,6 +181,33 @@ class WorkflowJob(BaseAsset):
 
         if isinstance(value, dict):
             return [f"{str(key)}:{str(value)}" for key, value in value.items()]
+
+        return [str(value)]
+
+    @field_validator("runs_on", mode="before")
+    @classmethod
+    def normalize_runs_on(cls, value: Any) -> list[str] | None:
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            return [value]
+
+        if isinstance(value, list):
+            return [str(item) for item in value]
+
+        if isinstance(value, dict):
+            labels = value.get("labels")
+            if labels is None:
+                return None
+
+            if isinstance(labels, str):
+                return [labels]
+
+            if isinstance(labels, list):
+                return [str(item) for item in labels]
+
+            return [str(labels)]
 
         return [str(value)]
 
