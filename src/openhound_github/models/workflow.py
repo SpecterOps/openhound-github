@@ -151,7 +151,7 @@ class WorkflowJobDefinition(BaseModel):
 class WorkflowDocument(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    permissions: str | dict[str, str] = None
+    permissions: str | dict[str, str] | None = None
     jobs: dict[str, WorkflowJobDefinition] = Field(default_factory=dict)
 
     @field_validator("jobs", mode="before")
