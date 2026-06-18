@@ -96,7 +96,7 @@ class WorkflowJobDefinition(BaseModel):
     environment: str | dict[str, str] | None = None
     permissions: str | dict[str, str] | None = None
     uses: str | None = None
-    container: Container = None
+    container: str | Container | None = None
     env: dict[str, str] = Field(default_factory=dict)
     secrets: dict[str, str] | str | None = None
     steps: list[WorkflowStepDefinition] = Field(default_factory=list)
