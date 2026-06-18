@@ -49,7 +49,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
     """
 
     job_key: str | None = None
-    runs_on: str | None = None
+    runs_on: list[str] | None = None
     is_self_hosted: bool = False
     container: str | None = None
     environment: str | None = None
@@ -164,20 +164,20 @@ class WorkflowJob(BaseAsset):
     variable_references: list[WorkflowReference] = Field(default_factory=list)
 
     @property
-    def normalize_runs_on(self) -> str | None:
+    def normalize_runs_on(self) -> list[str] | None:
         if self.runs_on is None:
             return None
 
         if isinstance(self.runs_on, str):
-            return self.runs_on
+            return [self.runs_on]
 
         if isinstance(self.runs_on, list):
-            return ",".join(self.runs_on)
+            return self.runs_on
 
         if isinstance(self.runs_on, dict):
-            return ",".join([f"{key}:{value}" for key, value in self.runs_on.items()])
+            return [f"{key}:{value}" for key, value in self.runs_on.items()]
 
-        return str(self.runs_on)
+        return [str(self.runs_on)]
 
     @property
     def org_node_id(self) -> str | None:
@@ -188,12 +188,16 @@ class WorkflowJob(BaseAsset):
     def normalize_permissions(cls, value: Any) -> list[str] | None:
         if value is None:
             return None
+
         if isinstance(value, dict):
             return [f"{key}:{permission}" for key, permission in value.items()]
+
         if isinstance(value, str):
             return [value]
+
         if isinstance(value, list):
             return [str(item) for item in value]
+
         return [str(value)]
 
     @property
