@@ -101,13 +101,30 @@ class WorkflowJobDefinition(BaseModel):
     uses: str | None = None
     container: str | Container | None = None
     env: dict[str, str] = Field(default_factory=dict)
-    secrets: dict[str, str] | str | None = None
+    secrets: dict[str, str] = Field(default_factory=dict)
     steps: list[WorkflowStepDefinition] = Field(default_factory=list)
+
+    # This may seem strange, but the GitHub yaml format accepts empty values for keys
+    # additionally, to prevent other yaml parsing issues, make sure we always convert the key/value to string first
+    # for both env and secrets
 
     @field_validator("env", mode="before")
     @classmethod
-    def dict_or_empty(cls, value: Any) -> dict[str, Any]:
-        return value if isinstance(value, dict) else {}
+    def dict_or_empty(cls, value: Any) -> dict[str, str]:
+        return (
+            {f"{str(key)}": f"{str(value)}" for key, value in value.items()}
+            if isinstance(value, dict)
+            else {}
+        )
+
+    @field_validator("secrets", mode="before")
+    @classmethod
+    def secrets_or_empty(cls, value: Any) -> dict[str, str]:
+        return (
+            {f"{str(key)}": f"{str(value)}" for key, value in value.items()}
+            if isinstance(value, dict)
+            else {}
+        )
 
     @field_validator("steps", mode="before")
     @classmethod
@@ -498,10 +515,9 @@ class Workflow(BaseAsset):
         for job_key, job in document.jobs.items():
             secret_refs = []
             variable_refs = []
-            if isinstance(job.secrets, dict):
-                secret_refs.extend(
-                    mapping_references(SECRET_REFERENCE_RE, job.secrets, "secrets")
-                )
+            secret_refs.extend(
+                mapping_references(SECRET_REFERENCE_RE, job.secrets, "secrets")
+            )
             secret_refs.extend(mapping_references(SECRET_REFERENCE_RE, job.env, "env"))
             variable_refs.extend(
                 mapping_references(VARIABLE_REFERENCE_RE, job.env, "env")
