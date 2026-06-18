@@ -146,14 +146,6 @@ class WorkflowJobDefinition(BaseModel):
         return None
 
     @property
-    def is_self_hosted(self) -> bool:
-        if isinstance(self.runs_on, str):
-            return self.runs_on == "self-hosted"
-        if isinstance(self.runs_on, list):
-            return "self-hosted" in [str(item) for item in self.runs_on]
-        return False
-
-    @property
     def container_value(self) -> str | None:
         return str(self.container) if self.container else None
 
@@ -522,7 +514,6 @@ class Workflow(BaseAsset):
                     "name": f"{self.repository_name}\\{job_key}",
                     "job_key": job_key,
                     "runs_on": job.runs_on,
-                    "is_self_hosted": job.is_self_hosted,
                     "container": job.container_value,
                     "environment": job.environment_name,
                     "permissions": job.permissions
