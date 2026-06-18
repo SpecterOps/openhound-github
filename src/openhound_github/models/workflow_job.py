@@ -215,7 +215,7 @@ class WorkflowJob(BaseAsset):
         return [str(value)]
 
     @property
-    def is_self_hosted(self):
+    def is_self_hosted(self) -> bool:
         return "self-hosted" in (self.runs_on or [])
 
     @property
