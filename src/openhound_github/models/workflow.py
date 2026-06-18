@@ -108,18 +108,9 @@ class WorkflowJobDefinition(BaseModel):
     # additionally, to prevent other yaml parsing issues, make sure we always convert the key/value to string first
     # for both env and secrets
 
-    @field_validator("env", mode="before")
+    @field_validator("env", "secrets", mode="before")
     @classmethod
     def dict_or_empty(cls, value: Any) -> dict[str, str]:
-        return (
-            {f"{str(key)}": f"{str(value)}" for key, value in value.items()}
-            if isinstance(value, dict)
-            else {}
-        )
-
-    @field_validator("secrets", mode="before")
-    @classmethod
-    def secrets_or_empty(cls, value: Any) -> dict[str, str]:
         return (
             {f"{str(key)}": f"{str(value)}" for key, value in value.items()}
             if isinstance(value, dict)
