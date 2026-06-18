@@ -89,12 +89,15 @@ class Container(BaseModel):
         return self.image
 
 
+class RunsOn(BaseModel):
+    group: str | None = None
+    labels: list[str] | str | None = None
+
+
 class WorkflowJobDefinition(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    runs_on: str | list[str] | dict[str, str] | None = Field(
-        default=None, alias="runs-on"
-    )
+    runs_on: str | list[str] | RunsOn | None = Field(default=None, alias="runs-on")
     needs: str | list[str] | None = None
     environment: str | dict[str, str] | None = None
     permissions: str | dict[str, str] | None = None
@@ -107,7 +110,6 @@ class WorkflowJobDefinition(BaseModel):
     # This may seem strange, but the GitHub yaml format accepts empty values for keys
     # additionally, to prevent other yaml parsing issues, make sure we always convert the key/value to string first
     # for both env and secrets
-
     @field_validator("env", "secrets", mode="before")
     @classmethod
     def dict_or_empty(cls, value: Any) -> dict[str, str]:
