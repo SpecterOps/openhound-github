@@ -89,10 +89,12 @@ class Container(BaseModel):
 class WorkflowJobDefinition(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    runs_on: str | list[str] | dict[str, str] = Field(default=None, alias="runs-on")
-    needs: str | list[str] = None
-    environment: str | dict[str, str] = None
-    permissions: str | dict[str, str] = None
+    runs_on: str | list[str] | dict[str, str] | None = Field(
+        default=None, alias="runs-on"
+    )
+    needs: str | list[str] | None = None
+    environment: str | dict[str, str] | None = None
+    permissions: str | dict[str, str] | None = None
     uses: str | None = None
     container: Container = None
     env: dict[str, str] = Field(default_factory=dict)
