@@ -51,8 +51,8 @@ class WorkflowStepDefinition(BaseModel):
     name: str | None = None
     uses: str | None = None
     run: str | None = None
-    with_: dict[str, Any] = Field(default_factory=dict, alias="with")
-    env: dict[str, Any] = Field(default_factory=dict)
+    with_: dict[str, str] = Field(default_factory=dict, alias="with")
+    env: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("with_", "env", mode="before")
     @classmethod
@@ -79,17 +79,24 @@ class WorkflowStepDefinition(BaseModel):
         return "unknown"
 
 
+class Container(BaseModel):
+    image: str
+    credentials: dict[str, str] | None = None
+    env: dict[str, str] | None = None
+    ports: list[int] | None = None
+
+
 class WorkflowJobDefinition(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    runs_on: Any = Field(default=None, alias="runs-on")
-    needs: Any = None
-    environment: Any = None
-    permissions: Any = None
+    runs_on: str | list[str] | dict[str, str] = Field(default=None, alias="runs-on")
+    needs: str | list[str] = None
+    environment: str | dict[str, str] = None
+    permissions: str | dict[str, str] = None
     uses: str | None = None
-    container: Any = None
-    env: dict[str, Any] = Field(default_factory=dict)
-    secrets: dict[str, Any] | str | None = None
+    container: Container = None
+    env: dict[str, str] = Field(default_factory=dict)
+    secrets: dict[str, str] | str | None = None
     steps: list[WorkflowStepDefinition] = Field(default_factory=list)
 
     @field_validator("env", mode="before")
@@ -143,7 +150,7 @@ class WorkflowJobDefinition(BaseModel):
 class WorkflowDocument(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    permissions: Any = None
+    permissions: str | dict[str, str] = None
     jobs: dict[str, WorkflowJobDefinition] = Field(default_factory=dict)
 
     @field_validator("jobs", mode="before")
