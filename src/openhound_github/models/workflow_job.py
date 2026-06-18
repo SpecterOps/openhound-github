@@ -21,6 +21,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.workflow import RunsOn
 
 TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
 
@@ -154,7 +155,6 @@ class WorkflowJob(BaseAsset):
     repository_node_id: str
     org_login: str
     runs_on: list[str] | None = None
-    is_self_hosted: bool = False
     container: str | None = None
     environment: str | None = None
     permissions: list[str] | None = None
@@ -196,6 +196,9 @@ class WorkflowJob(BaseAsset):
         if isinstance(value, list):
             return [str(item) for item in value]
 
+        if isinstance(value, RunsOn):
+            value = value.model_dump()
+
         if isinstance(value, dict):
             labels = value.get("labels")
             if labels is None:
@@ -210,6 +213,10 @@ class WorkflowJob(BaseAsset):
             return [str(labels)]
 
         return [str(value)]
+
+    @property
+    def is_self_hosted(self):
+        return "self-hosted" in (self.runs_on or [])
 
     @property
     def as_node(self) -> GHNode:
