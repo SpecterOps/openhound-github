@@ -153,7 +153,7 @@ class WorkflowJob(BaseAsset):
     repository_name: str
     repository_node_id: str
     org_login: str
-    runs_on: str | list[str] | dict[str, str] | None = None
+    runs_on: list[str] | None = None
     is_self_hosted: bool = False
     container: str | None = None
     environment: str | None = None
@@ -164,39 +164,23 @@ class WorkflowJob(BaseAsset):
     variable_references: list[WorkflowReference] = Field(default_factory=list)
 
     @property
-    def normalize_runs_on(self) -> list[str] | None:
-        if self.runs_on is None:
-            return None
-
-        if isinstance(self.runs_on, str):
-            return [self.runs_on]
-
-        if isinstance(self.runs_on, list):
-            return self.runs_on
-
-        if isinstance(self.runs_on, dict):
-            return [f"{key}:{value}" for key, value in self.runs_on.items()]
-
-        return [str(self.runs_on)]
-
-    @property
     def org_node_id(self) -> str | None:
         return self._lookup.org_id_for_login(self.org_login)
 
-    @field_validator("permissions", mode="before")
+    @field_validator("runs_on", "permissions", mode="before")
     @classmethod
-    def normalize_permissions(cls, value: Any) -> list[str] | None:
+    def normalize_mapping(cls, value: Any) -> list[str] | None:
         if value is None:
             return None
-
-        if isinstance(value, dict):
-            return [f"{key}:{permission}" for key, permission in value.items()]
 
         if isinstance(value, str):
             return [value]
 
         if isinstance(value, list):
             return [str(item) for item in value]
+
+        if isinstance(value, dict):
+            return [f"{str(key)}:{str(value)}" for key, value in value.items()]
 
         return [str(value)]
 
@@ -209,7 +193,7 @@ class WorkflowJob(BaseAsset):
                 displayname=self.job_key,
                 node_id=self.node_id,
                 job_key=self.job_key,
-                runs_on=self.normalize_runs_on,
+                runs_on=self.runs_on,
                 is_self_hosted=self.is_self_hosted,
                 container=self.container,
                 environment=self.environment,
