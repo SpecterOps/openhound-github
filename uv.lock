@@ -542,6 +542,18 @@ wheels = [
 ]
 
 [[package]]
+name = "joserfc"
+version = "1.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/90/25cb27518750218e4f850be63d8bbb2343efaad1c01c3571aaa4b3c33bd7/joserfc-1.7.1.tar.gz", hash = "sha256:77d0b76514879c68c6f433bc5b7357a4ab72008ff1e33d8379fd11d72bd8ca81", size = 233181, upload-time = "2026-06-08T07:21:33.412Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/00/fa62404c3e347f946faa13aa21085205f9cc06ad17671e37f81a51662ae8/joserfc-1.7.1-py3-none-any.whl", hash = "sha256:b3e3d655612e2e1ef67b2600f2f420e12e537b020208fab1761fad647319c164", size = 70423, upload-time = "2026-06-08T07:21:32.001Z" },
+]
+
+[[package]]
 name = "jsonpath-ng"
 version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -835,7 +847,7 @@ wheels = [
 
 [[package]]
 name = "openhound"
-version = "0.1.4"
+version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alive-progress" },
@@ -853,16 +865,16 @@ dependencies = [
     { name = "typer" },
     { name = "types-requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/54/e9/3fc99609ab7d4643e69dae0d1ba07138385b1ac78847f56c4515a00efed6/openhound-0.1.4.tar.gz", hash = "sha256:e8a6e86f2ab92aa087374410f14a97ff025329d6ba75d64a54c8f932befd19c7", size = 3539391, upload-time = "2026-05-04T21:40:16.914Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/55/1e411c2328b0dc5bd5719332c86664fd211a1b5d9967f6e7c2fe62893259/openhound-0.2.1.tar.gz", hash = "sha256:a72ce592f37154cdb25268066ed57b891823653ee0fed546013ffcfe60ddb3d0", size = 3539819, upload-time = "2026-06-16T17:59:40.221Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/06/1cb73a6d46acaddb39e6bce0246ac000a07bea7d3ad5074a702c1d0612bf/openhound-0.1.4-py3-none-any.whl", hash = "sha256:b4f711f928520645aa0ddc559bd7597ac49ae3321c8a9c4fdee812d255bbafde", size = 65132, upload-time = "2026-05-04T21:40:15.695Z" },
+    { url = "https://files.pythonhosted.org/packages/65/af/7e358be9436ac1ca183382536b26ff916f5b06d96bd7d7529ce8f3fe028c/openhound-0.2.1-py3-none-any.whl", hash = "sha256:bc3bb9863d99d3de2bb1906560f2a38edcb898f8dcac463881f2f95e38c3c051", size = 65136, upload-time = "2026-06-16T17:59:38.923Z" },
 ]
 
 [[package]]
 name = "openhound-github"
 source = { editable = "." }
 dependencies = [
-    { name = "cryptography" },
+    { name = "joserfc" },
     { name = "requests" },
 ]
 
@@ -878,14 +890,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cryptography", specifier = ">=46.0.6" },
+    { name = "joserfc", specifier = ">=1.6.5" },
     { name = "requests", specifier = ">=2.33.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.19.1" },
-    { name = "openhound", specifier = "==0.1.4" },
+    { name = "openhound" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest", specifier = ">=9.0.1" },
     { name = "ruff", specifier = ">=0.15.5" },
