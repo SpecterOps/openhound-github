@@ -21,6 +21,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.workflow import RunsOn
 
 TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
 
@@ -49,7 +50,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
     """
 
     job_key: str | None = None
-    runs_on: Any = None
+    runs_on: list[str] | None = None
     is_self_hosted: bool = False
     container: str | None = None
     environment: str | None = None
@@ -153,8 +154,7 @@ class WorkflowJob(BaseAsset):
     repository_name: str
     repository_node_id: str
     org_login: str
-    runs_on: Any = None
-    is_self_hosted: bool = False
+    runs_on: list[str] | None = None
     container: str | None = None
     environment: str | None = None
     permissions: list[str] | None = None
@@ -172,13 +172,51 @@ class WorkflowJob(BaseAsset):
     def normalize_permissions(cls, value: Any) -> list[str] | None:
         if value is None:
             return None
-        if isinstance(value, dict):
-            return [f"{key}:{permission}" for key, permission in value.items()]
+
         if isinstance(value, str):
             return [value]
+
         if isinstance(value, list):
             return [str(item) for item in value]
+
+        if isinstance(value, dict):
+            return [f"{str(key)}:{str(value)}" for key, value in value.items()]
+
         return [str(value)]
+
+    @field_validator("runs_on", mode="before")
+    @classmethod
+    def normalize_runs_on(cls, value: Any) -> list[str] | None:
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            return [value]
+
+        if isinstance(value, list):
+            return [str(item) for item in value]
+
+        if isinstance(value, RunsOn):
+            value = value.model_dump()
+
+        if isinstance(value, dict):
+            labels = value.get("labels")
+            if labels is None:
+                return None
+
+            if isinstance(labels, str):
+                return [labels]
+
+            if isinstance(labels, list):
+                return [str(item) for item in labels]
+
+            return [str(labels)]
+
+        return [str(value)]
+
+    @property
+    def is_self_hosted(self) -> bool:
+        return "self-hosted" in (self.runs_on or [])
 
     @property
     def as_node(self) -> GHNode:

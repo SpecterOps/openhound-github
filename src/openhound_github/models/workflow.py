@@ -51,8 +51,8 @@ class WorkflowStepDefinition(BaseModel):
     name: str | None = None
     uses: str | None = None
     run: str | None = None
-    with_: dict[str, Any] = Field(default_factory=dict, alias="with")
-    env: dict[str, Any] = Field(default_factory=dict)
+    with_: dict[str, str] = Field(default_factory=dict, alias="with")
+    env: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("with_", "env", mode="before")
     @classmethod
@@ -79,23 +79,45 @@ class WorkflowStepDefinition(BaseModel):
         return "unknown"
 
 
+class Container(BaseModel):
+    image: str
+    credentials: dict[str, str] | None = None
+    env: dict[str, str] | None = None
+    ports: list[int] | None = None
+
+    def __str__(self) -> str:
+        return self.image
+
+
+class RunsOn(BaseModel):
+    group: str | None = None
+    labels: list[str] | str | None = None
+
+
 class WorkflowJobDefinition(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    runs_on: Any = Field(default=None, alias="runs-on")
-    needs: Any = None
-    environment: Any = None
-    permissions: Any = None
+    runs_on: str | list[str] | RunsOn | None = Field(default=None, alias="runs-on")
+    needs: str | list[str] | None = None
+    environment: str | dict[str, str] | None = None
+    permissions: str | dict[str, str] | None = None
     uses: str | None = None
-    container: Any = None
-    env: dict[str, Any] = Field(default_factory=dict)
-    secrets: dict[str, Any] | str | None = None
+    container: str | Container | None = None
+    env: dict[str, str] = Field(default_factory=dict)
+    secrets: dict[str, str] = Field(default_factory=dict)
     steps: list[WorkflowStepDefinition] = Field(default_factory=list)
 
-    @field_validator("env", mode="before")
+    # This may seem strange, but the GitHub yaml format accepts empty values for keys
+    # additionally, to prevent other yaml parsing issues, make sure we always convert the key/value to string first
+    # for both env and secrets
+    @field_validator("env", "secrets", mode="before")
     @classmethod
-    def dict_or_empty(cls, value: Any) -> dict[str, Any]:
-        return value if isinstance(value, dict) else {}
+    def dict_or_empty(cls, value: Any) -> dict[str, str]:
+        return (
+            {f"{str(key)}": f"{str(value)}" for key, value in value.items()}
+            if isinstance(value, dict)
+            else {}
+        )
 
     @field_validator("steps", mode="before")
     @classmethod
@@ -124,26 +146,14 @@ class WorkflowJobDefinition(BaseModel):
         return None
 
     @property
-    def is_self_hosted(self) -> bool:
-        if isinstance(self.runs_on, str):
-            return self.runs_on == "self-hosted"
-        if isinstance(self.runs_on, list):
-            return "self-hosted" in [str(item) for item in self.runs_on]
-        return False
-
-    @property
     def container_value(self) -> str | None:
-        if self.container is None:
-            return None
-        if isinstance(self.container, str):
-            return self.container
-        return str(self.container)
+        return str(self.container) if self.container else None
 
 
 class WorkflowDocument(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    permissions: Any = None
+    permissions: str | dict[str, str] | None = None
     jobs: dict[str, WorkflowJobDefinition] = Field(default_factory=dict)
 
     @field_validator("jobs", mode="before")
@@ -490,10 +500,9 @@ class Workflow(BaseAsset):
         for job_key, job in document.jobs.items():
             secret_refs = []
             variable_refs = []
-            if isinstance(job.secrets, dict):
-                secret_refs.extend(
-                    mapping_references(SECRET_REFERENCE_RE, job.secrets, "secrets")
-                )
+            secret_refs.extend(
+                mapping_references(SECRET_REFERENCE_RE, job.secrets, "secrets")
+            )
             secret_refs.extend(mapping_references(SECRET_REFERENCE_RE, job.env, "env"))
             variable_refs.extend(
                 mapping_references(VARIABLE_REFERENCE_RE, job.env, "env")
@@ -505,7 +514,6 @@ class Workflow(BaseAsset):
                     "name": f"{self.repository_name}\\{job_key}",
                     "job_key": job_key,
                     "runs_on": job.runs_on,
-                    "is_self_hosted": job.is_self_hosted,
                     "container": job.container_value,
                     "environment": job.environment_name,
                     "permissions": job.permissions
