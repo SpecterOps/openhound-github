@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 from dlt.sources.helpers.rest_client.client import RESTClient
@@ -28,6 +29,8 @@ from openhound_github.models import (
     EnterpriseUser,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class SourceContext:
@@ -51,17 +54,24 @@ def enterprise(ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name, "after": None},
     }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        page_enterprise = page_data[0].get("enterprise")
+    try:
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            page_enterprise = page_data[0].get("enterprise")
 
-        if page_enterprise:
-            yield page_enterprise
+            if page_enterprise:
+                yield page_enterprise
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise", "phase": "resource_iteration"},
+        )
+        return
 
 
 @app.transformer(
