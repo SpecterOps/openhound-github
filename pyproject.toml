@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "joserfc>=1.6.5",
+    "openhound>=0.2.7",
     "requests>=2.33.0",
 ]
 authors = [

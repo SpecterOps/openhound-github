@@ -847,7 +847,7 @@ wheels = [
 
 [[package]]
 name = "openhound"
-version = "0.2.1"
+version = "0.2.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alive-progress" },
@@ -865,9 +865,9 @@ dependencies = [
     { name = "typer" },
     { name = "types-requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b5/55/1e411c2328b0dc5bd5719332c86664fd211a1b5d9967f6e7c2fe62893259/openhound-0.2.1.tar.gz", hash = "sha256:a72ce592f37154cdb25268066ed57b891823653ee0fed546013ffcfe60ddb3d0", size = 3539819, upload-time = "2026-06-16T17:59:40.221Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/bb/94e8278a628c92d5eb65fbaa284f2936cf4db69428bb275550f474133d69/openhound-0.2.7.tar.gz", hash = "sha256:a8e87e938024ea0dbd3611818aea99315e87e012a84dffcc1cc3580195fa44d0", size = 3542656, upload-time = "2026-06-24T17:04:48.169Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/af/7e358be9436ac1ca183382536b26ff916f5b06d96bd7d7529ce8f3fe028c/openhound-0.2.1-py3-none-any.whl", hash = "sha256:bc3bb9863d99d3de2bb1906560f2a38edcb898f8dcac463881f2f95e38c3c051", size = 65136, upload-time = "2026-06-16T17:59:38.923Z" },
+    { url = "https://files.pythonhosted.org/packages/37/5b/2d226a995e797142bcda11053fb6e9c8b18db11e73097f3411cdbbb83999/openhound-0.2.7-py3-none-any.whl", hash = "sha256:f758e10e89d3b30b16cd3f5c50bc19f2183f2735296cd50c5c03b2ac3074188a", size = 66881, upload-time = "2026-06-24T17:04:47.041Z" },
 ]
 
 [[package]]
@@ -875,6 +875,7 @@ name = "openhound-github"
 source = { editable = "." }
 dependencies = [
     { name = "joserfc" },
+    { name = "openhound" },
     { name = "requests" },
 ]
 
@@ -891,6 +892,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "joserfc", specifier = ">=1.6.5" },
+    { name = "openhound", specifier = ">=0.2.7" },
     { name = "requests", specifier = ">=2.33.0" },
 ]
 
