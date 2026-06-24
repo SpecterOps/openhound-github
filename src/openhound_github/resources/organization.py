@@ -303,23 +303,16 @@ def org_roles(org: Organization, ctx: SourceContext):
     }
 
     client = _client_for_org(ctx, org.login)
-    try:
-        for page in client.paginate(
-            f"/orgs/{org.login}/organization-roles", params={"per_page": 100}
-        ):
-            for role in page:
-                yield {
-                    **role,
-                    "type": "custom",
-                    "org_node_id": org.node_id,
-                    "org_login": org.login,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'org_roles' processing organization '{org.login}': {e}",
-            extra={"resource": "org_roles", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/orgs/{org.login}/organization-roles", params={"per_page": 100}
+    ):
+        for role in page:
+            yield {
+                **role,
+                "type": "custom",
+                "org_node_id": org.node_id,
+                "org_login": org.login,
+            }
 
 
 @app.transformer(name="org_role_teams", columns=OrgRoleTeam, parallelized=True)
@@ -338,24 +331,17 @@ def org_role_teams(role: OrgRole, ctx: SourceContext):
 
     if role.type == "custom":
         client = _client_for_org(ctx, role.org_login)
-        try:
-            for page in client.paginate(
-                f"/orgs/{role.org_login}/organization-roles/{role.id}/teams"
-            ):
-                for team in page:
-                    yield {
-                        "org_role_id": role.id,
-                        "org_role_name": role.name,
-                        "org_node_id": role.org_node_id,
-                        "org_login": role.org_login,
-                        **team,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'org_role_teams' processing role '{role.id}': {e}",
-                extra={"resource": "org_role_teams", "phase": "resource_iteration"},
-            )
-            return
+        for page in client.paginate(
+            f"/orgs/{role.org_login}/organization-roles/{role.id}/teams"
+        ):
+            for team in page:
+                yield {
+                    "org_role_id": role.id,
+                    "org_role_name": role.name,
+                    "org_node_id": role.org_node_id,
+                    "org_login": role.org_login,
+                    **team,
+                }
 
 
 @app.transformer(name="org_role_members", columns=OrgRoleMember, parallelized=True)
@@ -373,24 +359,17 @@ def org_role_members(role: OrgRole, ctx: SourceContext):
     """
     if role.type == "custom":
         client = _client_for_org(ctx, role.org_login)
-        try:
-            for page in client.paginate(
-                f"/orgs/{role.org_login}/organization-roles/{role.id}/users"
-            ):
-                for user in page:
-                    yield {
-                        **user,
-                        "org_role_name": role.name,
-                        "org_role_id": role.id,
-                        "org_node_id": role.org_node_id,
-                        "org_login": role.org_login,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'org_role_members' processing role '{role.id}': {e}",
-                extra={"resource": "org_role_members", "phase": "resource_iteration"},
-            )
-            return
+        for page in client.paginate(
+            f"/orgs/{role.org_login}/organization-roles/{role.id}/users"
+        ):
+            for user in page:
+                yield {
+                    **user,
+                    "org_role_name": role.name,
+                    "org_role_id": role.id,
+                    "org_node_id": role.org_node_id,
+                    "org_login": role.org_login,
+                }
 
 
 @app.resource(name="app_installations", columns=AppInstallation, parallelized=True)
@@ -433,17 +412,10 @@ def applications(app_install: AppInstallation, ctx: SourceContext):
     if app_install.id:
         client = _client_for_org(ctx, app_install.org_login)
         app_slug = str(app_slug)
-        try:
-            if app_slug not in ctx.app_cache:
-                with ctx.cache_lock:
-                    if app_slug not in ctx.app_cache:
-                        ctx.app_cache[app_slug] = client.get(f"/apps/{app_slug}").json()
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'applications' processing app '{app_slug}': {e}",
-                extra={"resource": "applications", "phase": "resource_iteration"},
-            )
-            return
+        if app_slug not in ctx.app_cache:
+            with ctx.cache_lock:
+                if app_slug not in ctx.app_cache:
+                    ctx.app_cache[app_slug] = client.get(f"/apps/{app_slug}").json()
         app_data = ctx.app_cache[app_slug]
         if app_data.get("node_id"):
             yield {**app_data, "slug": app_slug, "org_login": app_install.org_login}
@@ -637,28 +609,21 @@ def team_members(team: Team, ctx: SourceContext):
                 "slug": team.slug,
             },
         }
-        try:
-            for page_data in client.paginate(
-                "/graphql",
-                method="POST",
-                json=data,
-                paginator=paginator,
-                data_selector="data",
-            ):
-                for member in page_data[0]["organization"]["team"]["members"]["edges"]:
-                    yield {
-                        "team_id": team.id,
-                        "id": member["node"]["id"],
-                        "login": member["node"]["login"],
-                        "role": member["role"],
-                        "org_login": team.org_login,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'team_members' processing team '{team.slug}': {e}",
-                extra={"resource": "team_members", "phase": "resource_iteration"},
-            )
-            return
+        for page_data in client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for member in page_data[0]["organization"]["team"]["members"]["edges"]:
+                yield {
+                    "team_id": team.id,
+                    "id": member["node"]["id"],
+                    "login": member["node"]["login"],
+                    "role": member["role"],
+                    "org_login": team.org_login,
+                }
 
 
 @app.resource(name="actions_permissions", columns=ActionPermission, parallelized=True)
@@ -782,30 +747,23 @@ def repo_role_assignments(
 
     client = _client_for_org(ctx, repo.org_login)
 
-    try:
-        for collab_page in client.paginate(
-            f"/repos/{repo.org_login}/{repo_name}/collaborators",
-            params={"affiliation": "direct", "per_page": 100},
-        ):
-            for collaborator in collab_page:
-                role = collaborator.get("role_name", "")
-                custom_role = custom_roles.get(role)
-                yield {
-                    **collaborator,
-                    "org_login": repo.org_login,
-                    "assignee_type": "user",
-                    "repo_node_id": repo_node_id,
-                    "repo_name": repo_name,
-                    "role_name": role,
-                    "base_role": custom_role.base_role if custom_role else None,
-                    "role_permissions": custom_role.permissions if custom_role else [],
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'repo_role_assignments' processing repository '{repo.full_name}': {e}",
-            extra={"resource": "repo_role_assignments", "phase": "resource_iteration"},
-        )
-        return
+    for collab_page in client.paginate(
+        f"/repos/{repo.org_login}/{repo_name}/collaborators",
+        params={"affiliation": "direct", "per_page": 100},
+    ):
+        for collaborator in collab_page:
+            role = collaborator.get("role_name", "")
+            custom_role = custom_roles.get(role)
+            yield {
+                **collaborator,
+                "org_login": repo.org_login,
+                "assignee_type": "user",
+                "repo_node_id": repo_node_id,
+                "repo_name": repo_name,
+                "role_name": role,
+                "base_role": custom_role.base_role if custom_role else None,
+                "role_permissions": custom_role.permissions if custom_role else [],
+            }
 
 
 @app.transformer(
@@ -829,32 +787,25 @@ def team_repo_role_assignments(
         if role.get("org_login") == team.org_login
     }
     client = _client_for_org(ctx, team.org_login)
-    try:
-        for repo_page in client.paginate(
-            f"/orgs/{team.org_login}/teams/{team.slug}/repos",
-            params={"per_page": 100},
-        ):
-            for repo in repo_page:
-                role = _repo_permission_role(repo)
-                custom_role = custom_roles.get(role)
-                yield {
-                    "id": team.database_id or 0,
-                    "node_id": team.node_id,
-                    "type": "Team",
-                    "assignee_type": "team",
-                    "repo_node_id": repo["node_id"],
-                    "org_login": team.org_login,
-                    "repo_name": repo["name"],
-                    "role_name": role,
-                    "base_role": custom_role.base_role if custom_role else None,
-                    "role_permissions": custom_role.permissions if custom_role else [],
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'team_repo_role_assignments' processing team '{team.slug}': {e}",
-            extra={"resource": "team_repo_role_assignments", "phase": "resource_iteration"},
-        )
-        return
+    for repo_page in client.paginate(
+        f"/orgs/{team.org_login}/teams/{team.slug}/repos",
+        params={"per_page": 100},
+    ):
+        for repo in repo_page:
+            role = _repo_permission_role(repo)
+            custom_role = custom_roles.get(role)
+            yield {
+                "id": team.database_id or 0,
+                "node_id": team.node_id,
+                "type": "Team",
+                "assignee_type": "team",
+                "repo_node_id": repo["node_id"],
+                "org_login": team.org_login,
+                "repo_name": repo["name"],
+                "role_name": role,
+                "base_role": custom_role.base_role if custom_role else None,
+                "role_permissions": custom_role.permissions if custom_role else [],
+            }
 
 
 @app.resource(name="repository_roles_base", parallelized=True, columns=BaseRepoRole)
@@ -1021,27 +972,20 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
             },
         }
 
-        try:
-            for page_data in client.paginate(
-                "/graphql",
-                method="POST",
-                json=data,
-                paginator=paginator,
-                data_selector="data",
-            ):
-                for branch in page_data[0]["repository"]["refs"]["nodes"]:
-                    yield {
-                        **branch,
-                        "repository_node_id": repository.id,
-                        "repository_name": repository.name,
-                        "org_login": repository.org_login,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'branches' processing repository '{repository.org_login}/{repository.name}': {e}",
-                extra={"resource": "branches", "phase": "resource_iteration"},
-            )
-            return
+        for page_data in client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for branch in page_data[0]["repository"]["refs"]["nodes"]:
+                yield {
+                    **branch,
+                    "repository_node_id": repository.id,
+                    "repository_name": repository.name,
+                    "org_login": repository.org_login,
+                }
 
 
 @app.transformer(
@@ -1072,34 +1016,27 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
 
     rule_ids_list = list(rule_ids_seen)
     client = _client_for_org(ctx, repository.org_login)
-    try:
-        for i in range(0, len(rule_ids_list), 100):
-            rules_chunk = rule_ids_list[i : i + 100]
-            if rules_chunk:
-                data = {"query": PROTECTION_RULES_QUERY, "variables": {"ids": rules_chunk}}
-                response = client.post("/graphql", json=data).json()
-                for rule in response["data"].get("nodes", []):
-                    # GitHub can return null actors for deleted or inaccessible allowance actors.
-                    for allowance_key in ("bypassPullRequestAllowances", "pushAllowances"):
-                        allowances = rule.get(allowance_key)
-                        if allowances and allowances.get("nodes"):
-                            allowances["nodes"] = [
-                                node
-                                for node in allowances["nodes"]
-                                if node.get("actor") is not None
-                            ]
-                    yield {
-                        **rule,
-                        "org_login": repository.org_login,
-                        "repository_node_id": repository.id,
-                        "repository_name": repository.name,
-                    }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'branch_protection_rules' processing repository '{repository.org_login}/{repository.name}': {e}",
-            extra={"resource": "branch_protection_rules", "phase": "resource_iteration"},
-        )
-        return
+    for i in range(0, len(rule_ids_list), 100):
+        rules_chunk = rule_ids_list[i : i + 100]
+        if rules_chunk:
+            data = {"query": PROTECTION_RULES_QUERY, "variables": {"ids": rules_chunk}}
+            response = client.post("/graphql", json=data).json()
+            for rule in response["data"].get("nodes", []):
+                # GitHub can return null actors for deleted or inaccessible allowance actors.
+                for allowance_key in ("bypassPullRequestAllowances", "pushAllowances"):
+                    allowances = rule.get(allowance_key)
+                    if allowances and allowances.get("nodes"):
+                        allowances["nodes"] = [
+                            node
+                            for node in allowances["nodes"]
+                            if node.get("actor") is not None
+                        ]
+                yield {
+                    **rule,
+                    "org_login": repository.org_login,
+                    "repository_node_id": repository.id,
+                    "repository_name": repository.name,
+                }
 
 
 @app.transformer(name="workflows", columns=Workflow, parallelized=True)
@@ -1141,19 +1078,12 @@ def workflows(repo: Repository, ctx: SourceContext):
         }
 
     client = _client_for_org(ctx, repo.org_login)
-    try:
-        for page in client.paginate(
-            f"/repos/{repo.full_name}/actions/workflows", params={"per_page": 100}
-        ):
-            for workflow in page:
-                if workflow.get("state") == "active":
-                    yield _workflow_file_contents(client, repo, workflow)
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'workflows' processing repository '{repo.full_name}': {e}",
-            extra={"resource": "workflows", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/repos/{repo.full_name}/actions/workflows", params={"per_page": 100}
+    ):
+        for workflow in page:
+            if workflow.get("state") == "active":
+                yield _workflow_file_contents(client, repo, workflow)
 
 
 @app.transformer(name="workflow_jobs", columns=WorkflowJob, parallelized=True)
@@ -1184,26 +1114,19 @@ def environments(repo: Repository, ctx: SourceContext):
     repo_name = repo.name
     repo_node_id = repo.node_id
     client = _client_for_org(ctx, repo.org_login)
-    try:
-        for page in client.paginate(
-            f"/repos/{full_name}/environments",
-            params={"per_page": 100},
-            data_selector="environments",
-        ):
-            for env in page:
-                yield {
-                    **env,
-                    "org_login": repo.org_login,
-                    "repository_name": repo_name,
-                    "repository_full_name": full_name,
-                    "repository_node_id": repo_node_id,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'environments' processing repository '{repo.full_name}': {e}",
-            extra={"resource": "environments", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/repos/{full_name}/environments",
+        params={"per_page": 100},
+        data_selector="environments",
+    ):
+        for env in page:
+            yield {
+                **env,
+                "org_login": repo.org_login,
+                "repository_name": repo_name,
+                "repository_full_name": full_name,
+                "repository_node_id": repo_node_id,
+            }
 
 
 @app.resource(name="runner_groups", columns=RunnerGroup, parallelized=True)
@@ -1271,26 +1194,19 @@ def org_runner_group_memberships(
     accessible_repo_node_ids = _selected_runner_group_repo_node_ids(
         group_row, client, org_name
     )
-    try:
-        for runner_page in client.paginate(
-            f"/orgs/{org_name}/actions/runner-groups/{group.id}/runners",
-            params={"per_page": 100},
-            data_selector="runners",
-        ):
-            for runner in runner_page:
-                yield {
-                    "runner_group_id": group.id,
-                    "runner_id": runner["id"],
-                    "runner_group_visibility": group.visibility,
-                    "accessible_repo_node_ids": accessible_repo_node_ids,
-                    "org_login": org_name,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'org_runner_group_memberships' processing runner group '{group.id}': {e}",
-            extra={"resource": "org_runner_group_memberships", "phase": "resource_iteration"},
-        )
-        return
+    for runner_page in client.paginate(
+        f"/orgs/{org_name}/actions/runner-groups/{group.id}/runners",
+        params={"per_page": 100},
+        data_selector="runners",
+    ):
+        for runner in runner_page:
+            yield {
+                "runner_group_id": group.id,
+                "runner_id": runner["id"],
+                "runner_group_visibility": group.visibility,
+                "accessible_repo_node_ids": accessible_repo_node_ids,
+                "org_login": org_name,
+            }
 
 
 @app.transformer(name="repo_runners", columns=RepoRunner, parallelized=True)
@@ -1298,26 +1214,19 @@ def repo_runners(repo: Repository, ctx: SourceContext):
     if not repo.self_hosted_runners_enabled:
         return
     client = _client_for_org(ctx, repo.org_login)
-    try:
-        for page in client.paginate(
-            f"/repos/{repo.full_name}/actions/runners",
-            params={"per_page": 100},
-            data_selector="runners",
-        ):
-            for runner in page:
-                yield {
-                    **runner,
-                    "repository_name": repo.name,
-                    "repository_node_id": repo.node_id,
-                    "repository_full_name": repo.full_name,
-                    "org_login": repo.org_login,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'repo_runners' processing repository '{repo.full_name}': {e}",
-            extra={"resource": "repo_runners", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/repos/{repo.full_name}/actions/runners",
+        params={"per_page": 100},
+        data_selector="runners",
+    ):
+        for runner in page:
+            yield {
+                **runner,
+                "repository_name": repo.name,
+                "repository_node_id": repo.node_id,
+                "repository_full_name": repo.full_name,
+                "org_login": repo.org_login,
+            }
 
 
 @app.transformer(
@@ -1341,25 +1250,18 @@ def environment_variables(environment: Environment, ctx: SourceContext):
     repo_node_id = environment.repository_node_id
 
     client = _client_for_org(ctx, environment.org_login)
-    try:
-        for page in client.paginate(
-            f"/repos/{full_repo_name}/environments/{env_name}/variables"
-        ):
-            for item in page:
-                yield {
-                    **item,
-                    "org_login": environment.org_login,
-                    "environment_node_id": env_node_id,
-                    "environment_name": env_name,
-                    "repository_name": repo_name,
-                    "repository_node_id": repo_node_id,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'environment_variables' processing environment '{env_name}': {e}",
-            extra={"resource": "environment_variables", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/repos/{full_repo_name}/environments/{env_name}/variables"
+    ):
+        for item in page:
+            yield {
+                **item,
+                "org_login": environment.org_login,
+                "environment_node_id": env_node_id,
+                "environment_name": env_name,
+                "repository_name": repo_name,
+                "repository_node_id": repo_node_id,
+            }
 
 
 @app.transformer(
@@ -1387,25 +1289,18 @@ def environment_branch_policies(environment: Environment, ctx: SourceContext):
         env_name = environment.name
         env_node_id = environment.node_id
         client = _client_for_org(ctx, environment.org_login)
-        try:
-            for page in client.paginate(
-                f"/repos/{full_repo_name}/environments/{env_name}/deployment-branch-policies"
-            ):
-                for policy in page:
-                    yield {
-                        **policy,
-                        "environment_node_id": env_node_id,
-                        "environment_name": env_name,
-                        "repository_name": repo_name,
-                        "repository_node_id": repo_node_id,
-                        "org_login": environment.org_login,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'environment_branch_policies' processing environment '{env_name}': {e}",
-                extra={"resource": "environment_branch_policies", "phase": "resource_iteration"},
-            )
-            return
+        for page in client.paginate(
+            f"/repos/{full_repo_name}/environments/{env_name}/deployment-branch-policies"
+        ):
+            for policy in page:
+                yield {
+                    **policy,
+                    "environment_node_id": env_node_id,
+                    "environment_name": env_name,
+                    "repository_name": repo_name,
+                    "repository_node_id": repo_node_id,
+                    "org_login": environment.org_login,
+                }
 
 
 @app.transformer(
@@ -1428,25 +1323,18 @@ def environment_secrets(environment: Environment, ctx: SourceContext):
     env_name = environment.name
     env_node_id = environment.node_id
     client = _client_for_org(ctx, environment.org_login)
-    try:
-        for page in client.paginate(
-            f"/repos/{full_repo_name}/environments/{env_name}/secrets"
-        ):
-            for secret in page:
-                yield {
-                    **secret,
-                    "org_login": environment.org_login,
-                    "repository_name": repo_name,
-                    "repository_node_id": repo_node_id,
-                    "environment_name": env_name,
-                    "environment_node_id": env_node_id,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'environment_secrets' processing environment '{env_name}': {e}",
-            extra={"resource": "environment_secrets", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/repos/{full_repo_name}/environments/{env_name}/secrets"
+    ):
+        for secret in page:
+            yield {
+                **secret,
+                "org_login": environment.org_login,
+                "repository_name": repo_name,
+                "repository_node_id": repo_node_id,
+                "environment_name": env_name,
+                "environment_node_id": env_node_id,
+            }
 
 
 @app.resource(name="organization_secrets", columns=OrgSecret, parallelized=True)
@@ -1512,24 +1400,17 @@ def selected_organization_secrets(secret: OrgSecret, ctx: SourceContext):
     """
     if secret.visibility == "selected":
         client = _client_for_org(ctx, secret.org_login)
-        try:
-            for page in client.paginate(
-                f"/orgs/{secret.org_login}/actions/secrets/{secret.name}/repositories",
-                params={"per_page": 100},
-            ):
-                for repo in page:
-                    yield {
-                        "name": secret.name,
-                        "repository_full_name": repo["full_name"],
-                        "repository_node_id": repo["node_id"],
-                        "org_login": secret.org_login,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'selected_organization_secrets' processing secret '{secret.name}': {e}",
-                extra={"resource": "selected_organization_secrets", "phase": "resource_iteration"},
-            )
-            return
+        for page in client.paginate(
+            f"/orgs/{secret.org_login}/actions/secrets/{secret.name}/repositories",
+            params={"per_page": 100},
+        ):
+            for repo in page:
+                yield {
+                    "name": secret.name,
+                    "repository_full_name": repo["full_name"],
+                    "repository_node_id": repo["node_id"],
+                    "org_login": secret.org_login,
+                }
 
 
 @app.resource(name="organization_variables", columns=OrgVariable, parallelized=True)
@@ -1581,23 +1462,16 @@ def selected_organization_variables(variable: OrgVariable, ctx: SourceContext):
     """
     if variable.visibility == "selected":
         client = _client_for_org(ctx, variable.org_login)
-        try:
-            for page in client.paginate(
-                f"/orgs/{variable.org_login}/actions/variables/{variable.name}/repositories",
-                params={"per_page": 100},
-            ):
-                for repo in page:
-                    yield {
-                        "name": variable.name,
-                        "repository_node_id": repo["node_id"],
-                        "org_login": variable.org_login,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'selected_organization_variables' processing variable '{variable.name}': {e}",
-                extra={"resource": "selected_organization_variables", "phase": "resource_iteration"},
-            )
-            return
+        for page in client.paginate(
+            f"/orgs/{variable.org_login}/actions/variables/{variable.name}/repositories",
+            params={"per_page": 100},
+        ):
+            for repo in page:
+                yield {
+                    "name": variable.name,
+                    "repository_node_id": repo["node_id"],
+                    "org_login": variable.org_login,
+                }
 
 
 @app.transformer(name="repository_secrets", columns=RepoSecret, parallelized=True)
@@ -1612,23 +1486,16 @@ def repository_secrets(repo: Repository, ctx: SourceContext):
         RepoSecret (RepoSecret): Repository secret record.
     """
     client = _client_for_org(ctx, repo.org_login)
-    try:
-        for page in client.paginate(
-            f"/repos/{repo.full_name}/actions/secrets", params={"per_page": 100}
-        ):
-            for secret in page:
-                yield {
-                    **secret,
-                    "org_login": repo.org_login,
-                    "repository_name": repo.full_name,
-                    "repository_node_id": repo.node_id,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'repository_secrets' processing repository '{repo.full_name}': {e}",
-            extra={"resource": "repository_secrets", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/repos/{repo.full_name}/actions/secrets", params={"per_page": 100}
+    ):
+        for secret in page:
+            yield {
+                **secret,
+                "org_login": repo.org_login,
+                "repository_name": repo.full_name,
+                "repository_node_id": repo.node_id,
+            }
 
 
 @app.transformer(name="repository_variables", columns=RepoVariable, parallelized=True)
@@ -1646,23 +1513,16 @@ def repository_variables(repo: Repository, ctx: SourceContext):
         RepoVariable (RepoVariable): Repository variable record.
     """
     client = _client_for_org(ctx, repo.org_login)
-    try:
-        for page in client.paginate(
-            f"/repos/{repo.full_name}/actions/variables", params={"per_page": 100}
-        ):
-            for variable in page:
-                yield {
-                    **variable,
-                    "org_login": repo.org_login,
-                    "repository_name": repo.full_name,
-                    "repository_node_id": repo.node_id,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'repository_variables' processing repository '{repo.full_name}': {e}",
-            extra={"resource": "repository_variables", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/repos/{repo.full_name}/actions/variables", params={"per_page": 100}
+    ):
+        for variable in page:
+            yield {
+                **variable,
+                "org_login": repo.org_login,
+                "repository_name": repo.full_name,
+                "repository_node_id": repo.node_id,
+            }
 
 
 @app.resource(
@@ -1774,19 +1634,12 @@ def pat_repo_access(pat: PersonalAccessToken, ctx: SourceContext):
         return
 
     client = _client_for_org(ctx, pat.org_login)
-    try:
-        for page in client.paginate(
-            f"/orgs/{pat.org_login}/personal-access-tokens/{pat.id}/repositories",
-            params={"per_page": 100},
-        ):
-            for item in page:
-                yield {"pat_id": pat.id, **item, "org_login": pat.org_login}
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'pat_repo_access' processing PAT '{pat.id}': {e}",
-            extra={"resource": "pat_repo_access", "phase": "resource_iteration"},
-        )
-        return
+    for page in client.paginate(
+        f"/orgs/{pat.org_login}/personal-access-tokens/{pat.id}/repositories",
+        params={"per_page": 100},
+    ):
+        for item in page:
+            yield {"pat_id": pat.id, **item, "org_login": pat.org_login}
 
 
 @app.resource(

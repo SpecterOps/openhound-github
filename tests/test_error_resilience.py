@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 from openhound_github.resources.organization import (
     OrgContext,
     SourceContext,
-    applications,
     organizations,
     users,
 )
@@ -147,43 +146,3 @@ def test_graphql_resource_continues_after_org_failure(caplog) -> None:
         "Error in resource 'users' processing organization 'org2'" in msg
         for msg in caplog.messages
     ), "Expected an error log for org2"
-
-
-def test_applications_transformer_handles_api_error(caplog) -> None:
-    """A failing API call in the applications transformer is caught and logged.
-
-    The transformer should log the error and yield nothing rather than
-    propagating the exception, so that the DLT pipeline can continue with
-    the next AppInstallation.
-
-    Note: the raw generator is called directly (via ``_pipe.gen``) because
-    DLT transformers use a different calling convention when invoked via
-    their decorated interface — the first argument is reserved for upstream
-    pipeline items, not direct calls.
-    """
-    failing_client = MagicMock()
-    failing_client.get.side_effect = ConnectionError("HTTP 503: Service Unavailable")
-
-    ctx = SourceContext(
-        client=failing_client,
-        organizations=[OrgContext(client=failing_client, org_name="org1")],
-    )
-
-    # Use a MagicMock to stand in for AppInstallation — the transformer
-    # only accesses .id, .app_slug, and .org_login from the install object.
-    install = MagicMock()
-    install.id = 42
-    install.app_slug = "acme-bot"
-    install.org_login = "org1"
-
-    # Call the raw generator function to bypass DLT pipeline machinery.
-    # Same parallelized=True wrapping issue as users — unwrap to get the original function.
-    with caplog.at_level(logging.ERROR, logger="openhound_github.resources.organization"):
-        result = list(inspect.unwrap(applications._pipe.gen)(install, ctx))
-
-    assert result == [], "Transformer should yield nothing when the API call fails"
-
-    assert any(
-        "Error in resource 'applications' processing app 'acme-bot'" in msg
-        for msg in caplog.messages
-    ), "Expected an error log for the failing app fetch"

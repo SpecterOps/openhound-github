@@ -99,31 +99,24 @@ def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
         "query": ENTERPRISE_MEMBERS_QUERY,
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
-    try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            for enterprise_object in page_data:
-                es_data = enterprise_object.get("enterprise", {})
-                members = es_data.get("members", {})
-                for edge in members.get("edges", []):
-                    node = edge.get("node")
-                    if node:
-                        yield {
-                            **node,
-                            "enterprise_node_id": enterprise_data.id,
-                            "enterprise_slug": ctx.enterprise_name,
-                        }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_members' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_members", "phase": "resource_iteration"},
-        )
-        return
+    for page_data in ctx.client.paginate(
+        "/graphql",
+        method="POST",
+        json=data,
+        paginator=paginator,
+        data_selector="data",
+    ):
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            members = es_data.get("members", {})
+            for edge in members.get("edges", []):
+                node = edge.get("node")
+                if node:
+                    yield {
+                        **node,
+                        "enterprise_node_id": enterprise_data.id,
+                        "enterprise_slug": ctx.enterprise_name,
+                    }
 
 
 @app.transformer(name="enterprise_users", columns=EnterpriseUser, parallelized=True)
@@ -165,22 +158,15 @@ def enterprise_managed_users(base_user: BaseUser, ctx: SourceContext):
 @app.transformer(name="enterprise_teams", columns=EnterpriseTeam, parallelized=True)
 def enterprise_teams(enterprise_data: Enterprise, ctx: SourceContext):
 
-    try:
-        for page in ctx.client.paginate(
-            f"/enterprises/{ctx.enterprise_name}/teams", params={"per_page": 100}
-        ):
-            for team in page:
-                yield {
-                    **team,
-                    "enterprise_node_id": enterprise_data.id,
-                    "enterprise_slug": ctx.enterprise_name,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_teams' processing enterprise '{enterprise_data.id}': {e}",
-            extra={"resource": "enterprise_teams", "phase": "resource_iteration"},
-        )
-        return
+    for page in ctx.client.paginate(
+        f"/enterprises/{ctx.enterprise_name}/teams", params={"per_page": 100}
+    ):
+        for team in page:
+            yield {
+                **team,
+                "enterprise_node_id": enterprise_data.id,
+                "enterprise_slug": ctx.enterprise_name,
+            }
 
 
 @app.transformer(
@@ -201,27 +187,20 @@ def enterprise_team_roles(team: EnterpriseTeam):
 )
 def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
 
-    try:
-        for page in ctx.client.paginate(
-            f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/memberships",
-            params={"per_page": 100},
-        ):
-            for member in page:
-                node_id = member.get("node_id") or member.get("user", {}).get("node_id")
-                if node_id:
-                    yield {
-                        **member,
-                        "node_id": node_id,
-                        "team_id": team.id,
-                        "enterprise_node_id": team.enterprise_node_id,
-                        "enterprise_slug": team.enterprise_slug,
-                    }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_team_members' processing team '{team.id}': {e}",
-            extra={"resource": "enterprise_team_members", "phase": "resource_iteration"},
-        )
-        return
+    for page in ctx.client.paginate(
+        f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/memberships",
+        params={"per_page": 100},
+    ):
+        for member in page:
+            node_id = member.get("node_id") or member.get("user", {}).get("node_id")
+            if node_id:
+                yield {
+                    **member,
+                    "node_id": node_id,
+                    "team_id": team.id,
+                    "enterprise_node_id": team.enterprise_node_id,
+                    "enterprise_slug": team.enterprise_slug,
+                }
 
 
 @app.transformer(
@@ -231,59 +210,45 @@ def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
 )
 def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
 
-    try:
-        for page in ctx.client.paginate(
-            f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/organizations",
-            params={"per_page": 100},
-        ):
-            for org in page:
-                node_id = org.get("node_id") or org.get("id")
-                if node_id:
-                    yield {
-                        **org,
-                        "node_id": node_id,
-                        "team_id": team.id,
-                        "projected_slug": team.slug,
-                        "enterprise_node_id": team.enterprise_node_id,
-                        "enterprise_slug": team.enterprise_slug,
-                    }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_team_organizations' processing team '{team.id}': {e}",
-            extra={"resource": "enterprise_team_organizations", "phase": "resource_iteration"},
-        )
-        return
+    for page in ctx.client.paginate(
+        f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/organizations",
+        params={"per_page": 100},
+    ):
+        for org in page:
+            node_id = org.get("node_id") or org.get("id")
+            if node_id:
+                yield {
+                    **org,
+                    "node_id": node_id,
+                    "team_id": team.id,
+                    "projected_slug": team.slug,
+                    "enterprise_node_id": team.enterprise_node_id,
+                    "enterprise_slug": team.enterprise_slug,
+                }
 
 
 @app.transformer(name="enterprise_roles", columns=EnterpriseRole, parallelized=True)
 def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
-    try:
-        result = ctx.client.get(
-            f"/enterprises/{ctx.enterprise_name}/enterprise-roles"
-        ).json()
+    result = ctx.client.get(
+        f"/enterprises/{ctx.enterprise_name}/enterprise-roles"
+    ).json()
 
-        for role in result.get("roles", []):
-            yield {
-                **role,
-                "enterprise_node_id": enterprise_data.id,
-                "enterprise_slug": ctx.enterprise_name,
-            }
-
+    for role in result.get("roles", []):
         yield {
-            "id": "owners",
-            "name": "owners",
-            "description": "Enterprise administrators discovered from ownerInfo.admins",
-            "source": "Default",
-            "permissions": [],
+            **role,
             "enterprise_node_id": enterprise_data.id,
             "enterprise_slug": ctx.enterprise_name,
         }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_roles' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_roles", "phase": "resource_iteration"},
-        )
-        return
+
+    yield {
+        "id": "owners",
+        "name": "owners",
+        "description": "Enterprise administrators discovered from ownerInfo.admins",
+        "source": "Default",
+        "permissions": [],
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
 
 
 @app.transformer(
@@ -293,25 +258,18 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
     if role.id == "owners":
         return
 
-    try:
-        for page in ctx.client.paginate(
-            f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/teams",
-            params={"per_page": 100},
-        ):
-            for team in page:
-                if team.get("id"):
-                    yield {
-                        **team,
-                        "role_id": role.id,
-                        "enterprise_node_id": role.enterprise_node_id,
-                        "enterprise_slug": role.enterprise_slug,
-                    }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_role_teams' processing role '{role.id}': {e}",
-            extra={"resource": "enterprise_role_teams", "phase": "resource_iteration"},
-        )
-        return
+    for page in ctx.client.paginate(
+        f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/teams",
+        params={"per_page": 100},
+    ):
+        for team in page:
+            if team.get("id"):
+                yield {
+                    **team,
+                    "role_id": role.id,
+                    "enterprise_node_id": role.enterprise_node_id,
+                    "enterprise_slug": role.enterprise_slug,
+                }
 
 
 @app.transformer(
@@ -321,25 +279,18 @@ def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
     if role.id == "owners":
         return
 
-    try:
-        for page in ctx.client.paginate(
-            f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/users",
-            params={"per_page": 100},
-        ):
-            for user in page:
-                if user.get("node_id"):
-                    yield {
-                        **user,
-                        "role_id": role.id,
-                        "enterprise_node_id": role.enterprise_node_id,
-                        "enterprise_slug": role.enterprise_slug,
-                    }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_role_users' processing role '{role.id}': {e}",
-            extra={"resource": "enterprise_role_users", "phase": "resource_iteration"},
-        )
-        return
+    for page in ctx.client.paginate(
+        f"/enterprises/{ctx.enterprise_name}/enterprise-roles/{role.id}/users",
+        params={"per_page": 100},
+    ):
+        for user in page:
+            if user.get("node_id"):
+                yield {
+                    **user,
+                    "role_id": role.id,
+                    "enterprise_node_id": role.enterprise_node_id,
+                    "enterprise_slug": role.enterprise_slug,
+                }
 
 
 @app.transformer(name="enterprise_admins", columns=EnterpriseAdmin, parallelized=True)
@@ -355,34 +306,27 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
         "query": ENTERPRISE_ADMINS_QUERY,
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
-    try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            for enterprise_object in page_data:
-                es_data = enterprise_object.get("enterprise", {})
-                owner_info = es_data.get("ownerInfo") or {}
-                for edge in (owner_info.get("admins") or {}).get("edges") or []:
-                    node = edge.get("node")
-                    if node and node.get("id"):
-                        yield {
-                            "node_id": node["id"],
-                            "login": node.get("login"),
-                            "assignment": "direct",
-                            "role_id": "owners",
-                            "enterprise_node_id": enterprise_data.id,
-                            "enterprise_slug": ctx.enterprise_name,
-                        }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_admins' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_admins", "phase": "resource_iteration"},
-        )
-        return
+    for page_data in ctx.client.paginate(
+        "/graphql",
+        method="POST",
+        json=data,
+        paginator=paginator,
+        data_selector="data",
+    ):
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            owner_info = es_data.get("ownerInfo") or {}
+            for edge in (owner_info.get("admins") or {}).get("edges") or []:
+                node = edge.get("node")
+                if node and node.get("id"):
+                    yield {
+                        "node_id": node["id"],
+                        "login": node.get("login"),
+                        "assignment": "direct",
+                        "role_id": "owners",
+                        "enterprise_node_id": enterprise_data.id,
+                        "enterprise_slug": ctx.enterprise_name,
+                    }
 
 
 @app.transformer(
@@ -401,30 +345,23 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name, "count": 1, "after": None},
     }
 
-    try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            for enterprise_object in page_data:
-                es_data = enterprise_object.get("enterprise", {})
-                saml_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
-                if not saml_provider:
-                    return
-                yield {
-                    **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
-                    "enterprise_node_id": enterprise_data.id,
-                    "enterprise_slug": ctx.enterprise_name,
-                }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_saml_provider' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_saml_provider", "phase": "resource_iteration"},
-        )
-        return
+    for page_data in ctx.client.paginate(
+        "/graphql",
+        method="POST",
+        json=data,
+        paginator=paginator,
+        data_selector="data",
+    ):
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            saml_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
+            if not saml_provider:
+                return
+            yield {
+                **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
+                "enterprise_node_id": enterprise_data.id,
+                "enterprise_slug": ctx.enterprise_name,
+            }
 
 
 @app.transformer(
@@ -447,36 +384,29 @@ def enterprise_external_identities(
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
 
-    try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            for enterprise_object in page_data:
-                es_data = enterprise_object.get("enterprise", {})
-                page_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
-                if not page_provider:
-                    return
-                for identity in (page_provider.get("externalIdentities") or {}).get(
-                    "nodes"
-                ) or []:
-                    yield {
-                        **identity,
-                        "saml_provider_id": saml_provider.id,
-                        "saml_provider_issuer": saml_provider.issuer,
-                        "saml_provider_sso_url": saml_provider.sso_url,
-                        "enterprise_node_id": saml_provider.enterprise_node_id,
-                        "enterprise_slug": saml_provider.enterprise_slug,
-                    }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_external_identities' processing saml_provider '{saml_provider.id}': {e}",
-            extra={"resource": "enterprise_external_identities", "phase": "resource_iteration"},
-        )
-        return
+    for page_data in ctx.client.paginate(
+        "/graphql",
+        method="POST",
+        json=data,
+        paginator=paginator,
+        data_selector="data",
+    ):
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            page_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
+            if not page_provider:
+                return
+            for identity in (page_provider.get("externalIdentities") or {}).get(
+                "nodes"
+            ) or []:
+                yield {
+                    **identity,
+                    "saml_provider_id": saml_provider.id,
+                    "saml_provider_issuer": saml_provider.issuer,
+                    "saml_provider_sso_url": saml_provider.sso_url,
+                    "enterprise_node_id": saml_provider.enterprise_node_id,
+                    "enterprise_slug": saml_provider.enterprise_slug,
+                }
 
 
 def enterprise_resources(ctx: SourceContext):
