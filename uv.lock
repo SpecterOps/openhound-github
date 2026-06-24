@@ -875,7 +875,6 @@ name = "openhound-github"
 source = { editable = "." }
 dependencies = [
     { name = "joserfc" },
-    { name = "openhound" },
     { name = "requests" },
 ]
 
@@ -892,14 +891,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "joserfc", specifier = ">=1.6.5" },
-    { name = "openhound", specifier = ">=0.2.7" },
     { name = "requests", specifier = ">=2.33.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.19.1" },
-    { name = "openhound" },
+    { name = "openhound", specifier = ">=0.2.7" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest", specifier = ">=9.0.1" },
     { name = "ruff", specifier = ">=0.15.5" },
