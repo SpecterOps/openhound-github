@@ -1051,7 +1051,7 @@ def workflows(repo: Repository, ctx: SourceContext):
         Workflow (Workflow): An active workflow record.
     """
 
-    @dlt.defer
+    @app.defer
     def _workflow_file_contents(
         client: RESTClient, repo: Repository, workflow: dict[str, Any]
     ) -> dict | None:
