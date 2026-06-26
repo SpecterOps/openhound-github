@@ -55,6 +55,8 @@ class EnterpriseOrganization(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        # Only collected if the org was explicitly collected (present in the lookup).
+        collected = self._lookup.org_login_for_id(self.node_id) is not None
         return GHNode(
             kinds=[nk.ORGANIZATION],
             properties=GHEnterpriseOrganizationProperties(
@@ -64,7 +66,7 @@ class EnterpriseOrganization(BaseAsset):
                 environmentid=self.node_id,
                 environment_name=self.login,
                 login=self.login,
-                collected=False,
+                collected=collected,
                 query_enterprise=f"MATCH p=(:GH_Enterprise {{node_id:'{self.enterprise_node_id}'}})-[:GH_Contains]->(:GH_Organization {{node_id:'{self.node_id}'}}) RETURN p",
             ),
         )
