@@ -166,6 +166,26 @@ query EnterpriseSAML($slug: String!, $count: Int = 100, $after: String = null) {
 }
 """
 
+ENTERPRISE_SAML_PROVIDER_QUERY = """
+query EnterpriseSAMLProvider($slug: String!) {
+    enterprise(slug: $slug) {
+        id
+        name
+        slug
+        ownerInfo {
+            samlIdentityProvider {
+                id
+                issuer
+                ssoUrl
+                digestMethod
+                signatureMethod
+                idpCertificate
+            }
+        }
+    }
+}
+"""
+
 TEAMS_QUERY = """
 query Teams($login: String!, $count: Int!, $after: String) {
     organization(login: $login) {

@@ -6,6 +6,7 @@ from dlt.sources.helpers.rest_client.client import RESTClient
 from openhound_github.graphql import (
     ENTERPRISE_ADMINS_QUERY,
     ENTERPRISE_MEMBERS_QUERY,
+    ENTERPRISE_SAML_PROVIDER_QUERY,
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
 )
@@ -37,35 +38,23 @@ class SourceContext:
     """Shared context for GitHub API access."""
 
     client: RESTClient
+    sso_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
 
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
 def enterprise(ctx: SourceContext):
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.enterprise.organizations.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-    )
     data = {
         "query": ENTERPRISE_QUERY,
         "variables": {"slug": ctx.enterprise_name, "after": None},
     }
 
     try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            page_enterprise = page_data[0].get("enterprise")
-
-            if page_enterprise:
-                yield page_enterprise
+        response = ctx.client.post("/graphql", json=data).json()
+        page_enterprise = (response.get("data") or {}).get("enterprise")
+        if page_enterprise:
+            yield page_enterprise
     except Exception as e:
         logger.error(
             f"Error in resource 'enterprise' processing enterprise '{ctx.enterprise_name}': {e}",
@@ -78,13 +67,33 @@ def enterprise(ctx: SourceContext):
     name="enterprise_organizations", columns=EnterpriseOrganization, parallelized=True
 )
 def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
-    orgs = (enterprise_data.organizations or {}).get("nodes", [])
-    for org in orgs:
-        yield {
-            **org,
-            "enterprise_node_id": enterprise_data.id,
-            "enterprise_slug": ctx.enterprise_name,
-        }
+    paginator = GraphQLCursorPaginator(
+        page_info_path="data.enterprise.organizations.pageInfo",
+        cursor_variable="after",
+        cursor_field="endCursor",
+        has_next_field="hasNextPage",
+    )
+    data = {
+        "query": ENTERPRISE_QUERY,
+        "variables": {"slug": ctx.enterprise_name, "after": None},
+    }
+
+    for page_data in ctx.client.paginate(
+        "/graphql",
+        method="POST",
+        json=data,
+        paginator=paginator,
+        data_selector="data",
+    ):
+        for enterprise_object in page_data:
+            es_data = enterprise_object.get("enterprise", {})
+            orgs = (es_data.get("organizations") or {}).get("nodes", [])
+            for org in orgs:
+                yield {
+                    **org,
+                    "enterprise_node_id": enterprise_data.id,
+                    "enterprise_slug": ctx.enterprise_name,
+                }
 
 
 @app.transformer(name="enterprise_members", columns=BaseUser, parallelized=True)
@@ -333,35 +342,34 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
     name="enterprise_saml_provider", columns=EnterpriseSamlProvider, parallelized=True
 )
 def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-        allow_missing_page_info=True,
-    )
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_saml_provider for enterprise '%s': no SSO client configured",
+            ctx.enterprise_name,
+        )
+        return
+
     data = {
-        "query": ENTERPRISE_SAML_QUERY,
-        "variables": {"slug": ctx.enterprise_name, "count": 1, "after": None},
+        "query": ENTERPRISE_SAML_PROVIDER_QUERY,
+        "variables": {"slug": ctx.enterprise_name},
     }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        for enterprise_object in page_data:
-            es_data = enterprise_object.get("enterprise", {})
-            saml_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
-            if not saml_provider:
-                return
-            yield {
-                **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
-                "enterprise_node_id": enterprise_data.id,
-                "enterprise_slug": ctx.enterprise_name,
-            }
+    response = client.post("/graphql", json=data).json()
+    enterprise_object = (response.get("data") or {}).get("enterprise", {})
+    saml_provider = (enterprise_object.get("ownerInfo") or {}).get("samlIdentityProvider")
+    if not saml_provider:
+        logger.warning(
+            "No enterprise SAML provider returned for enterprise '%s'",
+            ctx.enterprise_name,
+        )
+        return
+
+    yield {
+        **saml_provider,
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
 
 
 @app.transformer(
@@ -372,6 +380,14 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
 def enterprise_external_identities(
     saml_provider: EnterpriseSamlProvider, ctx: SourceContext
 ):
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_external_identities for enterprise '%s': no SSO client configured",
+            ctx.enterprise_name,
+        )
+        return
+
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
         cursor_variable="after",
@@ -384,7 +400,7 @@ def enterprise_external_identities(
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
 
-    for page_data in ctx.client.paginate(
+    for page_data in client.paginate(
         "/graphql",
         method="POST",
         json=data,
@@ -395,6 +411,10 @@ def enterprise_external_identities(
             es_data = enterprise_object.get("enterprise", {})
             page_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
             if not page_provider:
+                logger.warning(
+                    "No enterprise SAML provider returned while fetching external identities for enterprise '%s'",
+                    ctx.enterprise_name,
+                )
                 return
             for identity in (page_provider.get("externalIdentities") or {}).get(
                 "nodes"
@@ -415,8 +435,7 @@ def enterprise_resources(ctx: SourceContext):
     members_resource = enterprise_members(ctx)
     teams_resource = enterprise_teams(ctx)
     roles_resource = enterprise_roles(ctx)
-    saml_resource = enterprise_saml_provider(ctx)
-    return (
+    resources = [
         enterprise_resource,
         enterprise_resource | organizations_resource,
         enterprise_resource | members_resource | enterprise_users(ctx),
@@ -430,6 +449,15 @@ def enterprise_resources(ctx: SourceContext):
         enterprise_resource | roles_resource | enterprise_role_teams(ctx),
         # enterprise_resource | enterprise_admin_roles(ctx),
         enterprise_resource | enterprise_admins(ctx),
-        enterprise_resource | saml_resource,
-        enterprise_resource | saml_resource | enterprise_external_identities(ctx),
-    )
+    ]
+
+    if ctx.sso_client:
+        saml_resource = enterprise_saml_provider(ctx)
+        resources.extend(
+            [
+                enterprise_resource | saml_resource,
+                enterprise_resource | saml_resource | enterprise_external_identities(ctx),
+            ]
+        )
+
+    return tuple(resources)

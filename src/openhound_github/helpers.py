@@ -4,14 +4,11 @@ from typing import Optional
 
 from dlt.common import jsonpath
 from dlt.sources.helpers import requests
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 from dlt.sources.helpers.rest_client.paginators import (
     JSONResponseCursorPaginator,
 )
 from requests import Request
-
-from openhound_github.auth import (
-    GitHubAppInstallationAuth,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +151,7 @@ def _has_graphql_errors(response: requests.Response) -> bool:
     return isinstance(response_data, dict) and bool(response_data.get("errors"))
 
 
-def github_retry_policy(auth: GitHubAppInstallationAuth):
+def github_retry_policy(auth: AuthConfigBase):
     def retry_policy(
         response: Optional[requests.Response], exception: Optional[BaseException]
     ) -> bool:

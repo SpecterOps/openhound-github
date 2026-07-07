@@ -8,6 +8,7 @@ import dlt
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.sources.helpers import requests
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
@@ -39,6 +40,7 @@ class OrgContext:
 class SourceContext:
     organizations: list[OrgContext] | None = field(default_factory=list)
     client: RESTClient | None = None
+    sso_client: RESTClient | None = None
     enterprise_name: str | None = None
     cache_lock: Lock = field(default_factory=Lock)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -66,6 +68,7 @@ class GithubEnterpriseAppCredentials(CredentialsConfiguration):
     app_id: str = None
     key_path: str = None
     enterprise_name: str = None
+    pat_token: str | None = None
     api_uri: str = "https://api.github.com"
 
     @property
@@ -113,7 +116,7 @@ def source(
         host (str): The base GitHub API URL used for API calls.
     """
 
-    def client(auth: GitHubAppInstallationAuth) -> RESTClient:
+    def client(auth: AuthConfigBase) -> RESTClient:
         return RESTClient(
             base_url=host,
             headers={
@@ -130,6 +133,8 @@ def source(
 
     if credentials.auth == "enterprise_app":
         ctx = SourceContext(enterprise_name=credentials.enterprise_name)
+        if credentials.pat_token:
+            ctx.sso_client = client(BearerTokenAuth(token=credentials.pat_token))
         github_app_session = GithubApp(
             client_id=credentials.client_id,
             private_key_path=credentials.key_path,
