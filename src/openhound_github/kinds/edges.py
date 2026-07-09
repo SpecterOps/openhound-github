@@ -35,6 +35,12 @@ HAS_SAML_IDENTITY_PROVIDER = "GH_HasSamlIdentityProvider"
 MAPS_TO_USER = "GH_MapsToUser"
 SYNCED_TO_GH_USER = "GH_SyncedTo"
 
+# Normalized OpenGraph-SAML edges
+SAML_HAS_ACCOUNT = "SAML_HasAccount"
+SAML_HAS_ASSERTION_CONSUMER_SERVICE = "SAML_HasAssertionConsumerService"
+SAML_IMPLEMENTS = "SAML_Implements"
+SAML_TRUSTS_ISSUER = "SAML_TrustsIssuer"
+
 # Personal access token edges
 HAS_PERSONAL_ACCESS_TOKEN = "GH_HasPersonalAccessToken"
 HAS_PERSONAL_ACCESS_TOKEN_REQUEST = "GH_HasPersonalAccessTokenRequest"

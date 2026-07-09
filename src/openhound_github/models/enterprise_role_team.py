@@ -23,7 +23,7 @@ from openhound_github.models.enterprise_helpers import (
 )
 class EnterpriseRoleTeam(BaseAsset):
     id: int
-    role_id: int | str
+    role_id: str
     enterprise_node_id: str
     enterprise_slug: str
 

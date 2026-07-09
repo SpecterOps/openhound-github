@@ -63,3 +63,8 @@ WORKFLOW_STEP = "GH_WorkflowStep"
 ENTERPRISE = "GH_Enterprise"
 ENTERPRISE_TEAM = "GH_EnterpriseTeam"
 ENTERPRISE_ROLE = "GH_EnterpriseRole"
+
+# Normalized OpenGraph-SAML nodes
+SAML_ASSERTION_CONSUMER_SERVICE = "SAML_AssertionConsumerService"
+SAML_ISSUER = "SAML_Issuer"
+SAML_SERVICE_PROVIDER = "SAML_ServiceProvider"

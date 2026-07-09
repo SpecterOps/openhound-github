@@ -128,6 +128,17 @@ def source(
             ).session,
         )
 
+    def token_client(token: str) -> RESTClient:
+        return RESTClient(
+            base_url=host,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            auth=BearerTokenAuth(token=token),
+            paginator=HeaderLinkPaginator(),
+        )
+
     if credentials.auth == "enterprise_app":
         ctx = SourceContext(enterprise_name=credentials.enterprise_name)
         github_app_session = GithubApp(
@@ -179,19 +190,18 @@ def source(
         return organization_resources(ctx)
 
     else:
+        if credentials.enterprise_name:
+            ctx = SourceContext(
+                client=token_client(credentials.token),
+                enterprise_name=credentials.enterprise_name,
+            )
+            return enterprise_resources(ctx)
+
         ctx = SourceContext()
         ctx.organizations.append(
             OrgContext(
                 org_name=credentials.org_name,
-                client=RESTClient(
-                    base_url=host,
-                    headers={
-                        "Accept": "application/vnd.github+json",
-                        "X-GitHub-Api-Version": "2022-11-28",
-                    },
-                    auth=BearerTokenAuth(token=credentials.token),
-                    paginator=HeaderLinkPaginator(),
-                ),
+                client=token_client(credentials.token),
             )
         )
         return organization_resources(ctx)

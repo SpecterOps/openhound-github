@@ -27,6 +27,14 @@ from openhound_github.models import (
     EnterpriseTeamOrganization,
     EnterpriseTeamRole,
     EnterpriseUser,
+    GithubSamlAssertionConsumerService,
+    GithubSamlIssuer,
+    GithubSamlServiceProvider,
+)
+from openhound_github.models.saml import (
+    enterprise_saml_acs_row,
+    enterprise_saml_issuer_row,
+    enterprise_saml_service_provider_row,
 )
 
 logger = logging.getLogger(__name__)
@@ -266,7 +274,7 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
             if team.get("id"):
                 yield {
                     **team,
-                    "role_id": role.id,
+                    "role_id": str(role.id),
                     "enterprise_node_id": role.enterprise_node_id,
                     "enterprise_slug": role.enterprise_slug,
                 }
@@ -287,7 +295,7 @@ def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
             if user.get("node_id"):
                 yield {
                     **user,
-                    "role_id": role.id,
+                    "role_id": str(role.id),
                     "enterprise_node_id": role.enterprise_node_id,
                     "enterprise_slug": role.enterprise_slug,
                 }
@@ -362,6 +370,40 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
                 "enterprise_node_id": enterprise_data.id,
                 "enterprise_slug": ctx.enterprise_name,
             }
+            return
+
+
+@app.transformer(
+    name="enterprise_saml_service_providers",
+    columns=GithubSamlServiceProvider,
+    parallelized=True,
+)
+def enterprise_saml_service_providers(saml_provider: EnterpriseSamlProvider):
+    row = enterprise_saml_service_provider_row(saml_provider)
+    if row:
+        yield row
+
+
+@app.transformer(
+    name="enterprise_saml_issuers",
+    columns=GithubSamlIssuer,
+    parallelized=True,
+)
+def enterprise_saml_issuers(saml_provider: EnterpriseSamlProvider):
+    row = enterprise_saml_issuer_row(saml_provider)
+    if row:
+        yield row
+
+
+@app.transformer(
+    name="enterprise_saml_assertion_consumer_services",
+    columns=GithubSamlAssertionConsumerService,
+    parallelized=True,
+)
+def enterprise_saml_assertion_consumer_services(saml_provider: EnterpriseSamlProvider):
+    row = enterprise_saml_acs_row(saml_provider)
+    if row:
+        yield row
 
 
 @app.transformer(
@@ -431,5 +473,10 @@ def enterprise_resources(ctx: SourceContext):
         # enterprise_resource | enterprise_admin_roles(ctx),
         enterprise_resource | enterprise_admins(ctx),
         enterprise_resource | saml_resource,
+        enterprise_resource | saml_resource | enterprise_saml_service_providers(),
+        enterprise_resource | saml_resource | enterprise_saml_issuers(),
+        enterprise_resource
+        | saml_resource
+        | enterprise_saml_assertion_consumer_services(),
         enterprise_resource | saml_resource | enterprise_external_identities(ctx),
     )

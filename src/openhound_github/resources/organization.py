@@ -70,6 +70,14 @@ from openhound_github.models import (
     Workflow,
     WorkflowJob,
     WorkflowStep,
+    GithubSamlAssertionConsumerService,
+    GithubSamlIssuer,
+    GithubSamlServiceProvider,
+)
+from openhound_github.models.saml import (
+    org_saml_acs_row,
+    org_saml_issuer_row,
+    org_saml_service_provider_row,
 )
 from openhound_github.models.repo_role_assignment import TEAM_PERMISSION_MAP
 from openhound_github.models.repository_role import DEFAULT_REPO_ROLES
@@ -1725,6 +1733,35 @@ def saml_provider(ctx: SourceContext):
             continue
 
 
+@app.transformer(
+    name="org_saml_service_providers",
+    columns=GithubSamlServiceProvider,
+    parallelized=True,
+)
+def org_saml_service_providers(saml: SamlProvider):
+    row = org_saml_service_provider_row(saml)
+    if row:
+        yield row
+
+
+@app.transformer(name="org_saml_issuers", columns=GithubSamlIssuer, parallelized=True)
+def org_saml_issuers(saml: SamlProvider):
+    row = org_saml_issuer_row(saml)
+    if row:
+        yield row
+
+
+@app.transformer(
+    name="org_saml_assertion_consumer_services",
+    columns=GithubSamlAssertionConsumerService,
+    parallelized=True,
+)
+def org_saml_assertion_consumer_services(saml: SamlProvider):
+    row = org_saml_acs_row(saml)
+    if row:
+        yield row
+
+
 @app.resource(name="external_identities", columns=ExternalIdentity, parallelized=True)
 def external_identities(ctx: SourceContext):
     """Fetch external identities linked to the SAML provider.
@@ -1834,6 +1871,7 @@ def organization_resources(ctx: SourceContext):
     organization_secrets_resource = organization_secrets(ctx)
     organization_vars_resource = organization_variables(ctx)
     projected_enterprise_teams_resource = projected_enterprise_teams(ctx)
+    saml_resource = saml_provider(ctx)
 
     return (
         org_resource,
@@ -1860,7 +1898,10 @@ def organization_resources(ctx: SourceContext):
         repositories_graphql_resource | branches(ctx),
         branch_prot_rules_resource,
         secret_scanning_alerts(ctx),
-        saml_provider(ctx),
+        saml_resource,
+        saml_resource | org_saml_service_providers(),
+        saml_resource | org_saml_issuers(),
+        saml_resource | org_saml_assertion_consumer_services(),
         external_identities(ctx),
         workflows_resource,
         workflows_resource | workflow_jobs(),

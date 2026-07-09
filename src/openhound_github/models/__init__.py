@@ -42,6 +42,11 @@ from .repository_secret import RepoSecret
 from .repository_variable import RepoVariable
 from .runner import OrgRunner, OrgRunnerGroupMembership, RepoRunner, RunnerGroup
 from .saml_provider import SamlProvider
+from .saml import (
+    GithubSamlAssertionConsumerService,
+    GithubSamlIssuer,
+    GithubSamlServiceProvider,
+)
 from .scim_user import ScimResource
 from .secret_scanning_alert import SecretScanningAlert
 from .team import Team
@@ -93,6 +98,9 @@ __all__ = [
     "SelectedOrgSecret",
     "PersonalAccessTokenRequest",
     "SamlProvider",
+    "GithubSamlAssertionConsumerService",
+    "GithubSamlIssuer",
+    "GithubSamlServiceProvider",
     "ExternalIdentity",
     "ScimResource",
     "RepoRoleAssignment",

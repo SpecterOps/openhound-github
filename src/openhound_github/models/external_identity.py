@@ -14,6 +14,11 @@ from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.saml import (
+    GithubSamlHasAccountProperties,
+    github_org_saml_service_provider_id,
+    saml_account_match_values,
+)
 
 _FOREIGN_USER_KIND: dict[str, str] = {
     "entra": "AZUser",
@@ -101,6 +106,13 @@ class User(BaseModel):
             kind=ek.SYNCED_TO_GH_USER,
             description="Foreign IdP user is synced to a GitHub user",
             traversable=True,
+        ),
+        EdgeDef(
+            start=nk.SAML_SERVICE_PROVIDER,
+            end=nk.USER,
+            kind=ek.SAML_HAS_ACCOUNT,
+            description="GitHub SAML service provider has a linked account",
+            traversable=False,
         ),
     ],
 )
@@ -260,3 +272,23 @@ class ExternalIdentity(BaseAsset):
             )
 
         yield from self._maps_to_user_edges
+
+        match_values = saml_account_match_values(
+            self.saml_identity.username if self.saml_identity else None,
+            self.saml_identity.name_id if self.saml_identity else None,
+            self.scim_identity.username if self.scim_identity else None,
+        )
+        if self.user and self.user.id and match_values:
+            yield Edge(
+                kind=ek.SAML_HAS_ACCOUNT,
+                start=EdgePath(
+                    value=github_org_saml_service_provider_id(self.org_login),
+                    match_by="id",
+                ),
+                end=EdgePath(value=self.user.id, match_by="id"),
+                properties=GithubSamlHasAccountProperties(
+                    traversable=False,
+                    match_values=match_values,
+                    account_state="unknown",
+                ),
+            )

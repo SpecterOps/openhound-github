@@ -15,6 +15,11 @@ from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.enterprise_saml_provider import EnterpriseSamlProvider
+from openhound_github.models.saml import (
+    GithubSamlHasAccountProperties,
+    github_enterprise_saml_service_provider_id,
+    saml_account_match_values,
+)
 
 
 class EnterpriseIdentityName(BaseModel):
@@ -84,6 +89,13 @@ class GHEnterpriseExternalIdentityProperties(GHNodeProperties):
             end=nk.USER,
             kind=ek.MAPS_TO_USER,
             description="External identity maps to GitHub user",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.SAML_SERVICE_PROVIDER,
+            end=nk.USER,
+            kind=ek.SAML_HAS_ACCOUNT,
+            description="GitHub SAML service provider has a linked account",
             traversable=False,
         ),
     ],
@@ -200,3 +212,25 @@ class EnterpriseExternalIdentity(BaseAsset):
                     end=EdgePath(value=self.user.id, match_by="id"),
                     properties=EdgeProperties(traversable=True),
                 )
+
+        match_values = saml_account_match_values(
+            self.foreign_username,
+            self.saml_identity.name_id if self.saml_identity else None,
+            self.scim_identity.username if self.scim_identity else None,
+        )
+        if self.user and self.user.id and match_values:
+            yield Edge(
+                kind=ek.SAML_HAS_ACCOUNT,
+                start=EdgePath(
+                    value=github_enterprise_saml_service_provider_id(
+                        self.enterprise_slug
+                    ),
+                    match_by="id",
+                ),
+                end=EdgePath(value=self.user.id, match_by="id"),
+                properties=GithubSamlHasAccountProperties(
+                    traversable=False,
+                    match_values=match_values,
+                    account_state="unknown",
+                ),
+            )

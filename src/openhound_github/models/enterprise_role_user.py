@@ -22,7 +22,7 @@ class EnterpriseRoleUser(BaseAsset):
     node_id: str
     login: str | None = None
     assignment: str | None = None
-    role_id: int | str
+    role_id: str
     enterprise_node_id: str
     enterprise_slug: str
 
