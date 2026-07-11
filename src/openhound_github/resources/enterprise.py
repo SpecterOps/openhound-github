@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from dlt.sources.helpers.rest_client.client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
 
 from openhound_github.graphql import (
     ENTERPRISE_ADMINS_QUERY,
@@ -30,7 +31,12 @@ from openhound_github.models import (
     GithubSamlAssertionConsumerService,
     GithubSamlIssuer,
     GithubSamlServiceProvider,
+    GithubOidcCorrelation,
+    ScimGroup,
+    ScimOrganization,
+    ScimUser,
 )
+from openhound_github.models.oidc import iter_github_oidc_rows
 from openhound_github.models.saml import (
     enterprise_saml_acs_row,
     enterprise_saml_issuer_row,
@@ -47,6 +53,40 @@ class SourceContext:
     client: RESTClient
     org_name: str | None = None
     enterprise_name: str | None = None
+    scim_client: RESTClient | None = None
+    collect_enterprise_scim: bool = False
+    emit_legacy_scim_correlations: bool = False
+    azurehound_path: str | None = None
+
+
+def iter_enterprise_scim_resources(
+    client: RESTClient,
+    enterprise_slug: str,
+    resource_kind: str,
+):
+    """Yield every row from one enterprise SCIM endpoint.
+
+    SCIM uses one-based ``startIndex`` pagination rather than GitHub's normal
+    Link-header pagination. Errors are deliberately not swallowed: when SCIM
+    collection is explicitly enabled, partial identity output is material.
+    """
+
+    if resource_kind not in {"Users", "Groups"}:
+        raise ValueError(f"Unsupported enterprise SCIM resource: {resource_kind}")
+    paginator = OffsetPaginator(
+        offset_param="startIndex",
+        limit_param="count",
+        limit=100,
+        offset=1,
+        total_path="totalResults",
+    )
+    for page in client.paginate(
+        f"/scim/v2/enterprises/{enterprise_slug}/{resource_kind}",
+        params={"startIndex": 1, "count": 100},
+        paginator=paginator,
+        data_selector="Resources",
+    ):
+        yield from page
 
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
@@ -62,24 +102,30 @@ def enterprise(ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name, "after": None},
     }
 
-    try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            page_enterprise = page_data[0].get("enterprise")
-
-            if page_enterprise:
-                yield page_enterprise
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise", "phase": "resource_iteration"},
+    if not ctx.client:
+        raise RuntimeError(
+            f"No enterprise API client is available for '{ctx.enterprise_name}'"
         )
-        return
+
+    found_enterprise = False
+    for page_data in ctx.client.paginate(
+        "/graphql",
+        method="POST",
+        json=data,
+        paginator=paginator,
+        data_selector="data",
+    ):
+        page_enterprise = page_data[0].get("enterprise")
+        if page_enterprise:
+            found_enterprise = True
+            yield page_enterprise
+
+    if not found_enterprise:
+        raise RuntimeError(
+            f"GitHub did not return enterprise '{ctx.enterprise_name}'. "
+            "Verify the enterprise slug and use a token or App installation "
+            "that can read this enterprise."
+        )
 
 
 @app.transformer(
@@ -93,6 +139,63 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
             "enterprise_node_id": enterprise_data.id,
             "enterprise_slug": ctx.enterprise_name,
         }
+
+
+@app.transformer(
+    name="enterprise_scim_organizations",
+    columns=ScimOrganization,
+    parallelized=True,
+)
+def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    yield {
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
+
+
+@app.transformer(
+    name="enterprise_scim_users", columns=ScimUser, parallelized=True
+)
+def enterprise_scim_users(enterprise_data: Enterprise, ctx: SourceContext):
+    scim_client = ctx.scim_client or ctx.client
+    if not scim_client or not ctx.enterprise_name:
+        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+    for user in iter_enterprise_scim_resources(
+        scim_client, ctx.enterprise_name, "Users"
+    ):
+        yield {
+            **user,
+            "enterprise_node_id": enterprise_data.id,
+            "enterprise_slug": ctx.enterprise_name,
+            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
+        }
+
+
+@app.transformer(
+    name="enterprise_scim_groups", columns=ScimGroup, parallelized=True
+)
+def enterprise_scim_groups(enterprise_data: Enterprise, ctx: SourceContext):
+    scim_client = ctx.scim_client or ctx.client
+    if not scim_client or not ctx.enterprise_name:
+        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+    for group in iter_enterprise_scim_resources(
+        scim_client, ctx.enterprise_name, "Groups"
+    ):
+        yield {
+            **group,
+            "enterprise_node_id": enterprise_data.id,
+            "enterprise_slug": ctx.enterprise_name,
+            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
+        }
+
+
+@app.resource(
+    name="github_oidc_correlations",
+    columns=GithubOidcCorrelation,
+    parallelized=True,
+)
+def github_oidc_correlations(path: str):
+    yield from iter_github_oidc_rows(path)
 
 
 @app.transformer(name="enterprise_members", columns=BaseUser, parallelized=True)
@@ -252,6 +355,16 @@ def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
         "id": "owners",
         "name": "owners",
         "description": "Enterprise administrators discovered from ownerInfo.admins",
+        "source": "Default",
+        "permissions": [],
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
+
+    yield {
+        "id": "members",
+        "name": "members",
+        "description": "Built-in role assigned to enterprise members",
         "source": "Default",
         "permissions": [],
         "enterprise_node_id": enterprise_data.id,
@@ -458,7 +571,7 @@ def enterprise_resources(ctx: SourceContext):
     teams_resource = enterprise_teams(ctx)
     roles_resource = enterprise_roles(ctx)
     saml_resource = enterprise_saml_provider(ctx)
-    return (
+    resources = [
         enterprise_resource,
         enterprise_resource | organizations_resource,
         enterprise_resource | members_resource | enterprise_users(ctx),
@@ -479,4 +592,15 @@ def enterprise_resources(ctx: SourceContext):
         | saml_resource
         | enterprise_saml_assertion_consumer_services(),
         enterprise_resource | saml_resource | enterprise_external_identities(ctx),
-    )
+    ]
+    if ctx.collect_enterprise_scim:
+        resources.extend(
+            [
+                enterprise_resource | enterprise_scim_organizations(ctx),
+                enterprise_resource | enterprise_scim_users(ctx),
+                enterprise_resource | enterprise_scim_groups(ctx),
+            ]
+        )
+    if ctx.azurehound_path:
+        resources.append(github_oidc_correlations(ctx.azurehound_path))
+    return tuple(resources)

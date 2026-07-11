@@ -41,6 +41,46 @@ SAML_HAS_ASSERTION_CONSUMER_SERVICE = "SAML_HasAssertionConsumerService"
 SAML_IMPLEMENTS = "SAML_Implements"
 SAML_TRUSTS_ISSUER = "SAML_TrustsIssuer"
 
+# Normalized OpenGraph-SCIM edges
+SCIM_CONTAINS = "SCIM_Contains"
+SCIM_MEMBER_OF = "SCIM_MemberOf"
+SCIM_HAS_ROLE = "SCIM_HasRole"
+SCIM_MANAGER_OF = "SCIM_ManagerOf"
+SCIM_PROVISIONED = "SCIM_Provisioned"
+
+# GitHub Actions OIDC correlation. The Azure endpoint is collected by
+# AzureHound; this extension emits only the cross-source relationship.
+CAN_ASSUME_IDENTITY = "GH_CanAssumeIdentity"
+
+# Enterprise role capability edges
+CREATE_ENTERPRISE_ORGANIZATIONS = "GH_CreateEnterpriseOrganizations"
+EDIT_ENTERPRISE_CUSTOM_PROPERTIES_FOR_ORGANIZATIONS = (
+    "GH_EditEnterpriseCustomPropertiesForOrganizations"
+)
+MANAGE_ENTERPRISE_ADMINS = "GH_ManageEnterpriseAdmins"
+MANAGE_ENTERPRISE_IDENTITY_PROVIDER = "GH_ManageEnterpriseIdentityProvider"
+MANAGE_ENTERPRISE_MEMBERS = "GH_ManageEnterpriseMembers"
+MANAGE_ENTERPRISE_ORGANIZATION_ADMINS = "GH_ManageEnterpriseOrganizationAdmins"
+MANAGE_ENTERPRISE_ORGANIZATIONS = "GH_ManageEnterpriseOrganizations"
+MANAGE_ENTERPRISE_REFERRALS = "GH_ManageEnterpriseReferrals"
+MANAGE_ENTERPRISE_TEAMS = "GH_ManageEnterpriseTeams"
+READ_ENTERPRISE_AUDIT_LOG = "GH_ReadEnterpriseAuditLog"
+READ_ENTERPRISE_DOMAIN_VERIFICATION = "GH_ReadEnterpriseDomainVerification"
+READ_ENTERPRISE_MEMBERS = "GH_ReadEnterpriseMembers"
+READ_ENTERPRISE_ORG_PROJECTS = "GH_ReadEnterpriseOrgProjects"
+READ_ENTERPRISE_ORGANIZATION_ADMIN = "GH_ReadEnterpriseOrganizationAdmin"
+SET_ENTERPRISE_INTERACTION_LIMITS = "GH_SetEnterpriseInteractionLimits"
+VIEW_ENTERPRISE_ACTIONS_USAGE_METRICS = "GH_ViewEnterpriseActionsUsageMetrics"
+VIEW_ENTERPRISE_BILLING = "GH_ViewEnterpriseBilling"
+VIEW_ENTERPRISE_SECRET_SCANNING_ALERTS = "GH_ViewEnterpriseSecretScanningAlerts"
+WRITE_ENTERPRISE_ACTIONS_POLICIES = "GH_WriteEnterpriseActionsPolicies"
+WRITE_ENTERPRISE_BILLING = "GH_WriteEnterpriseBilling"
+WRITE_ENTERPRISE_PERSONAL_ACCESS_TOKEN_POLICIES = (
+    "GH_WriteEnterprisePersonalAccessTokenPolicies"
+)
+WRITE_ENTERPRISE_SSO = "GH_WriteEnterpriseSso"
+WRITE_ENTERPRISE_TEAM_MEMBERS = "GH_WriteEnterpriseTeamMembers"
+
 # Personal access token edges
 HAS_PERSONAL_ACCESS_TOKEN = "GH_HasPersonalAccessToken"
 HAS_PERSONAL_ACCESS_TOKEN_REQUEST = "GH_HasPersonalAccessTokenRequest"

@@ -59,6 +59,7 @@ from openhound_github.models import (
     RepoVariable,
     RunnerGroup,
     SamlProvider,
+    ScimOrganization,
     ScimResource,
     SecretScanningAlert,
     SelectedOrgSecret,
@@ -1829,13 +1830,14 @@ def scim_users(ctx: SourceContext):
         try:
             scim_paginator = OffsetPaginator(
                 offset_param="startIndex",
-                limit_param="itemsPerPage",
+                limit_param="count",
                 limit=100,
+                offset=1,
                 total_path="totalResults",
             )
             for page in client.paginate(
                 f"/scim/v2/organizations/{org_name}/Users",
-                params={"startIndex": 1, "itemsPerPage": 100},
+                params={"startIndex": 1, "count": 100},
                 paginator=scim_paginator,
                 data_selector="Resources",
             ):
@@ -1850,6 +1852,18 @@ def scim_users(ctx: SourceContext):
                 extra={"resource": "scim_users", "phase": "resource_iteration"},
             )
             continue
+
+
+@app.transformer(
+    name="org_scim_organizations", columns=ScimOrganization, parallelized=True
+)
+def org_scim_organizations(org: Organization):
+    """Materialize the normalized SCIM container for an organization endpoint."""
+
+    yield {
+        "org_login": org.login,
+        "org_node_id": org.node_id,
+    }
 
 
 def organization_resources(ctx: SourceContext):
@@ -1890,6 +1904,7 @@ def organization_resources(ctx: SourceContext):
         repos_resource | repository_variables(ctx),
         teams_resource,
         projected_enterprise_teams_resource,
+        org_resource | org_scim_organizations(),
         teams_resource | team_members(ctx),
         teams_resource | team_roles(),
         teams_resource | team_repo_role_assignments(ctx, repo_roles_base),

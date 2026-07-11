@@ -40,6 +40,10 @@ class SourceContext:
     organizations: list[OrgContext] | None = field(default_factory=list)
     client: RESTClient | None = None
     enterprise_name: str | None = None
+    scim_client: RESTClient | None = None
+    collect_enterprise_scim: bool = False
+    emit_legacy_scim_correlations: bool = False
+    azurehound_path: str | None = None
     cache_lock: Lock = field(default_factory=Lock)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -63,7 +67,10 @@ class GithubCredentials(CredentialsConfiguration):
 @configspec
 class GithubEnterpriseAppCredentials(CredentialsConfiguration):
     client_id: str = None
-    app_id: str = None
+    # GitHub's current App JWT flow accepts the client ID as issuer. Retain the
+    # legacy app_id field as optional compatibility input rather than making it
+    # an unused required secret.
+    app_id: str | None = None
     key_path: str = None
     enterprise_name: str = None
     api_uri: str = "https://api.github.com"
@@ -89,6 +96,7 @@ class GithubOrgAppCredentials(CredentialsConfiguration):
 @configspec
 class GithubTokenCredentials(GithubCredentials):
     token: str = None
+    scim_token: str | None = None
 
     @property
     def auth(self) -> str:
@@ -105,6 +113,9 @@ def source(
         GithubEnterpriseAppCredentials, GithubOrgAppCredentials, GithubTokenCredentials
     ] = dlt.secrets.value,
     host: str = "https://api.github.com",
+    collect_enterprise_scim: bool | None = dlt.config.value,
+    emit_legacy_scim_correlations: bool | None = dlt.config.value,
+    azurehound_path: str | None = dlt.config.value,
 ):
     """DLT source, defines GitHub collection resources and transformers.
 
@@ -140,7 +151,12 @@ def source(
         )
 
     if credentials.auth == "enterprise_app":
-        ctx = SourceContext(enterprise_name=credentials.enterprise_name)
+        ctx = SourceContext(
+            enterprise_name=credentials.enterprise_name,
+            collect_enterprise_scim=bool(collect_enterprise_scim),
+            emit_legacy_scim_correlations=bool(emit_legacy_scim_correlations),
+            azurehound_path=azurehound_path,
+        )
         github_app_session = GithubApp(
             client_id=credentials.client_id,
             private_key_path=credentials.key_path,
@@ -193,7 +209,15 @@ def source(
         if credentials.enterprise_name:
             ctx = SourceContext(
                 client=token_client(credentials.token),
+                scim_client=token_client(credentials.scim_token)
+                if credentials.scim_token
+                else None,
                 enterprise_name=credentials.enterprise_name,
+                collect_enterprise_scim=bool(collect_enterprise_scim),
+                emit_legacy_scim_correlations=bool(
+                    emit_legacy_scim_correlations
+                ),
+                azurehound_path=azurehound_path,
             )
             return enterprise_resources(ctx)
 

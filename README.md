@@ -34,6 +34,28 @@ The openhound-github extension collects resources from Github organizations and 
 edges for
 BloodHound.
 
+### Enterprise SCIM and hybrid correlations
+
+Enterprise App collection covers the enterprise itself and every organization installed for the configured GitHub App;
+token-based enterprise collection covers only enterprise resources. When
+`SOURCES__GITHUB__COLLECT_ENTERPRISE_SCIM=true`, a token with enterprise SCIM access is used to collect both
+`/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized
+`SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and
+`SCIM_Provisioned` relationships. Install the
+[BloodHound SCIM extension](https://github.com/SpecterOps/bloodhound-scim-extension) with this extension to register the
+shared SCIM kinds.
+
+`SOURCES__GITHUB__EMIT_LEGACY_SCIM_CORRELATIONS=true` temporarily reproduces GitHound's Okta-to-SCIM correlation
+relationships. It defaults to false because a future hybrid `openhound-scim` correlator should own IdP-to-SCIM matching;
+GitHub remains authoritative for GitHub's SCIM resources and target-system provisioning relationships.
+
+When `SOURCES__GITHUB__AZUREHOUND_PATH` points to AzureHound CE JSON, the collector emits deduplicated
+`GH_CanAssumeIdentity` relationships for GitHub Actions OIDC subjects. AzureHound remains authoritative for
+`AZFederatedIdentityCredential` nodes, and a future hybrid correlator should eventually own this cross-source matching.
+
+Enterprise roles, including the built-in members role, are converted to `GH_HasRole` and granular enterprise capability
+relationships rather than a single coarse permission edge.
+
 [![Python Version](https://img.shields.io/badge/Python-3.13-brightgreen.svg)](#about)
 
 ## Getting Started

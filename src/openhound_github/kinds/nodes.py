@@ -68,3 +68,12 @@ ENTERPRISE_ROLE = "GH_EnterpriseRole"
 SAML_ASSERTION_CONSUMER_SERVICE = "SAML_AssertionConsumerService"
 SAML_ISSUER = "SAML_Issuer"
 SAML_SERVICE_PROVIDER = "SAML_ServiceProvider"
+
+# Normalized OpenGraph-SCIM nodes
+SCIM_ORGANIZATION = "SCIM_Organization"
+SCIM_USER = "SCIM_User"
+SCIM_GROUP = "SCIM_Group"
+SCIM_ROLE = "SCIM_Role"
+
+# External node kinds used only as correlation endpoints
+AZ_FEDERATED_IDENTITY_CREDENTIAL = "AZFederatedIdentityCredential"

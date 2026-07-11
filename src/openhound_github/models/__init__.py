@@ -34,6 +34,7 @@ from .org_variable import OrgVariable, SelectedOrgVariable
 from .personal_access_token import PersonalAccessToken
 from .personal_access_token_access import PatRepoAccess
 from .personal_access_token_request import PersonalAccessTokenRequest
+from .oidc import GithubOidcCorrelation
 from .projected_enterprise_team import ProjectedEnterpriseTeam
 from .repo_role_assignment import RepoRoleAssignment
 from .repository import Repository, RepositoryQL
@@ -47,7 +48,7 @@ from .saml import (
     GithubSamlIssuer,
     GithubSamlServiceProvider,
 )
-from .scim_user import ScimResource
+from .scim_user import ScimGroup, ScimOrganization, ScimResource, ScimUser
 from .secret_scanning_alert import SecretScanningAlert
 from .team import Team
 from .team_member import TeamMember
@@ -103,6 +104,10 @@ __all__ = [
     "GithubSamlServiceProvider",
     "ExternalIdentity",
     "ScimResource",
+    "ScimUser",
+    "ScimGroup",
+    "ScimOrganization",
+    "GithubOidcCorrelation",
     "RepoRoleAssignment",
     "Environment",
     "EnvironmentSecret",

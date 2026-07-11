@@ -30,3 +30,10 @@ class GHEdgeProperties(EdgeProperties):
 
     query_composition: str | None = None
     reason: str | None = None
+
+
+@dataclass
+class GHOidcEdgeProperties(EdgeProperties):
+    """Evidence carried on a GitHub Actions OIDC trust relationship."""
+
+    subject: str | None = None
