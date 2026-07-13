@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass, field as dc_field
 from typing import Any
 
@@ -27,6 +28,13 @@ def _dedupe(values: list[str | None]) -> list[str]:
             seen.add(cleaned)
             result.append(cleaned)
     return result
+
+
+def _provider_field(provider: Any, field: str) -> Any:
+    """Read a provider field from either a model or a DLT-replayed mapping."""
+    if isinstance(provider, Mapping):
+        return provider.get(field)
+    return getattr(provider, field)
 
 
 def github_enterprise_saml_service_provider_id(slug: str) -> str:
@@ -114,15 +122,15 @@ def enterprise_saml_acs_row(provider) -> dict[str, Any] | None:
 
 
 def org_saml_service_provider_row(provider) -> dict[str, Any] | None:
-    if not _clean(provider.issuer):
+    if not _clean(_provider_field(provider, "issuer")):
         return None
-    login = provider.org_login
+    login = _provider_field(provider, "org_login")
     return {
         "id": github_org_saml_service_provider_id(login),
-        "native_id": provider.org_node_id,
+        "native_id": _provider_field(provider, "org_node_id"),
         "scope_type": "organization",
         "scope_slug": login,
-        "saml_provider_id": provider.id,
+        "saml_provider_id": _provider_field(provider, "id"),
         "issuer_id": github_org_saml_issuer_id(login),
         "acs_id": github_org_saml_acs_id(login),
         "enabled": True,
@@ -130,13 +138,13 @@ def org_saml_service_provider_row(provider) -> dict[str, Any] | None:
 
 
 def org_saml_issuer_row(provider) -> dict[str, Any] | None:
-    issuer = _clean(provider.issuer)
+    issuer = _clean(_provider_field(provider, "issuer"))
     if not issuer:
         return None
-    login = provider.org_login
+    login = _provider_field(provider, "org_login")
     return {
         "id": github_org_saml_issuer_id(login),
-        "native_id": provider.org_node_id,
+        "native_id": _provider_field(provider, "org_node_id"),
         "scope_type": "organization",
         "scope_slug": login,
         "entity_id": issuer,
@@ -144,12 +152,12 @@ def org_saml_issuer_row(provider) -> dict[str, Any] | None:
 
 
 def org_saml_acs_row(provider) -> dict[str, Any] | None:
-    if not _clean(provider.issuer):
+    if not _clean(_provider_field(provider, "issuer")):
         return None
-    login = provider.org_login
+    login = _provider_field(provider, "org_login")
     return {
         "id": github_org_saml_acs_id(login),
-        "native_id": provider.org_node_id,
+        "native_id": _provider_field(provider, "org_node_id"),
         "scope_type": "organization",
         "scope_slug": login,
         "acs_url": github_org_acs_url(login),
