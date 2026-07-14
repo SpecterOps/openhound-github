@@ -15,11 +15,11 @@ from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 
-_FOREIGN_USER_KIND: dict[str, str] = {
-    "entra": "AZUser",
-    "okta": "Okta_User",
-    "pingone": "PingOne_User",
-}
+from .saml_helpers import (
+    build_service_provider_node_id,
+    detect_foreign_idp,
+    foreign_user_kind,
+)
 
 @dataclass
 class SAMLHasAccountEdgeProperties(EdgeProperties):
@@ -172,22 +172,6 @@ class ExternalIdentity(BaseAsset):
             ),
         )
 
-    @staticmethod
-    def detect_foreign_idp(
-        issuer: str | None, sso_url: str | None
-    ) -> tuple[str | None, str | None]:
-        """Detect the foreign IdP type and tenant/environment ID from the issuer or SSO URL."""
-        if not issuer:
-            return None, None
-        if issuer.startswith("https://auth.pingone.com/"):
-            return "pingone", issuer.split("/")[3]
-        if issuer.startswith("https://sts.windows.net/"):
-            return "entra", issuer.split("/")[3]
-        if issuer.startswith("http://www.okta.com/"):
-            domain = (sso_url or "").split("/")[2] if sso_url else None
-            return "okta", domain
-        return None, None
-
     @property
     def idp(self) -> dict:
         ext_idp = self._lookup.idp_for_environment(self.environment_slug)
@@ -199,22 +183,23 @@ class ExternalIdentity(BaseAsset):
                 "environment_node_id": None,
                 "environment_name": None,
             }
-        id, issuer, sso_url, environment_node_id, environment_name = ext_idp[0]
+        provider_id, issuer, sso_url, environment_node_id, environment_name, environment_type = ext_idp[0]
         return {
-            "id": id,
+            "id": provider_id,
             "issuer": issuer,
             "sso_url": sso_url,
             "environment_node_id": environment_node_id,
             "environment_name": environment_name,
+            "environment_type": environment_type,
         }
 
     @property
     def _maps_to_user_edges(self):
-        foreign_idp_type, foreign_env_id = self.detect_foreign_idp(
+        foreign_idp_type, foreign_env_id = detect_foreign_idp(
             issuer=self.idp["issuer"],
             sso_url=self.idp["sso_url"],
         )
-        foreign_kind = _FOREIGN_USER_KIND.get(foreign_idp_type or "", "")
+        foreign_kind = foreign_user_kind(foreign_idp_type)
 
         foreign_env_key = None
         if foreign_idp_type == "okta":
@@ -239,6 +224,7 @@ class ExternalIdentity(BaseAsset):
             match_key = "login"
 
         # # GH_MapsToUser → foreign IdP user node (match by name)
+        matchers = None
         if foreign_kind and foreign_username:
             matchers = [PropertyMatch(key=match_key, value=foreign_username)]
             if foreign_env_key and foreign_env_id:
@@ -257,18 +243,7 @@ class ExternalIdentity(BaseAsset):
             )
 
         # SyncedToGHUser: foreign IdP user → GitHub user (traversable, with composition)
-        match_key = "name"
-
-        if foreign_idp_type == "pingone":
-            match_key = "email"
-
-        if foreign_kind and foreign_username and self.user and self.user.id:
-            matchers = [PropertyMatch(key=match_key, value=foreign_username)]
-            if foreign_env_key and foreign_env_id:
-                matchers.append(
-                    PropertyMatch(key=foreign_env_key, value=foreign_env_id)
-                )
-
+        if matchers and self.user and self.user.id:
             gh_id = self.node_id.upper()
             q = (
                 f"MATCH p=()<-[:GH_SyncedToEnvironment]-(:GH_SamlIdentityProvider)"
@@ -292,13 +267,10 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def service_provider_node_id(self) -> str | None:
-        environment_slug = self.environment_slug
-        environment_node_id = self.idp.get("environment_node_id")
-        if not environment_slug or not environment_node_id:
-            return None
-
-        environment_type = "enterprise" if environment_node_id.startswith("E_") else "org"
-        return f"saml:sp:github:{environment_type}:{environment_slug}"
+        return build_service_provider_node_id(
+            self.idp.get("environment_type"),
+            self.environment_slug,
+        )
 
     @property
     def saml_match_values(self) -> list[str]:

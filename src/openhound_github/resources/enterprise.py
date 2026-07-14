@@ -481,11 +481,6 @@ def enterprise_external_identity(
                 yield {
                     **identity,
                     "environment_slug": saml_provider.get("environment_slug"),
-                    "environment_node_id": saml_provider.get("environment_node_id"),
-                    "environment_name": saml_provider.get("environment_name"),
-                    "saml_provider_id": saml_provider.get("id"),
-                    "saml_provider_issuer": saml_provider.get("issuer"),
-                    "saml_provider_sso_url": saml_provider.get("sso_url"),
                 }
 
 

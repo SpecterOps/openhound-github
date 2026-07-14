@@ -100,7 +100,7 @@ class GithubLookup(LookupManager):
     @lru_cache
     def idp_for_environment(self, environment_slug: str) -> list:
         return self._find_all_objects(
-            f"""SELECT id, issuer, sso_url, environment_node_id, environment_name FROM {self.schema}.saml_provider WHERE environment_slug = ?""",
+            f"""SELECT id, issuer, sso_url, environment_node_id, environment_name, environment_type FROM {self.schema}.saml_provider WHERE environment_slug = ?""",
             [environment_slug],
         )
 

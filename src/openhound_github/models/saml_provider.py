@@ -8,6 +8,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from .saml_helpers import build_service_provider_node_id, detect_foreign_idp, foreign_user_kind
 
 
 @dataclass
@@ -86,25 +87,9 @@ class SamlProvider(BaseAsset):
         """The ID from a GraphQL API response is the same as a regular node_id"""
         return self.id
 
-    @staticmethod
-    def detect_foreign_environment(
-        issuer: str | None, sso_url: str | None
-    ) -> tuple[str | None, str | None]:
-        if not issuer:
-            return None, None
-        if issuer.startswith("https://auth.pingone.com/"):
-            return "PingOneUser", issuer.split("/")[3]
-        if issuer.startswith("https://sts.windows.net/"):
-            return "AZUser", issuer.split("/")[3]
-        if issuer.startswith("http://www.okta.com/"):
-            return "Okta_User", sso_url.split("/")[2] if sso_url else None
-        return None, None
-
     @property
     def as_node(self) -> GHNode:
-        _, foreign_environment_id = self.detect_foreign_environment(
-            self.issuer, self.sso_url
-        )
+        _, foreign_environment_id = detect_foreign_idp(self.issuer, self.sso_url)
         return GHNode(
             kinds=[nk.SAML_IDENTITY_PROVIDER],
             properties=GHSamlProviderProperties(

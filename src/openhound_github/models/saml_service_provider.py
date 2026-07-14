@@ -8,6 +8,12 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from .saml_helpers import (
+    build_issuer_node_id,
+    build_saml_route,
+    build_service_provider_node_id,
+    normalize_scope_type,
+)
 
 @dataclass
 class SAMLServiceProviderProperties(GHNodeProperties):
@@ -73,24 +79,26 @@ class SamlServiceProvider(BaseAsset):
 
     @property
     def service_provider_node_id(self) -> str:
-        return f"saml:sp:github:{self.environment_type}:{self.environment_slug}"
+        return build_service_provider_node_id(
+            self.environment_type,
+            self.environment_slug,
+        )
 
     @property
-    def issuer_node_id(self) -> str:
-        return f"saml:trusted-issuer:{self.issuer}"
+    def issuer_node_id(self) -> str | None:
+        return build_issuer_node_id(self.issuer)
 
     @property
     def saml_route(self) -> tuple[str, str]:
-        if self.environment_type == "enterprise":
-            base = f"https://github.com/enterprises/{self.environment_slug}"
-        else:
-            base = f"https://github.com/orgs/{self.environment_slug}"
-        return f"{base}/saml/consume", base
+        return build_saml_route(
+            self.environment_type,
+            self.environment_slug,
+        )
 
     @property
     def as_node(self) -> GHNode:
-        acs_url, sp_entity_id = self.saml_route
-        scope_type = "organization" if self.environment_type == "org" else self.environment_type
+        _, sp_entity_id = self.saml_route
+        scope_type = normalize_scope_type(self.environment_type)
         return GHNode(
             kinds=[nk.SAML_SERVICE_PROVIDER],
             properties=SAMLServiceProviderProperties(

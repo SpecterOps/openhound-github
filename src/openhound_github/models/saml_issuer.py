@@ -7,6 +7,12 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.kinds import edges as ek
 from openhound_github.main import app
 
+from .saml_helpers import (
+    build_issuer_node_id,
+    build_service_provider_node_id,
+    normalize_scope_type,
+)
+
 @dataclass
 class SAMLIssuerProperties(GHNodeProperties):
     """Properties for a normalized GitHub trusted SAML issuer.
@@ -47,16 +53,19 @@ class SamlIssuer(BaseAsset):
     environment_name: str | None = None
 
     @property
-    def node_id(self) -> str:
-        return f"saml:trusted-issuer:{self.issuer}"
+    def node_id(self) -> str | None:
+        return build_issuer_node_id(self.issuer)
     
     @property
     def service_provider_node_id(self) -> str:
-        return f"saml:sp:github:{self.environment_type}:{self.environment_slug}"
+        return build_service_provider_node_id(
+            self.environment_type,
+            self.environment_slug,
+        )
 
     @property
     def as_node(self) -> GHNode:
-        scope_type = "organization" if self.environment_type == "org" else self.environment_type
+        scope_type = normalize_scope_type(self.environment_type)
 
         return GHNode(
             kinds=[nk.SAML_ISSUER],

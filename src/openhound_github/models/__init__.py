@@ -96,7 +96,6 @@ __all__ = [
     "SamlAssertionConsumerService",
     "SamlProvider",
     "SamlServiceProvider",
-    "ExternalIdentity",
     "SamlIssuer",
     "ExternalIdentity",
     "ScimResource",
