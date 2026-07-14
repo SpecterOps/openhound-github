@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 _FOREIGN_USER_KIND = {
     "entra": "AZUser",
     "okta": "Okta_User",
@@ -18,7 +20,7 @@ def detect_foreign_idp(
         return "entra", issuer.split("/")[3]
 
     if issuer.startswith("http://www.okta.com/"):
-        domain = (sso_url or "").split("/")[2] if sso_url else None
+        domain = urlparse(sso_url).netloc if sso_url else None
         return "okta", domain
 
     return None, None

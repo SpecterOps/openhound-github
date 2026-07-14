@@ -1734,7 +1734,6 @@ def external_identities(ctx: SourceContext):
     """Fetch external identities linked to the SAML provider.
 
     Args:
-        saml (SamlProvider): The SAML provider to extract identities for.
         ctx (SourceContext): The shared context containing the REST client and organization name.
 
     Yields:
