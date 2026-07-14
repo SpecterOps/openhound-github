@@ -16,18 +16,21 @@ from openhound_github.models import (
     BaseUser,
     Enterprise,
     EnterpriseAdmin,
-    EnterpriseExternalIdentity,
     EnterpriseManagedUser,
     EnterpriseOrganization,
     EnterpriseRole,
     EnterpriseRoleTeam,
     EnterpriseRoleUser,
-    EnterpriseSamlProvider,
     EnterpriseTeam,
     EnterpriseTeamMember,
     EnterpriseTeamOrganization,
     EnterpriseTeamRole,
     EnterpriseUser,
+    SamlProvider,
+    SamlServiceProvider,
+    SamlAssertionConsumerService,
+    SamlIssuer,
+    ExternalIdentity,
 )
 
 logger = logging.getLogger(__name__)
@@ -339,7 +342,10 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
 
 
 @app.transformer(
-    name="enterprise_saml_provider", columns=EnterpriseSamlProvider, parallelized=True
+    name="enterprise_saml_provider",
+    table_name="saml_provider",
+    columns=SamlProvider,
+    parallelized=True
 )
 def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
     client = ctx.sso_client
@@ -367,23 +373,76 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
 
     yield {
         **saml_provider,
-        "enterprise_node_id": enterprise_data.id,
-        "enterprise_slug": ctx.enterprise_name,
+        "environment_node_id": enterprise_data.id,
+        "environment_name": enterprise_data.name,
+        "environment_slug": enterprise_data.slug,
+        "environment_type": "enterprise",
     }
 
+@app.transformer(
+    name="enterprise_saml_service_provider",
+    table_name="saml_service_provider",
+    columns=SamlServiceProvider,
+    parallelized=True
+)
+def enterprise_saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
+    yield {
+        "id": saml_provider["id"],
+        "issuer": saml_provider.get("issuer"),
+        "environment_node_id": saml_provider["environment_node_id"],
+        "environment_name": saml_provider["environment_name"],
+        "environment_slug": saml_provider["environment_slug"],
+        "environment_type": saml_provider["environment_type"],
+    }
 
 @app.transformer(
-    name="enterprise_external_identities",
-    columns=EnterpriseExternalIdentity,
+    name="enterprise_saml_assertion_consumer_service",
+    table_name="saml_assertion_consumer_service",
+    columns=SamlAssertionConsumerService,
     parallelized=True,
 )
-def enterprise_external_identities(
-    saml_provider: EnterpriseSamlProvider, ctx: SourceContext
+def enterprise_saml_assertion_consumer_service(
+    saml_provider: SamlProvider, ctx: SourceContext
+):
+    yield {
+        "environment_slug": saml_provider.get("environment_slug"),
+        "environment_type": saml_provider.get("environment_type"),
+        "environment_node_id": saml_provider.get("environment_node_id"),
+        "environment_name": saml_provider.get("environment_name"),
+    }
+
+@app.transformer(
+    name="enterprise_saml_issuer",
+    table_name="saml_issuer",
+    columns=SamlIssuer,
+    parallelized=True
+)
+def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
+    issuer = saml_provider.get("issuer")
+    if not issuer:
+        return
+
+    yield {
+        "issuer": issuer,
+        "environment_slug": saml_provider.get("environment_slug"),
+        "environment_type": saml_provider.get("environment_type"),
+        "environment_node_id": saml_provider.get("environment_node_id"),
+        "environment_name": saml_provider.get("environment_name"),
+    }
+
+@app.transformer(
+    name="enterprise_external_identity",
+    table_name="external_identities",
+    columns=ExternalIdentity,
+    parallelized=True,
+)
+def enterprise_external_identity(
+    saml_provider: SamlProvider, ctx: SourceContext
 ):
     client = ctx.sso_client
     if not client:
         logger.info(
-            "Skipping enterprise_external_identities for enterprise '%s': no SSO client configured",
+            "Skipping enterprise_external_identity for enterprise '%s': no SSO client configured",
             ctx.enterprise_name,
         )
         return
@@ -421,11 +480,12 @@ def enterprise_external_identities(
             ) or []:
                 yield {
                     **identity,
-                    "saml_provider_id": saml_provider.id,
-                    "saml_provider_issuer": saml_provider.issuer,
-                    "saml_provider_sso_url": saml_provider.sso_url,
-                    "enterprise_node_id": saml_provider.enterprise_node_id,
-                    "enterprise_slug": saml_provider.enterprise_slug,
+                    "environment_slug": saml_provider.get("environment_slug"),
+                    "environment_node_id": saml_provider.get("environment_node_id"),
+                    "environment_name": saml_provider.get("environment_name"),
+                    "saml_provider_id": saml_provider.get("id"),
+                    "saml_provider_issuer": saml_provider.get("issuer"),
+                    "saml_provider_sso_url": saml_provider.get("sso_url"),
                 }
 
 
@@ -456,7 +516,10 @@ def enterprise_resources(ctx: SourceContext):
         resources.extend(
             [
                 enterprise_resource | saml_resource,
-                enterprise_resource | saml_resource | enterprise_external_identities(ctx),
+                enterprise_resource | saml_resource | enterprise_saml_service_provider(ctx),
+                enterprise_resource | saml_resource | enterprise_saml_assertion_consumer_service(ctx),
+                enterprise_resource | saml_resource | enterprise_saml_issuer(ctx),
+                enterprise_resource | saml_resource | enterprise_external_identity(ctx),
             ]
         )
 

@@ -246,6 +246,9 @@ class GHWorkflowProperties(GHNodeProperties):
         branch: The branch where the workflow file was found.
         contents: The content of the workflow file.
         query_repository: Query for repository.
+        query_jobs: Query for workflow jobs.
+        query_execution: Query for workflow executions.
+        query_references: Query for workflow references (secrets and variables).
         query_editors: Query for editors.
         environment_name: The name of the environment (GitHub organization).
     """
@@ -263,6 +266,9 @@ class GHWorkflowProperties(GHNodeProperties):
     trigger_dispatch_inputs: list[str] | None = None
     is_pwn_requestable: bool = False
     query_repository: str | None = None
+    query_jobs: str | None = None
+    query_execution: str | None = None
+    query_references: str | None = None
     query_editors: str | None = None
     environment_name: str | None = None
 
@@ -278,7 +284,7 @@ class GHWorkflowProperties(GHNodeProperties):
         EdgeDef(
             start=nk.REPOSITORY,
             end=nk.WORKFLOW,
-            kind=ek.HAS_WORKFLOW,
+            kind=ek.CONTAINS,
             description="Repository contains workflow",
             traversable=False,
         ),
@@ -611,10 +617,13 @@ class Workflow(BaseAsset):
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
-                query_repository=f"MATCH p=(:GH_Repository)-[:GH_HasWorkflow]->(:GH_Workflow {{node_id:'{wid}'}}) RETURN p",
+                query_repository=f"MATCH p=(:GH_Repository)-[:GH_Contains]->(:GH_Workflow {{node_id:'{wid}'}}) RETURN p",
+                query_jobs=f"MATCH p=(:GH_Workflow {{node_id:'{wid}'}})-[:GH_Contains]->(:GH_WorkflowJob) RETURN p",
+                query_execution=f"MATCH p=(:GH_Workflow {{node_id:'{wid}'}})-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(:GH_WorkflowStep) RETURN p",
+                query_references=f"MATCH p=(:GH_Workflow {{node_id:'{wid}'}})-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(step:GH_WorkflowStep) OPTIONAL MATCH p1=(step)-[:GH_UsesSecret]->() OPTIONAL MATCH p2=(step)-[:GH_UsesVariable]->() RETURN p,p1,p2",
                 query_editors=(
                     f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_WriteRepoContents|GH_WriteRepoPullRequests*1..]->"
-                    f"(:GH_Repository)-[:GH_HasWorkflow]->(:GH_Workflow {{node_id:'{wid}'}}) "
+                    f"(:GH_Repository)-[:GH_Contains]->(:GH_Workflow {{node_id:'{wid}'}}) "
                     f"MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) RETURN p,p1"
                 ),
             ),
@@ -623,7 +632,7 @@ class Workflow(BaseAsset):
     @property
     def _has_workflow_edge(self):
         yield Edge(
-            kind=ek.HAS_WORKFLOW,
+            kind=ek.CONTAINS,
             start=EdgePath(value=self.repository_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),

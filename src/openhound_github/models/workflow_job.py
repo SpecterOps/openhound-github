@@ -47,6 +47,9 @@ class GHWorkflowJobProperties(GHNodeProperties):
         repository_name: The containing repository name.
         repository_id: The containing repository node ID.
         environment_name: The name of the GitHub organization.
+        query_repository: Query for repository.
+        query_steps: Query for workflow steps.
+        query_references: Query for workflow references (secrets and variables).
     """
 
     job_key: str | None = None
@@ -60,6 +63,9 @@ class GHWorkflowJobProperties(GHNodeProperties):
     repository_name: str | None = None
     repository_id: str | None = None
     environment_name: str | None = None
+    query_repository: str | None = None
+    query_steps: str | None = None
+    query_references: str | None = None
 
 
 @app.asset(
@@ -73,7 +79,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
         EdgeDef(
             start=nk.WORKFLOW,
             end=nk.WORKFLOW_JOB,
-            kind=ek.HAS_JOB,
+            kind=ek.CONTAINS,
             description="Workflow contains job",
             traversable=False,
         ),
@@ -220,6 +226,7 @@ class WorkflowJob(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        jid = self.node_id
         return GHNode(
             kinds=[nk.WORKFLOW_JOB],
             properties=GHWorkflowJobProperties(
@@ -238,6 +245,9 @@ class WorkflowJob(BaseAsset):
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
+                query_repository=f"MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(:GH_WorkflowJob {{node_id:'{jid}'}}) RETURN p",
+                query_steps=f"MATCH p=(:GH_WorkflowJob {{node_id:'{jid}'}})-[:GH_Contains]->(:GH_WorkflowStep) RETURN p",
+                query_references=f"MATCH p=(:GH_WorkflowJob {{node_id:'{jid}'}})-[:GH_Contains]->(step:GH_WorkflowStep) OPTIONAL MATCH p1=(step)-[:GH_UsesSecret]->() OPTIONAL MATCH p2=(step)-[:GH_UsesVariable]->() RETURN p,p1,p2",
             ),
         )
 
@@ -361,7 +371,7 @@ class WorkflowJob(BaseAsset):
     @property
     def _has_job_edge(self):
         yield Edge(
-            kind=ek.HAS_JOB,
+            kind=ek.CONTAINS,
             start=EdgePath(value=self.workflow_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),

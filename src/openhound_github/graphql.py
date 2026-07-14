@@ -118,17 +118,9 @@ query EnterpriseAdmins($slug: String!, $count: Int = 100, $after: String = null)
 ENTERPRISE_SAML_QUERY = """
 query EnterpriseSAML($slug: String!, $count: Int = 100, $after: String = null) {
     enterprise(slug: $slug) {
-        id
-        name
         slug
         ownerInfo {
             samlIdentityProvider {
-                id
-                issuer
-                ssoUrl
-                digestMethod
-                signatureMethod
-                idpCertificate
                 externalIdentities(first: $count, after: $after) {
                     totalCount
                     nodes {
@@ -141,14 +133,14 @@ query EnterpriseSAML($slug: String!, $count: Int = 100, $after: String = null) {
                             username
                         }
                         scimIdentity {
-                            username
-                            givenName
-                            familyName
                             emails {
-                                value
                                 primary
                                 type
+                                value
                             }
+                            familyName
+                            givenName
+                            username
                         }
                         user {
                             id
@@ -327,56 +319,18 @@ query ProtectionRulesByIds($ids: [ID!]!) {
 """
 
 SAML_QUERY = """
-query SAML($login: String!, $count: Int = 100, $after: String = null) {
+query SAMLProvider($login: String!) {
     organization(login: $login) {
         id
         name
         login
         samlIdentityProvider {
-            digestMethod
-            externalIdentities(first: $count, after: $after) {
-                nodes {
-                    guid
-                    id
-                    samlIdentity {
-                        attributes {
-                            metadata
-                            name
-                            value
-                        }
-                        familyName
-                        givenName
-                        groups
-                        nameId
-                        username
-                    }
-                    scimIdentity {
-                        emails {
-                            primary
-                            type
-                            value
-                        }
-                        familyName
-                        givenName
-                        groups
-                        username
-                    }
-                    user {
-                        id
-                        login
-                    }
-                }
-                pageInfo {
-                    endCursor
-                    hasNextPage
-                }
-                totalCount
-            }
             id
-            idpCertificate
             issuer
-            signatureMethod
             ssoUrl
+            digestMethod
+            signatureMethod
+            idpCertificate
         }
     }
 }
@@ -389,20 +343,13 @@ query SAML($login: String!, $count: Int = 100, $after: String = null) {
         name
         login
         samlIdentityProvider {
-            digestMethod
             externalIdentities(first: $count, after: $after) {
                 nodes {
                     guid
                     id
                     samlIdentity {
-                        attributes {
-                            metadata
-                            name
-                            value
-                        }
                         familyName
                         givenName
-                        groups
                         nameId
                         username
                     }
@@ -414,7 +361,6 @@ query SAML($login: String!, $count: Int = 100, $after: String = null) {
                         }
                         familyName
                         givenName
-                        groups
                         username
                     }
                     user {
@@ -428,11 +374,6 @@ query SAML($login: String!, $count: Int = 100, $after: String = null) {
                 }
                 totalCount
             }
-            id
-            idpCertificate
-            issuer
-            signatureMethod
-            ssoUrl
         }
     }
 }

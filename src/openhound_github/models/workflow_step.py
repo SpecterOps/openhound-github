@@ -49,6 +49,8 @@ class GHWorkflowStepProperties(GHNodeProperties):
         repository_name: The containing repository name.
         repository_id: The containing repository node ID.
         environment_name: The name of the GitHub organization.
+        query_repository: Query for containing repository.
+        query_references: Query for secrets and variables referenced by the step.
     """
 
     step_index: int | None = None
@@ -66,6 +68,8 @@ class GHWorkflowStepProperties(GHNodeProperties):
     repository_name: str | None = None
     repository_id: str | None = None
     environment_name: str | None = None
+    query_repository: str | None = None
+    query_references: str | None = None
 
 
 @app.asset(
@@ -79,7 +83,7 @@ class GHWorkflowStepProperties(GHNodeProperties):
         EdgeDef(
             start=nk.WORKFLOW_JOB,
             end=nk.WORKFLOW_STEP,
-            kind=ek.HAS_STEP,
+            kind=ek.CONTAINS,
             description="Workflow job contains step",
             traversable=False,
         ),
@@ -161,6 +165,7 @@ class WorkflowStep(BaseAsset):
     @property
     def as_node(self) -> GHNode:
         name = self.name or f"step-{self.step_index}"
+        sid = self.node_id
         return GHNode(
             kinds=[nk.WORKFLOW_STEP],
             properties=GHWorkflowStepProperties(
@@ -183,6 +188,8 @@ class WorkflowStep(BaseAsset):
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
+                query_repository=f"MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(:GH_WorkflowStep {{node_id:'{sid}'}}) RETURN p",
+                query_references=f"MATCH p=(:GH_WorkflowStep {{node_id: '{sid}'}})-[:GH_UsesSecret|GH_UsesVariable]->() RETURN p",
             ),
         )
 
@@ -257,7 +264,7 @@ class WorkflowStep(BaseAsset):
     @property
     def _has_step_edge(self):
         yield Edge(
-            kind=ek.HAS_STEP,
+            kind=ek.CONTAINS,
             start=EdgePath(value=self.job_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),

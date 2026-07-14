@@ -59,6 +59,9 @@ from openhound_github.models import (
     RepoVariable,
     RunnerGroup,
     SamlProvider,
+    SamlServiceProvider,
+    SamlAssertionConsumerService,
+    SamlIssuer,
     ScimResource,
     SecretScanningAlert,
     SelectedOrgSecret,
@@ -1707,15 +1710,16 @@ def saml_provider(ctx: SourceContext):
             response_data = response.get("data", {})
             org_data = response_data.get("organization", {})
             if response_data and org_data:
-                idp = org_data.get("samlIdentityProvider")
-                if not idp:
+                saml_provider = org_data.get("samlIdentityProvider")
+                if not saml_provider:
                     continue
 
                 yield {
-                    **idp,
-                    "org_node_id": org_data["id"],
-                    "org_name": org_data["name"],
-                    "org_login": org_name,
+                    **saml_provider,
+                    "environment_node_id": org_data["id"],
+                    "environment_name": org_data["name"],
+                    "environment_slug": org_name,
+                    "environment_type": "org",
                 }
         except Exception as e:
             logger.error(
@@ -1767,7 +1771,10 @@ def external_identities(ctx: SourceContext):
                     for identity in (idp.get("externalIdentities") or {}).get(
                         "nodes"
                     ) or []:
-                        yield {**identity, "org_login": org_name}
+                        yield {
+                            **identity,
+                            "environment_slug": org_data.get("login"),
+                        }
         except Exception as e:
             logger.error(
                 f"Error in resource 'external_identities' processing organization '{org_name}': {e}",
@@ -1775,6 +1782,48 @@ def external_identities(ctx: SourceContext):
             )
             continue
 
+@app.transformer(name="saml_service_provider", columns=SamlServiceProvider, parallelized=True)
+def saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
+    """Transform SAML provider data into a normalized SAML interface representation.
+
+    Args:
+        saml_provider (SamlProvider): The SAML provider to transform.
+        ctx (SourceContext): The shared context containing the REST client and organization name.
+
+    Yields:
+        SamlInterface (SamlInterface): Normalized SAML interface record.
+    """
+    yield {
+        "id": saml_provider["id"],
+        "issuer": saml_provider.get("issuer"),
+        "environment_node_id": saml_provider["environment_node_id"],
+        "environment_name": saml_provider["environment_name"],
+        "environment_slug": saml_provider["environment_slug"],
+        "environment_type": saml_provider["environment_type"],
+    }
+
+@app.transformer(name="saml_assertion_consumer_service", columns=SamlAssertionConsumerService, parallelized=True)
+def saml_assertion_consumer_service(saml_provider: SamlProvider, ctx: SourceContext):
+    yield {
+        "environment_slug": saml_provider.get("environment_slug"),
+        "environment_type": saml_provider.get("environment_type"),
+        "environment_node_id": saml_provider.get("environment_node_id"),
+        "environment_name": saml_provider.get("environment_name"),
+    }
+
+@app.transformer(name="saml_issuer", columns=SamlIssuer, parallelized=True)
+def saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
+    issuer = saml_provider.get("issuer")
+    if not issuer:
+        return
+
+    yield {
+        "issuer": issuer,
+        "environment_slug": saml_provider.get("environment_slug"),
+        "environment_type": saml_provider.get("environment_type"),
+        "environment_node_id": saml_provider.get("environment_node_id"),
+        "environment_name": saml_provider.get("environment_name"),
+    }
 
 @app.resource(name="scim_users", columns=ScimResource, parallelized=True)
 def scim_users(ctx: SourceContext):
@@ -1834,6 +1883,7 @@ def organization_resources(ctx: SourceContext):
     organization_secrets_resource = organization_secrets(ctx)
     organization_vars_resource = organization_variables(ctx)
     projected_enterprise_teams_resource = projected_enterprise_teams(ctx)
+    saml_resource = saml_provider(ctx)
 
     return (
         org_resource,
@@ -1860,7 +1910,10 @@ def organization_resources(ctx: SourceContext):
         repositories_graphql_resource | branches(ctx),
         branch_prot_rules_resource,
         secret_scanning_alerts(ctx),
-        saml_provider(ctx),
+        saml_resource,
+        saml_resource | saml_service_provider(ctx),
+        saml_resource | saml_assertion_consumer_service(ctx),
+        saml_resource | saml_issuer(ctx),
         external_identities(ctx),
         workflows_resource,
         workflows_resource | workflow_jobs(),

@@ -6,7 +6,6 @@ from .branch_protection_rule import BranchProtectionRule, BranchProtectionRuleAc
 from .branch_push_allowance import BranchPushAllowance
 from .enterprise import Enterprise
 from .enterprise_admin import EnterpriseAdmin
-from .enterprise_external_identity import EnterpriseExternalIdentity
 from .enterprise_helpers import enterprise_role_node_id, enterprise_team_node_id
 from .enterprise_managed_user import EnterpriseManagedUser
 from .enterprise_member import BaseUser, flatten_enterprise_member
@@ -14,7 +13,6 @@ from .enterprise_organization import EnterpriseOrganization
 from .enterprise_role import EnterpriseRole
 from .enterprise_role_team import EnterpriseRoleTeam
 from .enterprise_role_user import EnterpriseRoleUser
-from .enterprise_saml_provider import EnterpriseSamlProvider
 from .enterprise_team import EnterpriseTeam
 from .enterprise_team_member import EnterpriseTeamMember
 from .enterprise_team_organization import EnterpriseTeamOrganization
@@ -41,7 +39,10 @@ from .repository_role import BaseRepoRole, RepoRole
 from .repository_secret import RepoSecret
 from .repository_variable import RepoVariable
 from .runner import OrgRunner, OrgRunnerGroupMembership, RepoRunner, RunnerGroup
+from .saml_assertion_consumer_service import SamlAssertionConsumerService
 from .saml_provider import SamlProvider
+from .saml_service_provider import SamlServiceProvider
+from .saml_issuer import SamlIssuer
 from .scim_user import ScimResource
 from .secret_scanning_alert import SecretScanningAlert
 from .team import Team
@@ -92,7 +93,11 @@ __all__ = [
     "ProjectedEnterpriseTeam",
     "SelectedOrgSecret",
     "PersonalAccessTokenRequest",
+    "SamlAssertionConsumerService",
     "SamlProvider",
+    "SamlServiceProvider",
+    "ExternalIdentity",
+    "SamlIssuer",
     "ExternalIdentity",
     "ScimResource",
     "RepoRoleAssignment",
@@ -102,13 +107,11 @@ __all__ = [
     "EnvironmentBranchPolicy",
     "Enterprise",
     "EnterpriseAdmin",
-    "EnterpriseExternalIdentity",
     "EnterpriseManagedUser",
     "EnterpriseOrganization",
     "EnterpriseRole",
     "EnterpriseRoleTeam",
     "EnterpriseRoleUser",
-    "EnterpriseSamlProvider",
     "EnterpriseTeam",
     "EnterpriseTeamMember",
     "EnterpriseTeamOrganization",
