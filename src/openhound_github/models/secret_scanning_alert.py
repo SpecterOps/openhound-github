@@ -149,11 +149,13 @@ class SecretScanningAlert(BaseAsset):
     @property
     def as_node(self) -> GHNode:
         aid = self.node_id
+        repo_name = self.repository.name if self.repository else self.org_login
+        label = self.secret_type or "secret alert"
         return GHNode(
             kinds=[nk.SECRET_SCANNING_ALERT],
             properties=GHSecretScanningAlertProperties(
-                name=str(self.number),
-                displayname=self.secret_type_display_name or str(self.number),
+                name=f"{repo_name}-{self.number}-{label}",
+                displayname=f"{label} in {repo_name}",
                 node_id=aid,
                 environmentid=self.org_node_id,
                 repository_name=self.repository.name if self.repository else "",
