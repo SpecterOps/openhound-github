@@ -135,6 +135,11 @@ query EnterpriseSAML($slug: String!, $count: Int = 100, $after: String = null) {
                         guid
                         id
                         samlIdentity {
+                            attributes {
+                                metadata
+                                name
+                                value
+                            }
                             familyName
                             givenName
                             nameId

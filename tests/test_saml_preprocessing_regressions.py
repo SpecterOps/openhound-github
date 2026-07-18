@@ -1,6 +1,15 @@
 import duckdb
 
+from openhound_github.kinds import edges as ek
+from openhound_github.models.enterprise_external_identity import (
+    EnterpriseExternalIdentity,
+)
+from openhound_github.models.external_identity import ExternalIdentity
 from openhound_github.models.saml import (
+    SAML_CONTRACT_VERSION,
+    GithubSamlAssertionConsumerService,
+    GithubSamlIssuer,
+    GithubSamlServiceProvider,
     org_saml_acs_row,
     org_saml_issuer_row,
     org_saml_service_provider_row,
@@ -15,6 +24,26 @@ ORG_SAML_PROVIDER_ROW = {
     "org_name": "KNG EMEA",
     "org_node_id": "O_kgDOExample",
 }
+
+
+class _OrgLookup:
+    def org_id_for_login(self, login: str) -> str:
+        assert login == "kng-emea"
+        return "O_kgDOExample"
+
+    def idp_for_org(self, login: str) -> list[tuple[str, str, str]]:
+        assert login == "kng-emea"
+        return [
+            (
+                "MDQ6U2FtbElkZW50aXR5UHJvdmlkZXIx",
+                "https://sts.windows.net/example/",
+                "https://login.microsoftonline.com/example/saml2",
+            )
+        ]
+
+
+def _saml_account_edge(asset):
+    return next(edge for edge in asset.edges if edge.kind == ek.SAML_HAS_ACCOUNT)
 
 
 def test_org_saml_row_builders_accept_dlt_mapping_rows() -> None:
@@ -47,6 +76,170 @@ def test_org_saml_row_builders_accept_dlt_mapping_rows() -> None:
         "acs_url": "https://github.com/orgs/kng-emea/saml/consume",
         "sp_entity_id": "https://github.com/orgs/kng-emea",
     }
+
+
+def test_normalized_github_topology_is_fact_local_v0_3() -> None:
+    service_provider_row = org_saml_service_provider_row(ORG_SAML_PROVIDER_ROW)
+    issuer_row = org_saml_issuer_row(ORG_SAML_PROVIDER_ROW)
+    acs_row = org_saml_acs_row(ORG_SAML_PROVIDER_ROW)
+    assert service_provider_row is not None
+    assert issuer_row is not None
+    assert acs_row is not None
+
+    service_provider = GithubSamlServiceProvider.model_validate(service_provider_row)
+    issuer = GithubSamlIssuer.model_validate(issuer_row)
+    acs = GithubSamlAssertionConsumerService.model_validate(acs_row)
+
+    assert service_provider.as_node.properties.schema_contract_version == (
+        SAML_CONTRACT_VERSION
+    )
+    assert issuer.as_node.properties.schema_contract_version == SAML_CONTRACT_VERSION
+    assert acs.as_node.properties.schema_contract_version == SAML_CONTRACT_VERSION
+    assert issuer.as_node.properties.entity_id == ORG_SAML_PROVIDER_ROW["issuer"]
+    assert issuer.as_node.properties.native_source_field == (
+        "GH_SamlIdentityProvider.issuer"
+    )
+    assert acs.as_node.properties.route_source == (
+        "github_organization_scope_convention"
+    )
+    assert all(
+        edge.properties.schema_contract_version == SAML_CONTRACT_VERSION
+        for edge in service_provider.edges
+    )
+
+
+def test_org_external_identity_emits_saml_only_direct_binding() -> None:
+    identity = ExternalIdentity.model_validate(
+        {
+            "guid": "external-guid",
+            "id": "external-identity-id",
+            "samlIdentity": {
+                "nameId": "Alice@Example.com",
+                "username": "Alice@Example.com",
+                "attributes": [
+                    {
+                        "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+                        "value": "11111111-2222-3333-4444-555555555555",
+                    }
+                ],
+            },
+            "scimIdentity": {"username": "scim-lookup-only@example.com"},
+            "user": {"id": "github-user-id", "login": "alice"},
+            "org_login": "kng-emea",
+        }
+    )
+    identity._lookup = _OrgLookup()
+
+    account = _saml_account_edge(identity)
+
+    assert account.start.value == "github:saml:sp:org:kng-emea"
+    assert account.end.value == "github-user-id"
+    assert account.properties.schema_contract_version == SAML_CONTRACT_VERSION
+    assert account.properties.match_values == [
+        "Alice@Example.com",
+        "11111111-2222-3333-4444-555555555555",
+    ]
+    assert account.properties.scoped_exact_match_values == ["Alice@Example.com"]
+    assert account.properties.entra_object_id_match_values == [
+        "11111111-2222-3333-4444-555555555555"
+    ]
+    assert account.properties.direct_binding is True
+    assert account.properties.direct_binding_source == (
+        "GH_ExternalIdentity.saml_identity"
+    )
+    assert account.properties.external_identity_id == "external-identity-id"
+    assert "scim-lookup-only@example.com" not in account.properties.match_values
+
+
+def test_org_scim_only_external_identity_emits_no_saml_account() -> None:
+    identity = ExternalIdentity.model_validate(
+        {
+            "guid": "external-guid",
+            "id": "external-identity-id",
+            "samlIdentity": {},
+            "scimIdentity": {"username": "scim-only@example.com"},
+            "user": {"id": "github-user-id", "login": "alice"},
+            "org_login": "kng-emea",
+        }
+    )
+    identity._lookup = _OrgLookup()
+
+    assert ek.SAML_HAS_ACCOUNT not in {edge.kind for edge in identity.edges}
+
+
+def test_enterprise_external_identity_emits_saml_only_direct_binding() -> None:
+    identity = EnterpriseExternalIdentity.model_validate(
+        {
+            "guid": "enterprise-external-guid",
+            "id": "enterprise-external-identity-id",
+            "samlIdentity": {
+                "nameId": "subject-123",
+                "username": "Alice@Example.com",
+                "attributes": [
+                    {
+                        "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+                        "value": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                    }
+                ],
+            },
+            "scimIdentity": {"username": "scim-lookup-only@example.com"},
+            "user": {"id": "github-enterprise-user-id", "login": "alice_emu"},
+            "saml_provider_id": "enterprise-saml-provider-id",
+            "saml_provider_issuer": "https://sts.windows.net/example/",
+            "saml_provider_sso_url": "https://login.microsoftonline.com/example/saml2",
+            "enterprise_node_id": "E_kgDOExample",
+            "enterprise_slug": "kng-global",
+        }
+    )
+
+    account = _saml_account_edge(identity)
+
+    assert account.start.value == "github:saml:sp:enterprise:kng-global"
+    assert account.end.value == "github-enterprise-user-id"
+    assert account.properties.match_values == [
+        "Alice@Example.com",
+        "subject-123",
+        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    ]
+    assert account.properties.scoped_exact_match_values == [
+        "Alice@Example.com",
+        "subject-123",
+    ]
+    assert account.properties.entra_object_id_match_values == [
+        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    ]
+    assert account.properties.direct_binding is True
+    assert account.properties.external_identity_id == (
+        "enterprise-external-identity-id"
+    )
+    assert "scim-lookup-only@example.com" not in account.properties.match_values
+
+
+def test_enterprise_managed_user_scim_identity_is_a_direct_saml_binding() -> None:
+    identity = EnterpriseExternalIdentity.model_validate(
+        {
+            "guid": "enterprise-external-guid",
+            "id": "enterprise-external-identity-id",
+            "samlIdentity": None,
+            "scimIdentity": {"username": "Alice@Example.com"},
+            "user": {"id": "github-enterprise-user-id", "login": "alice_emu"},
+            "saml_provider_id": "enterprise-saml-provider-id",
+            "saml_provider_issuer": "https://preview.example.okta.com",
+            "saml_provider_sso_url": "https://preview.example.okta.com/sso/saml",
+            "enterprise_node_id": "E_kgDOExample",
+            "enterprise_slug": "kng-global",
+        }
+    )
+
+    account = _saml_account_edge(identity)
+
+    assert account.properties.match_values == ["Alice@Example.com"]
+    assert account.properties.scoped_exact_match_values == ["Alice@Example.com"]
+    assert account.properties.entra_object_id_match_values == []
+    assert account.properties.direct_binding is True
+    assert account.properties.direct_binding_source == (
+        "GH_ExternalIdentity.scim_identity (Enterprise Managed Users)"
+    )
 
 
 def test_transforms_create_zero_row_optional_branch_inputs() -> None:

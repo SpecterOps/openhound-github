@@ -16,9 +16,11 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.enterprise_saml_provider import EnterpriseSamlProvider
 from openhound_github.models.saml import (
+    ENTRA_OBJECT_ID_CLAIM,
     GithubSamlHasAccountProperties,
     github_enterprise_saml_service_provider_id,
     saml_account_match_values,
+    saml_attribute_match_values,
 )
 
 
@@ -29,6 +31,7 @@ class EnterpriseIdentityName(BaseModel):
     given_name: str | None = Field(alias="givenName", default=None)
     name_id: str | None = Field(alias="nameId", default=None)
     username: str | None = None
+    attributes: list[dict[str, object]] = Field(default_factory=list)
 
 
 class EnterpriseIdentityUser(BaseModel):
@@ -213,10 +216,25 @@ class EnterpriseExternalIdentity(BaseAsset):
                     properties=EdgeProperties(traversable=True),
                 )
 
-        match_values = saml_account_match_values(
-            self.foreign_username,
+        saml_scoped_exact_match_values = saml_account_match_values(
+            self.saml_identity.username if self.saml_identity else None,
             self.saml_identity.name_id if self.saml_identity else None,
-            self.scim_identity.username if self.scim_identity else None,
+        )
+        emu_scim_match_values = (
+            saml_account_match_values(self.scim_identity.username)
+            if self.scim_identity and not saml_scoped_exact_match_values
+            else []
+        )
+        scoped_exact_match_values = (
+            saml_scoped_exact_match_values or emu_scim_match_values
+        )
+        entra_object_id_match_values = saml_attribute_match_values(
+            self.saml_identity.attributes if self.saml_identity else [],
+            ENTRA_OBJECT_ID_CLAIM,
+        )
+        match_values = saml_account_match_values(
+            *scoped_exact_match_values,
+            *entra_object_id_match_values,
         )
         if self.user and self.user.id and match_values:
             yield Edge(
@@ -231,6 +249,15 @@ class EnterpriseExternalIdentity(BaseAsset):
                 properties=GithubSamlHasAccountProperties(
                     traversable=False,
                     match_values=match_values,
+                    scoped_exact_match_values=scoped_exact_match_values,
+                    entra_object_id_match_values=entra_object_id_match_values,
+                    direct_binding=True,
+                    direct_binding_source=(
+                        "GH_ExternalIdentity.saml_identity"
+                        if saml_scoped_exact_match_values
+                        else "GH_ExternalIdentity.scim_identity (Enterprise Managed Users)"
+                    ),
+                    external_identity_id=self.node_id,
                     account_state="unknown",
                 ),
             )

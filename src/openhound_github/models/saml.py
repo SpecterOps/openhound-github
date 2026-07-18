@@ -12,6 +12,12 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 
 
+SAML_CONTRACT_VERSION = "opengraph-saml-v0.3.0"
+ENTRA_OBJECT_ID_CLAIM = (
+    "http://schemas.microsoft.com/identity/claims/objectidentifier"
+)
+
+
 def _clean(value: Any) -> str | None:
     if value is None:
         return None
@@ -169,6 +175,23 @@ def saml_account_match_values(*values: str | None) -> list[str]:
     return _dedupe(list(values))
 
 
+def saml_attribute_match_values(
+    attributes: list[Any], attribute_name: str
+) -> list[str]:
+    """Return source-exact values for one explicitly named SAML attribute."""
+    values: list[str | None] = []
+    for attribute in attributes:
+        if isinstance(attribute, Mapping):
+            name = attribute.get("name")
+            value = attribute.get("value")
+        else:
+            name = getattr(attribute, "name", None)
+            value = getattr(attribute, "value", None)
+        if name == attribute_name:
+            values.append(value)
+    return _dedupe(values)
+
+
 @dataclass
 class GithubSamlServiceProviderProperties(GHNodeProperties):
     """Properties for a normalized GitHub SAML service provider.
@@ -186,6 +209,7 @@ class GithubSamlServiceProviderProperties(GHNodeProperties):
     scope_slug: str
     saml_provider_id: str
     enabled: bool
+    schema_contract_version: str
 
 
 @dataclass
@@ -203,6 +227,8 @@ class GithubSamlIssuerProperties(GHNodeProperties):
     scope_type: str
     scope_slug: str
     entity_id: str
+    native_source_field: str
+    schema_contract_version: str
 
 
 @dataclass
@@ -222,6 +248,15 @@ class GithubSamlAssertionConsumerServiceProperties(GHNodeProperties):
     scope_slug: str
     acs_url: str
     sp_entity_id: str
+    route_source: str
+    schema_contract_version: str
+
+
+@dataclass
+class GithubSamlRelationshipProperties(EdgeProperties):
+    """Fact-local contract metadata for normalized SAML topology."""
+
+    schema_contract_version: str = SAML_CONTRACT_VERSION
 
 
 @dataclass
@@ -229,11 +264,21 @@ class GithubSamlHasAccountProperties(EdgeProperties):
     """Properties for a normalized GitHub SAML account edge.
 
     Attributes:
-        match_values: Identity values asserted or provisioned for the account.
+        match_values: Source-exact SAML external-identity values for the account.
+        scoped_exact_match_values: Route-scoped canonical direct-binding values.
+        entra_object_id_match_values: Explicit Microsoft objectidentifier claim
+            values observed on the linked SAML identity.
+        direct_binding: Whether GitHub already resolved these values to the account.
         account_state: The account state when known.
     """
 
+    schema_contract_version: str = SAML_CONTRACT_VERSION
     match_values: list[str] = dc_field(default_factory=list)
+    scoped_exact_match_values: list[str] = dc_field(default_factory=list)
+    entra_object_id_match_values: list[str] = dc_field(default_factory=list)
+    direct_binding: bool = False
+    direct_binding_source: str | None = None
+    external_identity_id: str | None = None
     account_state: str = "unknown"
 
 
@@ -301,6 +346,7 @@ class GithubSamlServiceProvider(BaseAsset):
                 scope_slug=self.scope_slug,
                 saml_provider_id=self.saml_provider_id,
                 enabled=self.enabled,
+                schema_contract_version=SAML_CONTRACT_VERSION,
             ),
         )
 
@@ -310,19 +356,19 @@ class GithubSamlServiceProvider(BaseAsset):
             kind=ek.SAML_IMPLEMENTS,
             start=EdgePath(value=self.native_id, match_by="id"),
             end=EdgePath(value=self.id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+            properties=GithubSamlRelationshipProperties(traversable=False),
         )
         yield Edge(
             kind=ek.SAML_TRUSTS_ISSUER,
             start=EdgePath(value=self.id, match_by="id"),
             end=EdgePath(value=self.issuer_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+            properties=GithubSamlRelationshipProperties(traversable=False),
         )
         yield Edge(
             kind=ek.SAML_HAS_ASSERTION_CONSUMER_SERVICE,
             start=EdgePath(value=self.id, match_by="id"),
             end=EdgePath(value=self.acs_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+            properties=GithubSamlRelationshipProperties(traversable=False),
         )
 
 
@@ -356,6 +402,8 @@ class GithubSamlIssuer(BaseAsset):
                 scope_type=self.scope_type,
                 scope_slug=self.scope_slug,
                 entity_id=self.entity_id,
+                native_source_field="GH_SamlIdentityProvider.issuer",
+                schema_contract_version=SAML_CONTRACT_VERSION,
             ),
         )
 
@@ -396,6 +444,8 @@ class GithubSamlAssertionConsumerService(BaseAsset):
                 scope_slug=self.scope_slug,
                 acs_url=self.acs_url,
                 sp_entity_id=self.sp_entity_id,
+                route_source=f"github_{self.scope_type}_scope_convention",
+                schema_contract_version=SAML_CONTRACT_VERSION,
             ),
         )
 
