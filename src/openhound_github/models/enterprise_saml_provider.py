@@ -10,6 +10,10 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.saml import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+)
 
 
 @dataclass
@@ -35,6 +39,8 @@ class GHEnterpriseSamlProviderProperties(GHNodeProperties):
     idp_certificate: str | None = None
     foreign_environment_id: str | None = None
     environment_name: str | None = None
+    github_deployment_id: str | None = None
+    github_web_origin: str | None = None
     query_environments: str | None = None
     query_external_identities: str | None = None
 
@@ -67,6 +73,8 @@ class EnterpriseSamlProvider(BaseAsset):
     idp_certificate: str | None = Field(alias="idpCertificate", default=None)
     enterprise_node_id: str
     enterprise_slug: str
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
@@ -101,6 +109,8 @@ class EnterpriseSamlProvider(BaseAsset):
                 node_id=self.node_id,
                 environmentid=self._lookup.enterprise_id(),
                 environment_name=self.enterprise_slug,
+                github_deployment_id=self.github_deployment_id,
+                github_web_origin=self.github_web_origin,
                 issuer=self.issuer,
                 sso_url=self.sso_url,
                 signature_method=self.signature_method,

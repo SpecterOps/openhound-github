@@ -21,6 +21,11 @@ from openhound_github.auth import (
 )
 from openhound_github.helpers import github_retry_policy
 from openhound_github.main import app
+from openhound_github.models.saml import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+    github_deployment_context,
+)
 
 from .resources.enterprise import enterprise_resources
 from .resources.organization import organization_resources
@@ -33,6 +38,8 @@ class OrgContext:
     client: RESTClient
     org_name: str
     enterprise_name: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
 
 @dataclass
@@ -44,6 +51,8 @@ class SourceContext:
     collect_enterprise_scim: bool = False
     emit_legacy_scim_correlations: bool = False
     azurehound_path: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
     cache_lock: Lock = field(default_factory=Lock)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -124,6 +133,8 @@ def source(
         host (str): The base GitHub API URL used for API calls.
     """
 
+    github_deployment_id, github_web_origin = github_deployment_context(host)
+
     def client(auth: GitHubAppInstallationAuth) -> RESTClient:
         return RESTClient(
             base_url=host,
@@ -156,6 +167,8 @@ def source(
             collect_enterprise_scim=bool(collect_enterprise_scim),
             emit_legacy_scim_correlations=bool(emit_legacy_scim_correlations),
             azurehound_path=azurehound_path,
+            github_deployment_id=github_deployment_id,
+            github_web_origin=github_web_origin,
         )
         github_app_session = GithubApp(
             client_id=credentials.client_id,
@@ -175,6 +188,8 @@ def source(
                             GitHubAppInstallationAuth(installation=org_installation)
                         ),
                         enterprise_name=credentials.enterprise_name,
+                        github_deployment_id=github_deployment_id,
+                        github_web_origin=github_web_origin,
                     )
                 )
             if installation.target_type == "Enterprise":
@@ -190,7 +205,11 @@ def source(
         return (*enterprise_resources(ctx), *organization_resources(ctx))
 
     elif credentials.auth == "org_app":
-        ctx = SourceContext(enterprise_name=None)
+        ctx = SourceContext(
+            enterprise_name=None,
+            github_deployment_id=github_deployment_id,
+            github_web_origin=github_web_origin,
+        )
         org_installation = GithubInstallation(
             installation_id=credentials.install_id,
             client_id=credentials.client_id,
@@ -200,6 +219,8 @@ def source(
             OrgContext(
                 org_name=credentials.org_name,
                 client=client(GitHubAppInstallationAuth(installation=org_installation)),
+                github_deployment_id=github_deployment_id,
+                github_web_origin=github_web_origin,
             )
         )
 
@@ -218,14 +239,21 @@ def source(
                     emit_legacy_scim_correlations
                 ),
                 azurehound_path=azurehound_path,
+                github_deployment_id=github_deployment_id,
+                github_web_origin=github_web_origin,
             )
             return enterprise_resources(ctx)
 
-        ctx = SourceContext()
+        ctx = SourceContext(
+            github_deployment_id=github_deployment_id,
+            github_web_origin=github_web_origin,
+        )
         ctx.organizations.append(
             OrgContext(
                 org_name=credentials.org_name,
                 client=token_client(credentials.token),
+                github_deployment_id=github_deployment_id,
+                github_web_origin=github_web_origin,
             )
         )
         return organization_resources(ctx)

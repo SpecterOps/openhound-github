@@ -16,6 +16,7 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.enterprise_saml_provider import EnterpriseSamlProvider
 from openhound_github.models.saml import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
     ENTRA_OBJECT_ID_CLAIM,
     GithubSamlHasAccountProperties,
     github_enterprise_saml_service_provider_id,
@@ -120,6 +121,7 @@ class EnterpriseExternalIdentity(BaseAsset):
     saml_provider_sso_url: str | None = None
     enterprise_node_id: str
     enterprise_slug: str
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
 
     @property
     def node_id(self) -> str:
@@ -241,7 +243,7 @@ class EnterpriseExternalIdentity(BaseAsset):
                 kind=ek.SAML_HAS_ACCOUNT,
                 start=EdgePath(
                     value=github_enterprise_saml_service_provider_id(
-                        self.enterprise_slug
+                        self.enterprise_slug, self.github_deployment_id
                     ),
                     match_by="id",
                 ),

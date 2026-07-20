@@ -38,6 +38,8 @@ from openhound_github.models import (
 )
 from openhound_github.models.oidc import iter_github_oidc_rows
 from openhound_github.models.saml import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
     enterprise_saml_acs_row,
     enterprise_saml_issuer_row,
     enterprise_saml_service_provider_row,
@@ -57,6 +59,8 @@ class SourceContext:
     collect_enterprise_scim: bool = False
     emit_legacy_scim_correlations: bool = False
     azurehound_path: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
 
 def iter_enterprise_scim_resources(
@@ -482,6 +486,8 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
                 **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
                 "enterprise_node_id": enterprise_data.id,
                 "enterprise_slug": ctx.enterprise_name,
+                "github_deployment_id": ctx.github_deployment_id,
+                "github_web_origin": ctx.github_web_origin,
             }
             return
 
@@ -561,6 +567,7 @@ def enterprise_external_identities(
                     "saml_provider_sso_url": saml_provider.sso_url,
                     "enterprise_node_id": saml_provider.enterprise_node_id,
                     "enterprise_slug": saml_provider.enterprise_slug,
+                    "github_deployment_id": saml_provider.github_deployment_id,
                 }
 
 

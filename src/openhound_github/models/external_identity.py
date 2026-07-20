@@ -15,6 +15,7 @@ from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.saml import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
     ENTRA_OBJECT_ID_CLAIM,
     GithubSamlHasAccountProperties,
     github_org_saml_service_provider_id,
@@ -132,6 +133,7 @@ class ExternalIdentity(BaseAsset):
 
     # Additional
     org_login: str
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
 
     @property
     def org_node_id(self) -> str | None:
@@ -292,7 +294,9 @@ class ExternalIdentity(BaseAsset):
             yield Edge(
                 kind=ek.SAML_HAS_ACCOUNT,
                 start=EdgePath(
-                    value=github_org_saml_service_provider_id(self.org_login),
+                    value=github_org_saml_service_provider_id(
+                        self.org_login, self.github_deployment_id
+                    ),
                     match_by="id",
                 ),
                 end=EdgePath(value=self.user.id, match_by="id"),

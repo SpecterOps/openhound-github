@@ -10,6 +10,11 @@ from openhound_github.models.saml import (
     GithubSamlAssertionConsumerService,
     GithubSamlIssuer,
     GithubSamlServiceProvider,
+    github_deployment_context,
+    github_enterprise_acs_url,
+    github_enterprise_saml_service_provider_id,
+    github_org_acs_url,
+    github_org_saml_service_provider_id,
     org_saml_acs_row,
     org_saml_issuer_row,
     org_saml_service_provider_row,
@@ -59,6 +64,8 @@ def test_org_saml_row_builders_accept_dlt_mapping_rows() -> None:
         "saml_provider_id": "MDQ6U2FtbElkZW50aXR5UHJvdmlkZXIx",
         "issuer_id": "github:saml:trusted-issuer:org:kng-emea",
         "acs_id": "github:saml:acs:org:kng-emea",
+        "github_deployment_id": "github.com",
+        "github_web_origin": "https://github.com",
         "enabled": True,
     }
     assert issuer == {
@@ -66,6 +73,8 @@ def test_org_saml_row_builders_accept_dlt_mapping_rows() -> None:
         "native_id": "O_kgDOExample",
         "scope_type": "organization",
         "scope_slug": "kng-emea",
+        "github_deployment_id": "github.com",
+        "github_web_origin": "https://github.com",
         "entity_id": "https://sts.windows.net/example/",
     }
     assert acs == {
@@ -73,9 +82,90 @@ def test_org_saml_row_builders_accept_dlt_mapping_rows() -> None:
         "native_id": "O_kgDOExample",
         "scope_type": "organization",
         "scope_slug": "kng-emea",
+        "github_deployment_id": "github.com",
+        "github_web_origin": "https://github.com",
         "acs_url": "https://github.com/orgs/kng-emea/saml/consume",
         "sp_entity_id": "https://github.com/orgs/kng-emea",
     }
+
+
+def test_normalized_saml_ids_and_routes_are_scoped_by_github_deployment() -> None:
+    assert github_deployment_context("https://api.github.com") == (
+        "github.com",
+        "https://github.com",
+    )
+    assert github_org_saml_service_provider_id("example-org") == (
+        "github:saml:sp:org:example-org"
+    )
+
+    first_deployment = github_deployment_context(
+        "https://ghe-a.example.test/api/v3"
+    )
+    second_deployment = github_deployment_context(
+        "https://ghe-b.example.test/api/v3"
+    )
+
+    assert github_org_saml_service_provider_id(
+        "example-org", first_deployment[0]
+    ) == "github:ghe-a.example.test:saml:sp:org:example-org"
+    assert github_org_saml_service_provider_id(
+        "example-org", first_deployment[0]
+    ) != github_org_saml_service_provider_id(
+        "example-org", second_deployment[0]
+    )
+    assert github_enterprise_saml_service_provider_id(
+        "example-enterprise", first_deployment[0]
+    ) == "github:ghe-a.example.test:saml:sp:enterprise:example-enterprise"
+    assert github_org_acs_url("example-org", first_deployment[1]) == (
+        "https://ghe-a.example.test/orgs/example-org/saml/consume"
+    )
+    assert github_enterprise_acs_url(
+        "example-enterprise", first_deployment[1]
+    ) == (
+        "https://ghe-a.example.test/enterprises/example-enterprise/saml/consume"
+    )
+
+    provider = {
+        **ORG_SAML_PROVIDER_ROW,
+        "github_deployment_id": first_deployment[0],
+        "github_web_origin": first_deployment[1],
+    }
+    service_provider = org_saml_service_provider_row(provider)
+    acs = org_saml_acs_row(provider)
+
+    assert service_provider is not None
+    assert acs is not None
+    assert service_provider["id"] == (
+        "github:ghe-a.example.test:saml:sp:org:kng-emea"
+    )
+    assert service_provider["issuer_id"].startswith(
+        "github:ghe-a.example.test:saml:"
+    )
+    assert service_provider["acs_id"].startswith(
+        "github:ghe-a.example.test:saml:"
+    )
+    assert acs["acs_url"] == (
+        "https://ghe-a.example.test/orgs/kng-emea/saml/consume"
+    )
+
+    identity = ExternalIdentity.model_validate(
+        {
+            "guid": "external-guid",
+            "id": "external-identity-id",
+            "samlIdentity": {"username": "alice@example.test"},
+            "scimIdentity": None,
+            "user": {"id": "github-user-id", "login": "alice"},
+            "org_login": "kng-emea",
+            "github_deployment_id": first_deployment[0],
+        }
+    )
+    identity._lookup = _OrgLookup()
+    account = _saml_account_edge(identity)
+
+    assert account.start.value == service_provider["id"]
+    assert account.start.match_by == "id"
+    assert account.end.value == "github-user-id"
+    assert account.end.match_by == "id"
 
 
 def test_normalized_github_topology_is_fact_local_v0_3() -> None:

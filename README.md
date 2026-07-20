@@ -49,6 +49,18 @@ shared SCIM kinds.
 relationships. It defaults to false because a future hybrid `openhound-scim` correlator should own IdP-to-SCIM matching;
 GitHub remains authoritative for GitHub's SCIM resources and target-system provisioning relationships.
 
+### GitHub deployment scope and SAML IDs
+
+The configured GitHub API `host` identifies the deployment. `https://api.github.com` preserves the established
+`github:saml:*` IDs and `https://github.com` routes. GitHub Enterprise Server output includes the normalized deployment
+authority in synthetic SAML node IDs and derives ACS/entity routes from that deployment's web origin, so identical
+enterprise or organization slugs on different servers cannot merge.
+
+This is backward compatible for GitHub.com. Pre-fix GHES SAML output used cloud-shaped synthetic IDs and routes; before
+ingesting replacement GHES output, remove those old normalized SAML nodes/edges or reset the disposable validation graph.
+The collector does not delete or reconcile prior nodes automatically. The deployment-scoping behavior is covered with
+mocked GHES hosts because no GHES platform is required for KNG validation.
+
 When `SOURCES__GITHUB__AZUREHOUND_PATH` points to AzureHound CE JSON, the collector emits deduplicated
 `GH_CanAssumeIdentity` relationships for GitHub Actions OIDC subjects. AzureHound remains authoritative for
 `AZFederatedIdentityCredential` nodes, and a future hybrid correlator should eventually own this cross-source matching.

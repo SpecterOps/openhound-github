@@ -76,6 +76,8 @@ from openhound_github.models import (
     GithubSamlServiceProvider,
 )
 from openhound_github.models.saml import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
     org_saml_acs_row,
     org_saml_issuer_row,
     org_saml_service_provider_row,
@@ -91,6 +93,8 @@ class OrgContext:
     client: RESTClient
     org_name: str
     enterprise_name: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
 
 @dataclass
@@ -103,6 +107,8 @@ class SourceContext:
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
 
 class RepositoryRoleCache:
@@ -1725,6 +1731,8 @@ def saml_provider(ctx: SourceContext):
                     "org_node_id": org_data["id"],
                     "org_name": org_data["name"],
                     "org_login": org_name,
+                    "github_deployment_id": org.github_deployment_id,
+                    "github_web_origin": org.github_web_origin,
                 }
         except Exception as e:
             logger.error(
@@ -1777,6 +1785,7 @@ def external_identities(ctx: SourceContext):
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
+        github_deployment_id = org.github_deployment_id
         try:
             paginator = GraphQLCursorPaginator(
                 page_info_path="data.organization.samlIdentityProvider.externalIdentities.pageInfo",
@@ -1805,7 +1814,11 @@ def external_identities(ctx: SourceContext):
                     for identity in (idp.get("externalIdentities") or {}).get(
                         "nodes"
                     ) or []:
-                        yield {**identity, "org_login": org_name}
+                        yield {
+                            **identity,
+                            "org_login": org_name,
+                            "github_deployment_id": github_deployment_id,
+                        }
         except Exception as e:
             logger.error(
                 f"Error in resource 'external_identities' processing organization '{org_name}': {e}",

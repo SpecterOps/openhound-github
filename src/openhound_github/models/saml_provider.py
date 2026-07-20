@@ -8,12 +8,16 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.saml import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+)
 
 
 @dataclass
 class GHSamlProviderProperties(GHNodeProperties):
     """SAML identity provider properties and accordion panel queries.
-    
+
     Attributes:
         issuer: The SAML issuer URL.
         sso_url: The SAML single sign-on URL.
@@ -33,6 +37,8 @@ class GHSamlProviderProperties(GHNodeProperties):
     idp_certificate: str | None = None
     environment_name: str | None = None
     foreign_environment_id: str | None = None
+    github_deployment_id: str | None = None
+    github_web_origin: str | None = None
     query_environments: str | None = None
     query_external_identities: str | None = None
 
@@ -72,6 +78,8 @@ class SamlProvider(BaseAsset):
     org_login: str
     org_name: str
     org_node_id: str  # organization.id (GraphQL global ID)
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
     @property
     def node_id(self) -> str:
@@ -95,6 +103,8 @@ class SamlProvider(BaseAsset):
                 environment_name=self.org_name,
                 environmentid=self.org_node_id,
                 foreign_environment_id=self.foreign_environment_id,
+                github_deployment_id=self.github_deployment_id,
+                github_web_origin=self.github_web_origin,
                 query_environments=f"MATCH p=(:GH_SamlIdentityProvider {{node_id:'{iid}'}})<-[:GH_HasSamlIdentityProvider]-(:GH_Organization) RETURN p",
                 query_external_identities=f"MATCH p=(:GH_SamlIdentityProvider {{node_id:'{iid}'}})-[:GH_HasExternalIdentity]->() RETURN p",
             ),
