@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.enterprise_saml_provider import EnterpriseSamlProvider
 
 
 def scim_organization_id(scope_node_id: str) -> str:
@@ -282,6 +283,16 @@ class ScimGroup(ScimScopeAsset):
     emit_legacy_correlation: bool = False
 
     @property
+    def legacy_okta_tenant_domain(self) -> str | None:
+        provider = self._lookup.enterprise_idp_for_scope(self.scope_node_id)
+        if not provider:
+            return None
+        foreign_kind, tenant_domain = EnterpriseSamlProvider.detect_foreign_environment(
+            *provider
+        )
+        return tenant_domain if foreign_kind == "Okta_User" else None
+
+    @property
     def as_node(self) -> ScimNode:
         return ScimNode(
             id=self.id,
@@ -315,17 +326,27 @@ class ScimGroup(ScimScopeAsset):
                     properties=EdgeProperties(traversable=True),
                 )
         if self.emit_legacy_correlation and self.external_id:
-            yield Edge(
-                kind=ek.SCIM_PROVISIONED,
-                start=ConditionalEdgePath(
-                    kind="Okta_Group",
-                    property_matchers=[
-                        PropertyMatch(key="name", value=self.external_id)
-                    ],
-                ),
-                end=EdgePath(value=self.id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
-            )
+            tenant_domain = self.legacy_okta_tenant_domain
+            # GitHub SCIM supplies only a mixed-case name, while Okta group names
+            # are uppercase and can repeat across tenants. Require the enterprise's
+            # Okta SAML IdP scope so this transitional edge cannot be ambiguous.
+            if tenant_domain:
+                yield Edge(
+                    kind=ek.SCIM_PROVISIONED,
+                    start=ConditionalEdgePath(
+                        kind="Okta_Group",
+                        property_matchers=[
+                            PropertyMatch(key="tenant_domain", value=tenant_domain),
+                            PropertyMatch(key="name", value=self.external_id.upper()),
+                        ],
+                    ),
+                    end=EdgePath(value=self.id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )
+            else:
+                self._lookup.warn_missing_legacy_scim_okta_tenant_once(
+                    self.scope_node_id, self.scope_name
+                )
 
 
 # Compatibility alias for callers that imported the old non-asset model.

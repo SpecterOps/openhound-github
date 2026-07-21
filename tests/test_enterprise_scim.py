@@ -1,11 +1,14 @@
 import inspect
+import logging
 from unittest.mock import MagicMock
 
+import duckdb
 import pytest
 from openhound.core.models.entries_dataclass import ConditionalEdgePath
 
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
+from openhound_github.lookup import GithubLookup
 from openhound_github.models import (
     EnterpriseTeam,
     ScimGroup,
@@ -154,7 +157,47 @@ def test_enterprise_team_emits_scim_edge_only_with_group_id_evidence() -> None:
     assert edges[1].start.value == "scim-group-1"
 
 
-def test_scim_group_legacy_correlation_matches_githound_okta_name_contract() -> None:
+def test_enterprise_idp_lookup_is_scoped_by_enterprise() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    connection.execute(
+        """CREATE TABLE github.enterprise_saml_provider (
+            enterprise_node_id VARCHAR, issuer VARCHAR, sso_url VARCHAR
+        )"""
+    )
+    connection.execute(
+        """INSERT INTO github.enterprise_saml_provider VALUES
+        ('ENT_NODE_1', 'http://www.okta.com/exk-example',
+         'https://preview2.example.okta.com/app/github/sso/saml')"""
+    )
+
+    assert GithubLookup(connection).enterprise_idp_for_scope("ENT_NODE_1") == (
+        "http://www.okta.com/exk-example",
+        "https://preview2.example.okta.com/app/github/sso/saml",
+    )
+
+
+def test_missing_legacy_okta_tenant_warning_is_deduplicated(caplog) -> None:
+    lookup = GithubLookup(duckdb.connect(":memory:"))
+
+    with caplog.at_level(logging.WARNING):
+        lookup.warn_missing_legacy_scim_okta_tenant_once(
+            "ENT_NODE_1", "example-enterprise"
+        )
+        lookup.warn_missing_legacy_scim_okta_tenant_once(
+            "ENT_NODE_1", "example-enterprise"
+        )
+
+    warnings = [
+        message
+        for message in caplog.messages
+        if "skipping IdP-to-SCIM group edges" in message
+    ]
+    assert len(warnings) == 1
+    assert "example-enterprise" in warnings[0]
+
+
+def test_scim_group_legacy_correlation_matches_okta_name_and_tenant() -> None:
     group = ScimGroup(
         id="scim-group-1",
         externalId="Engineering",
@@ -163,14 +206,43 @@ def test_scim_group_legacy_correlation_matches_githound_okta_name_contract() -> 
         enterprise_slug="example-enterprise",
         emit_legacy_correlation=True,
     )
+    lookup = MagicMock()
+    lookup.enterprise_idp_for_scope.return_value = (
+        "http://www.okta.com/exk-example",
+        "https://preview2.example.okta.com/app/github/sso/saml",
+    )
+    group._lookup = lookup
 
     edge = list(group.edges)[-1]
 
     assert edge.kind == ek.SCIM_PROVISIONED
     assert isinstance(edge.start, ConditionalEdgePath)
     assert edge.start.kind == "Okta_Group"
-    assert edge.start.property_matchers[0].key == "name"
-    assert edge.start.property_matchers[0].value == "Engineering"
+    matchers = {matcher.key: matcher.value for matcher in edge.start.property_matchers}
+    assert matchers == {
+        "tenant_domain": "preview2.example.okta.com",
+        "name": "ENGINEERING",
+    }
+    lookup.enterprise_idp_for_scope.assert_called_once_with("ENT_NODE_1")
+
+
+def test_scim_group_legacy_correlation_requires_okta_tenant_scope() -> None:
+    group = ScimGroup(
+        id="scim-group-1",
+        externalId="Engineering",
+        displayName="Engineering",
+        enterprise_node_id="ENT_NODE_1",
+        enterprise_slug="example-enterprise",
+        emit_legacy_correlation=True,
+    )
+    lookup = MagicMock()
+    lookup.enterprise_idp_for_scope.return_value = None
+    group._lookup = lookup
+
+    assert [edge.kind for edge in group.edges] == [ek.SCIM_CONTAINS]
+    lookup.warn_missing_legacy_scim_okta_tenant_once.assert_called_once_with(
+        "ENT_NODE_1", "example-enterprise"
+    )
 
 
 def test_scim_organization_stays_within_github_environment_root() -> None:

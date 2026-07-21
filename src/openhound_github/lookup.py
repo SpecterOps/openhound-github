@@ -52,6 +52,32 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def enterprise_idp_for_scope(
+        self, enterprise_node_id: str
+    ) -> tuple[str | None, str | None] | None:
+        return self._find_single_row(
+            f"""SELECT issuer, sso_url
+            FROM {self.schema}.enterprise_saml_provider
+            WHERE enterprise_node_id = ?
+            LIMIT 1""",
+            [enterprise_node_id],
+        )
+
+    @lru_cache
+    def warn_missing_legacy_scim_okta_tenant_once(
+        self, enterprise_node_id: str, enterprise_name: str
+    ) -> None:
+        # GithubLookup is scoped to one conversion; caching this method prevents
+        # one warning per SCIM group while retaining one warning per enterprise.
+        logger.warning(
+            "Legacy SCIM correlations are enabled for GitHub enterprise '%s' "
+            "(%s), but no Okta tenant could be derived from its SAML provider; "
+            "skipping IdP-to-SCIM group edges.",
+            enterprise_name,
+            enterprise_node_id,
+        )
+
+    @lru_cache
     def org_login_for_id(self, org_node_id: str) -> str | None:
         return self._find_single_object(
             f"""SELECT login FROM {self.schema}.organizations WHERE node_id = ?""",
