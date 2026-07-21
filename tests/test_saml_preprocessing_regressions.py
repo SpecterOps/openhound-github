@@ -5,6 +5,7 @@ from openhound_github.models.enterprise_external_identity import (
     EnterpriseExternalIdentity,
 )
 from openhound_github.models.external_identity import ExternalIdentity
+from openhound_github.models.saml_provider import SamlProvider
 from openhound_github.models.saml import (
     SAML_CONTRACT_VERSION,
     GithubSamlAssertionConsumerService,
@@ -49,6 +50,25 @@ class _OrgLookup:
 
 def _saml_account_edge(asset):
     return next(edge for edge in asset.edges if edge.kind == ek.SAML_HAS_ACCOUNT)
+
+
+def _saml_implements_edge(asset):
+    return next(edge for edge in asset.edges if edge.kind == ek.SAML_IMPLEMENTS)
+
+
+def test_org_saml_provider_replays_dlt_snake_case_fields() -> None:
+    provider = SamlProvider.model_validate(
+        {
+            **ORG_SAML_PROVIDER_ROW,
+            "sso_url": "https://login.microsoftonline.com/example/saml2",
+            "signature_method": "rsa-sha256",
+            "idp_certificate": "certificate-data",
+        }
+    )
+
+    assert provider.sso_url == "https://login.microsoftonline.com/example/saml2"
+    assert provider.signature_method == "rsa-sha256"
+    assert provider.idp_certificate == "certificate-data"
 
 
 def test_org_saml_row_builders_accept_dlt_mapping_rows() -> None:
@@ -196,6 +216,33 @@ def test_normalized_github_topology_is_fact_local_v0_3() -> None:
         edge.properties.schema_contract_version == SAML_CONTRACT_VERSION
         for edge in service_provider.edges
     )
+
+    implements = _saml_implements_edge(service_provider)
+    assert implements.start.value == ORG_SAML_PROVIDER_ROW["id"]
+    assert implements.start.match_by == "id"
+    assert implements.end.value == service_provider_row["id"]
+    assert implements.end.match_by == "id"
+
+
+def test_enterprise_saml_implements_uses_native_provider_node() -> None:
+    service_provider = GithubSamlServiceProvider.model_validate(
+        {
+            "id": "github:saml:sp:enterprise:kng-global",
+            "native_id": "E_kgDOExample",
+            "scope_type": "enterprise",
+            "scope_slug": "kng-global",
+            "saml_provider_id": "enterprise-saml-provider-id",
+            "issuer_id": "github:saml:trusted-issuer:enterprise:kng-global",
+            "acs_id": "github:saml:acs:enterprise:kng-global",
+            "enabled": True,
+        }
+    )
+
+    implements = _saml_implements_edge(service_provider)
+    assert implements.start.value == "enterprise-saml-provider-id"
+    assert implements.start.match_by == "id"
+    assert implements.end.value == service_provider.id
+    assert implements.end.match_by == "id"
 
 
 def test_org_external_identity_emits_saml_only_direct_binding() -> None:

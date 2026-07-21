@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
@@ -62,6 +62,9 @@ class GHSamlProviderProperties(GHNodeProperties):
 )
 class SamlProvider(BaseAsset):
     """One record from `saml_provider` → one GH_SamlIdentityProvider node + GH_HasSamlIdentityProvider from org."""
+
+    # DLT replays collected GraphQL aliases as snake_case column names.
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
 

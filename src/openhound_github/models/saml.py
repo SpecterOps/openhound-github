@@ -402,17 +402,10 @@ class GithubSamlHasAccountProperties(EdgeProperties):
     ),
     edges=[
         EdgeDef(
-            start=nk.ENTERPRISE,
+            start=nk.SAML_IDENTITY_PROVIDER,
             end=nk.SAML_SERVICE_PROVIDER,
             kind=ek.SAML_IMPLEMENTS,
-            description="GitHub enterprise implements a normalized SAML service provider",
-            traversable=False,
-        ),
-        EdgeDef(
-            start=nk.ORGANIZATION,
-            end=nk.SAML_SERVICE_PROVIDER,
-            kind=ek.SAML_IMPLEMENTS,
-            description="GitHub organization implements a normalized SAML service provider",
+            description="GitHub SAML identity provider implements a normalized SAML service provider",
             traversable=False,
         ),
         EdgeDef(
@@ -469,7 +462,7 @@ class GithubSamlServiceProvider(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.SAML_IMPLEMENTS,
-            start=EdgePath(value=self.native_id, match_by="id"),
+            start=EdgePath(value=self.saml_provider_id, match_by="id"),
             end=EdgePath(value=self.id, match_by="id"),
             properties=GithubSamlRelationshipProperties(traversable=False),
         )
