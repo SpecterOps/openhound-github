@@ -15,6 +15,7 @@ from openhound_github.main import app
 
 SAML_CONTRACT_VERSION = "opengraph-saml-v0.3.0"
 ENTRA_OBJECT_ID_CLAIM = "http://schemas.microsoft.com/identity/claims/objectidentifier"
+ENTRA_TENANT_ID_CLAIM = "http://schemas.microsoft.com/identity/claims/tenantid"
 DEFAULT_GITHUB_DEPLOYMENT_ID = "github.com"
 DEFAULT_GITHUB_WEB_ORIGIN = "https://github.com"
 

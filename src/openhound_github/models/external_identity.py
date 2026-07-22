@@ -6,7 +6,6 @@ from openhound.core.models.entries_dataclass import (
     Edge,
     EdgePath,
     EdgeProperties,
-    PropertyMatch,
 )
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +13,10 @@ from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.enterprise_saml_provider import (
+    EnterpriseSamlProvider,
+    foreign_user_matchers,
+)
 from openhound_github.models.saml import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     ENTRA_OBJECT_ID_CLAIM,
@@ -22,12 +25,6 @@ from openhound_github.models.saml import (
     saml_account_match_values,
     saml_attribute_match_values,
 )
-
-_FOREIGN_USER_KIND: dict[str, str] = {
-    "entra": "AZUser",
-    "okta": "OktaUser",
-    "pingone": "PingOneUser",
-}
 
 
 @dataclass
@@ -182,22 +179,6 @@ class ExternalIdentity(BaseAsset):
             ),
         )
 
-    @staticmethod
-    def detect_foreign_idp(
-        issuer: str | None, sso_url: str | None
-    ) -> tuple[str | None, str | None]:
-        """Detect the foreign IdP type and tenant/environment ID from the issuer or SSO URL."""
-        if not issuer:
-            return None, None
-        if issuer.startswith("https://auth.pingone.com/"):
-            return "pingone", issuer.split("/")[3]
-        if issuer.startswith("https://sts.windows.net/"):
-            return "entra", issuer.split("/")[3]
-        if issuer.startswith("http://www.okta.com/"):
-            domain = (sso_url or "").split("/")[2] if sso_url else None
-            return "okta", domain
-        return None, None
-
     @property
     def idp(self) -> dict:
         ext_idp = self._lookup.idp_for_org(self.org_login)
@@ -213,31 +194,33 @@ class ExternalIdentity(BaseAsset):
     @property
     def _maps_to_user_edges(self):
         if self.saml_identity:
-            foreign_idp_type, foreign_env_id = self.detect_foreign_idp(
-                issuer=self.idp["issuer"],
-                sso_url=self.idp["sso_url"],
+            foreign_kind, foreign_env_id = (
+                EnterpriseSamlProvider.detect_foreign_environment(
+                    issuer=self.idp["issuer"],
+                    sso_url=self.idp["sso_url"],
+                )
             )
-            foreign_kind = _FOREIGN_USER_KIND.get(foreign_idp_type or "", "")
-            foreign_username = (
-                self.saml_identity.username or self.scim_identity.username
+            foreign_username = self.saml_identity.username or (
+                self.scim_identity.username if self.scim_identity else None
+            )
+            match_with = foreign_user_matchers(
+                foreign_kind,
+                foreign_env_id,
+                foreign_username,
+                self.saml_identity.attributes,
             )
 
-            # # GH_MapsToUser → foreign IdP user node (match by name)
-            if foreign_kind and foreign_username:
-                match_with = PropertyMatch(key="name", value=foreign_username.upper())
+            if foreign_kind and foreign_username and match_with:
                 yield Edge(
                     kind=ek.MAPS_TO_USER,
                     start=EdgePath(value=self.node_id, match_by="id"),
                     end=ConditionalEdgePath(
-                        kind="User", property_matchers=[match_with]
+                        kind=foreign_kind, property_matchers=match_with
                     ),
                     properties=EdgeProperties(traversable=False),
                 )
 
-            # SyncedToGHUser: foreign IdP user → GitHub user (traversable, with composition)
-            if foreign_kind and foreign_username and self.node_id:
-                match_with = PropertyMatch(key="name", value=foreign_username.upper())
-
+                # SyncedToGHUser: foreign IdP user → GitHub user
                 gh_id = self.node_id.upper()
                 q = (
                     f"MATCH p=()<-[:GH_SyncedToEnvironment]-(:GH_SamlIdentityProvider)"
@@ -248,7 +231,7 @@ class ExternalIdentity(BaseAsset):
                 yield Edge(
                     kind=ek.SYNCED_TO_GH_USER,
                     start=ConditionalEdgePath(
-                        kind="User", property_matchers=[match_with]
+                        kind=foreign_kind, property_matchers=match_with
                     ),
                     end=EdgePath(value=self.node_id, match_by="id"),
                     properties=GHEdgeProperties(

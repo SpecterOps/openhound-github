@@ -1,9 +1,14 @@
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
-from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
+from openhound.core.models.entries_dataclass import (
+    Edge,
+    EdgePath,
+    EdgeProperties,
+    PropertyMatch,
+)
 from pydantic import ConfigDict, Field
 
 from openhound_github.graph import GHNode, GHNodeProperties
@@ -13,7 +18,50 @@ from openhound_github.main import app
 from openhound_github.models.saml import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     DEFAULT_GITHUB_WEB_ORIGIN,
+    ENTRA_OBJECT_ID_CLAIM,
+    ENTRA_TENANT_ID_CLAIM,
+    saml_attribute_match_values,
 )
+
+
+_FOREIGN_USER_ENVIRONMENT_PROPERTY: dict[str, str] = {
+    nk.OKTA_USER: "tenant_domain",
+    nk.PINGONE_USER: "environmentid",
+}
+
+
+def foreign_user_matchers(
+    foreign_kind: str | None,
+    foreign_environment_id: str | None,
+    foreign_username: str | None,
+    saml_attributes: list[Any] | None = None,
+) -> list[PropertyMatch]:
+    if foreign_kind == nk.AZ_USER:
+        tenant_ids = saml_attribute_match_values(
+            saml_attributes or [], ENTRA_TENANT_ID_CLAIM
+        )
+        object_ids = saml_attribute_match_values(
+            saml_attributes or [], ENTRA_OBJECT_ID_CLAIM
+        )
+        if (
+            not foreign_environment_id
+            or len(tenant_ids) != 1
+            or len(object_ids) != 1
+            or tenant_ids[0].casefold() != foreign_environment_id.casefold()
+        ):
+            return []
+        return [
+            PropertyMatch(key="tenantid", value=tenant_ids[0].upper()),
+            PropertyMatch(key="objectid", value=object_ids[0].upper()),
+        ]
+
+    environment_property = _FOREIGN_USER_ENVIRONMENT_PROPERTY.get(foreign_kind or "")
+    if not environment_property or not foreign_environment_id or not foreign_username:
+        return []
+    return [
+        PropertyMatch(key=environment_property, value=foreign_environment_id),
+        PropertyMatch(key="name", value=foreign_username.upper()),
+    ]
 
 
 @dataclass
@@ -89,11 +137,11 @@ class EnterpriseSamlProvider(BaseAsset):
         if not issuer:
             return None, None
         if issuer.startswith("https://auth.pingone.com/"):
-            return "PingOneUser", issuer.split("/")[3]
+            return nk.PINGONE_USER, issuer.split("/")[3]
         if issuer.startswith("https://sts.windows.net/"):
-            return "AZUser", issuer.split("/")[3]
+            return nk.AZ_USER, issuer.split("/")[3]
         if issuer.startswith("http://www.okta.com/"):
-            return "Okta_User", sso_url.split("/")[2] if sso_url else None
+            return nk.OKTA_USER, sso_url.split("/")[2] if sso_url else None
         return None, None
 
     @property

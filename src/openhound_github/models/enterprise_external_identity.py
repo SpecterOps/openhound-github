@@ -6,7 +6,6 @@ from openhound.core.models.entries_dataclass import (
     Edge,
     EdgePath,
     EdgeProperties,
-    PropertyMatch,
 )
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,7 +13,10 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.enterprise_saml_provider import EnterpriseSamlProvider
+from openhound_github.models.enterprise_saml_provider import (
+    EnterpriseSamlProvider,
+    foreign_user_matchers,
+)
 from openhound_github.models.saml import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     ENTRA_OBJECT_ID_CLAIM,
@@ -195,15 +197,20 @@ class EnterpriseExternalIdentity(BaseAsset):
                 properties=EdgeProperties(traversable=False),
             )
 
-        foreign_kind, _ = self.foreign_user
-        if foreign_kind and self.foreign_username:
-            match = PropertyMatch(key="name", value=self.foreign_username.upper())
+        foreign_kind, foreign_environment_id = self.foreign_user
+        matchers = foreign_user_matchers(
+            foreign_kind,
+            foreign_environment_id,
+            self.foreign_username,
+            self.saml_identity.attributes if self.saml_identity else [],
+        )
+        if foreign_kind and matchers:
             yield Edge(
                 kind=ek.MAPS_TO_USER,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=ConditionalEdgePath(
                     kind=foreign_kind,
-                    property_matchers=[match],
+                    property_matchers=matchers,
                 ),
                 properties=EdgeProperties(traversable=False),
             )
@@ -212,7 +219,7 @@ class EnterpriseExternalIdentity(BaseAsset):
                     kind=ek.SYNCED_TO_GH_USER,
                     start=ConditionalEdgePath(
                         kind=foreign_kind,
-                        property_matchers=[match],
+                        property_matchers=matchers,
                     ),
                     end=EdgePath(value=self.user.id, match_by="id"),
                     properties=EdgeProperties(traversable=True),
