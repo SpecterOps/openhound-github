@@ -827,12 +827,12 @@
     },
     {
       "name": "GH_UsesSecret",
-      "description": "[Workflow] Step references a secret by name — GH_WorkflowStep → GH_RepoSecret / GH_OrgSecret (name match)",
+      "description": "[Workflow] Job or step references a secret by name — GH_WorkflowJob / GH_WorkflowStep → GH_RepoSecret / GH_OrgSecret / GH_EnvironmentSecret (scope match)",
       "is_traversable": false
     },
     {
       "name": "GH_UsesVariable",
-      "description": "[Workflow] Step references a variable by name — GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable (name match)",
+      "description": "[Workflow] Job or step references a variable by name — GH_WorkflowJob / GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable / GH_EnvironmentVariable (scope match)",
       "is_traversable": false
     },
     {

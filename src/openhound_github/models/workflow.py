@@ -305,7 +305,7 @@ class GHWorkflowProperties(GHNodeProperties):
     ],
 )
 class Workflow(BaseAsset):
-    """One record from `workflows` → one GH_Workflow node + GH_HasWorkflow edge from repo."""
+    """One record from `workflows` → one GH_Workflow node + GH_Contains edge from repo."""
 
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
@@ -462,6 +462,15 @@ class Workflow(BaseAsset):
             self.repository_node_id
         )
 
+        patterns = self.pull_request_target_branches
+        branches = self._lookup.branches_for_repository(self.repository_node_id)
+        target_branch_ids = []
+        for branch_id, branch_name, _protected in branches:
+            if not patterns or any(
+                fnmatch.fnmatchcase(branch_name, pattern) for pattern in patterns
+            ):
+                target_branch_ids.append(branch_id)
+
         for (role_node_id,) in read_contents:
             yield Edge(
                 kind=ek.CAN_PWN_REQUEST,
@@ -470,28 +479,13 @@ class Workflow(BaseAsset):
                 properties=EdgeProperties(traversable=True),
             )
 
-        patterns = self.pull_request_target_branches
-        branches = self._lookup.branches_for_repository(self.repository_node_id)
-        if not patterns:
-            for branch_id, branch_name in branches:
+            for branch_id in target_branch_ids:
                 yield Edge(
                     kind=ek.CAN_PWN_REQUEST,
                     start=EdgePath(value=role_node_id, match_by="id"),
                     end=EdgePath(value=branch_id, match_by="id"),
                     properties=EdgeProperties(traversable=True),
                 )
-
-        else:
-            for branch_id, branch_name in branches:
-                if any(
-                    fnmatch.fnmatchcase(branch_name, pattern) for pattern in patterns
-                ):
-                    yield Edge(
-                        kind=ek.CAN_PWN_REQUEST,
-                        start=EdgePath(value=role_node_id, match_by="id"),
-                        end=EdgePath(value=branch_id, match_by="id"),
-                        properties=EdgeProperties(traversable=True),
-                    )
 
     def workflow_job_rows(self) -> list[dict[str, Any]]:
         document = self.document
