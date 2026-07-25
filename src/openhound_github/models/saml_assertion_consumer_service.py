@@ -1,15 +1,20 @@
 from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
-from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
+from openhound.core.models.entries_dataclass import Edge, EdgePath
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 
 from .saml_helpers import (
-    build_saml_route,
-    build_service_provider_node_id,
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+    SAML_CONTRACT_VERSION,
+    SAMLRelationshipEdgeProperties,
+    github_saml_acs_id,
+    github_saml_route,
+    github_saml_service_provider_id,
     normalize_scope_type,
 )
 
@@ -23,12 +28,20 @@ class SAMLAssertionConsumerServiceProperties(GHNodeProperties):
         scope_slug: The GitHub enterprise or organization slug.
         acs_url: The byte-exact GitHub ACS URL.
         sp_entity_id: The byte-exact GitHub service provider entity ID.
+        github_deployment_id: Stable GitHub deployment identifier.
+        github_web_origin: Browser origin for the GitHub deployment.
+        route_source: Convention used to derive the ACS route.
+        schema_contract_version: Shared OpenGraph SAML contract version.
     """
     native_id: str | None = None
     scope_type: str | None = None
     scope_slug: str | None = None
     acs_url: str | None = None
     sp_entity_id: str | None = None
+    github_deployment_id: str | None = None
+    github_web_origin: str | None = None
+    route_source: str | None = None
+    schema_contract_version: str = SAML_CONTRACT_VERSION
 
 @app.asset(
     node=NodeDef(
@@ -52,25 +65,32 @@ class SamlAssertionConsumerService(BaseAsset):
     environment_type: str
     environment_node_id: str | None = None
     environment_name: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
     @property
     def service_provider_node_id(self) -> str:
-        return build_service_provider_node_id(
+        return github_saml_service_provider_id(
             self.environment_type,
             self.environment_slug,
+            self.github_deployment_id,
         )
 
     @property
     def saml_route(self) -> tuple[str, str]:
-        return build_saml_route(
+        return github_saml_route(
             self.environment_type,
             self.environment_slug,
+            self.github_web_origin,
         )
 
     @property
     def node_id(self) -> str:
-        acs_url, _ = self.saml_route
-        return f"saml:acs:{acs_url}"
+        return github_saml_acs_id(
+            self.environment_type,
+            self.environment_slug,
+            self.github_deployment_id,
+        )
 
     @property
     def as_node(self) -> GHNode:
@@ -89,6 +109,10 @@ class SamlAssertionConsumerService(BaseAsset):
                 native_id=self.environment_node_id,
                 scope_type=scope_type,
                 scope_slug=self.environment_slug,
+                github_deployment_id=self.github_deployment_id,
+                github_web_origin=self.github_web_origin,
+                route_source=f"github_{scope_type}_scope_convention",
+                schema_contract_version=SAML_CONTRACT_VERSION,
             ),
         )
 
@@ -98,5 +122,5 @@ class SamlAssertionConsumerService(BaseAsset):
             kind=ek.SAML_HAS_ASSERTION_CONSUMER_SERVICE,
             start=EdgePath(value=self.service_provider_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+            properties=SAMLRelationshipEdgeProperties(traversable=False),
         )

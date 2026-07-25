@@ -1,15 +1,19 @@
 from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, NodeDef, EdgeDef
-from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
+from openhound.core.models.entries_dataclass import Edge, EdgePath
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import nodes as nk
 from openhound_github.kinds import edges as ek
 from openhound_github.main import app
 
 from .saml_helpers import (
-    build_issuer_node_id,
-    build_service_provider_node_id,
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+    SAML_CONTRACT_VERSION,
+    SAMLRelationshipEdgeProperties,
+    github_saml_issuer_id,
+    github_saml_service_provider_id,
     normalize_scope_type,
 )
 
@@ -22,11 +26,19 @@ class SAMLIssuerProperties(GHNodeProperties):
         scope_type: The GitHub SAML scope type.
         scope_slug: The GitHub enterprise or organization slug.
         entity_id: The trusted SAML issuer entity ID.
+        github_deployment_id: Stable GitHub deployment identifier.
+        github_web_origin: Browser origin for the GitHub deployment.
+        native_source_field: Native GitHub field that supplied the issuer.
+        schema_contract_version: Shared OpenGraph SAML contract version.
     """
     native_id: str | None = None
     scope_type: str | None = None
     scope_slug: str | None = None
     entity_id: str | None = None
+    github_deployment_id: str | None = None
+    github_web_origin: str | None = None
+    native_source_field: str | None = None
+    schema_contract_version: str = SAML_CONTRACT_VERSION
 
 @app.asset(
     node=NodeDef(
@@ -51,16 +63,25 @@ class SamlIssuer(BaseAsset):
     environment_type: str
     environment_node_id: str | None = None
     environment_name: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
     @property
     def node_id(self) -> str | None:
-        return build_issuer_node_id(self.issuer)
+        if not self.issuer:
+            return None
+        return github_saml_issuer_id(
+            self.environment_type,
+            self.environment_slug,
+            self.github_deployment_id,
+        )
     
     @property
     def service_provider_node_id(self) -> str:
-        return build_service_provider_node_id(
+        return github_saml_service_provider_id(
             self.environment_type,
             self.environment_slug,
+            self.github_deployment_id,
         )
 
     @property
@@ -78,6 +99,10 @@ class SamlIssuer(BaseAsset):
                 native_id=self.environment_node_id,
                 scope_type=scope_type,
                 scope_slug=self.environment_slug,
+                github_deployment_id=self.github_deployment_id,
+                github_web_origin=self.github_web_origin,
+                native_source_field="GH_SamlIdentityProvider.issuer",
+                schema_contract_version=SAML_CONTRACT_VERSION,
             ),
         )
     
@@ -88,5 +113,5 @@ class SamlIssuer(BaseAsset):
                 kind=ek.SAML_TRUSTS_ISSUER,
                 start=EdgePath(value=self.service_provider_node_id, match_by="id"),
                 end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
+                properties=SAMLRelationshipEdgeProperties(traversable=False),
             )

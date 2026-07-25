@@ -1,17 +1,20 @@
 from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
-from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
-from pydantic import BaseModel
+from openhound.core.models.entries_dataclass import Edge, EdgePath
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from .saml_helpers import (
-    build_issuer_node_id,
-    build_saml_route,
-    build_service_provider_node_id,
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+    SAML_CONTRACT_VERSION,
+    SAMLRelationshipEdgeProperties,
+    github_saml_issuer_id,
+    github_saml_route,
+    github_saml_service_provider_id,
     normalize_scope_type,
 )
 
@@ -27,6 +30,9 @@ class SAMLServiceProviderProperties(GHNodeProperties):
         enabled: Whether SAML is enabled for the scope.
         entity_id: The SAML service provider entity ID.
         environment_name: The name of the GitHub organization or enterprise.
+        github_deployment_id: Stable GitHub deployment identifier.
+        github_web_origin: Browser origin for the GitHub deployment.
+        schema_contract_version: Shared OpenGraph SAML contract version.
     """
 
     native_id: str | None = None
@@ -36,6 +42,9 @@ class SAMLServiceProviderProperties(GHNodeProperties):
     enabled: bool | None = None
     entity_id: str | None = None
     environment_name: str | None = None
+    github_deployment_id: str | None = None
+    github_web_origin: str | None = None
+    schema_contract_version: str = SAML_CONTRACT_VERSION
 
 @app.asset(
     node=NodeDef(
@@ -52,20 +61,6 @@ class SAMLServiceProviderProperties(GHNodeProperties):
             description="GitHub native SAML configuration implements a normalized SAML service provider",
             traversable=False,
         ),
-        EdgeDef(
-            start=nk.ORGANIZATION,
-            end=nk.SAML_SERVICE_PROVIDER,
-            kind=ek.SAML_IMPLEMENTS,
-            description="GitHub Organization implements a normalized SAML service provider",
-            traversable=False,
-        ),
-        EdgeDef(
-            start=nk.ENTERPRISE,
-            end=nk.SAML_SERVICE_PROVIDER,
-            kind=ek.SAML_IMPLEMENTS,
-            description="GitHub Enterprise Account implements a SAML service provider",
-            traversable=False,
-        ),
     ],
 )
 
@@ -76,23 +71,33 @@ class SamlServiceProvider(BaseAsset):
     environment_name: str
     environment_slug: str
     environment_type: str
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
     @property
     def service_provider_node_id(self) -> str:
-        return build_service_provider_node_id(
+        return github_saml_service_provider_id(
             self.environment_type,
             self.environment_slug,
+            self.github_deployment_id,
         )
 
     @property
     def issuer_node_id(self) -> str | None:
-        return build_issuer_node_id(self.issuer)
+        if not self.issuer:
+            return None
+        return github_saml_issuer_id(
+            self.environment_type,
+            self.environment_slug,
+            self.github_deployment_id,
+        )
 
     @property
     def saml_route(self) -> tuple[str, str]:
-        return build_saml_route(
+        return github_saml_route(
             self.environment_type,
             self.environment_slug,
+            self.github_web_origin,
         )
 
     @property
@@ -113,6 +118,9 @@ class SamlServiceProvider(BaseAsset):
                 scope_slug=self.environment_slug,
                 saml_provider_id=self.id,
                 enabled=True,
+                github_deployment_id=self.github_deployment_id,
+                github_web_origin=self.github_web_origin,
+                schema_contract_version=SAML_CONTRACT_VERSION,
             ),
         )
     
@@ -120,13 +128,7 @@ class SamlServiceProvider(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.SAML_IMPLEMENTS,
-            start=EdgePath(value=self.environment_node_id, match_by="id"),
-            end=EdgePath(value=self.service_provider_node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
-        )
-        yield Edge(
-            kind=ek.SAML_IMPLEMENTS,
             start=EdgePath(value=self.id, match_by="id"),
             end=EdgePath(value=self.service_provider_node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+            properties=SAMLRelationshipEdgeProperties(traversable=False),
         )

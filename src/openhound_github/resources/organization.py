@@ -1,5 +1,3 @@
-import base64
-import binascii
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -7,7 +5,6 @@ from datetime import datetime
 from threading import Lock
 from typing import Any, Iterator
 
-import dlt
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
@@ -76,6 +73,10 @@ from openhound_github.models import (
 )
 from openhound_github.models.repo_role_assignment import TEAM_PERMISSION_MAP
 from openhound_github.models.repository_role import DEFAULT_REPO_ROLES
+from openhound_github.models.saml_helpers import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,8 @@ class OrgContext:
     client: RESTClient
     org_name: str
     enterprise_name: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
 
 @dataclass
@@ -92,6 +95,8 @@ class SourceContext:
     client: RESTClient
     organizations: list[OrgContext] = field(default_factory=list)
     enterprise_name: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
     cache_lock: Lock = field(default_factory=Lock)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -1720,6 +1725,8 @@ def saml_provider(ctx: SourceContext):
                     "environment_name": org_data["name"],
                     "environment_slug": org_name,
                     "environment_type": "org",
+                    "github_deployment_id": org.github_deployment_id,
+                    "github_web_origin": org.github_web_origin,
                 }
         except Exception as e:
             logger.error(
@@ -1742,6 +1749,7 @@ def external_identities(ctx: SourceContext):
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
+        github_deployment_id = org.github_deployment_id
         try:
             paginator = GraphQLCursorPaginator(
                 page_info_path="data.organization.samlIdentityProvider.externalIdentities.pageInfo",
@@ -1773,6 +1781,7 @@ def external_identities(ctx: SourceContext):
                         yield {
                             **identity,
                             "environment_slug": org_data.get("login"),
+                            "github_deployment_id": github_deployment_id,
                         }
         except Exception as e:
             logger.error(
@@ -1799,6 +1808,8 @@ def saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
         "environment_name": saml_provider["environment_name"],
         "environment_slug": saml_provider["environment_slug"],
         "environment_type": saml_provider["environment_type"],
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
 @app.transformer(name="saml_assertion_consumer_service", columns=SamlAssertionConsumerService, parallelized=True)
@@ -1808,6 +1819,8 @@ def saml_assertion_consumer_service(saml_provider: SamlProvider, ctx: SourceCont
         "environment_type": saml_provider.get("environment_type"),
         "environment_node_id": saml_provider.get("environment_node_id"),
         "environment_name": saml_provider.get("environment_name"),
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
 @app.transformer(name="saml_issuer", columns=SamlIssuer, parallelized=True)
@@ -1822,6 +1835,8 @@ def saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
         "environment_type": saml_provider.get("environment_type"),
         "environment_node_id": saml_provider.get("environment_node_id"),
         "environment_name": saml_provider.get("environment_name"),
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
 @app.resource(name="scim_users", columns=ScimResource, parallelized=True)

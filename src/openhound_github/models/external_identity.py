@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import (
@@ -6,7 +6,6 @@ from openhound.core.models.entries_dataclass import (
     Edge,
     EdgePath,
     EdgeProperties,
-    PropertyMatch,
 )
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,15 +15,29 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 
 from .saml_helpers import (
-    build_service_provider_node_id,
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    ENTRA_OBJECT_ID_CLAIM,
+    SAML_CONTRACT_VERSION,
     detect_foreign_idp,
     foreign_user_kind,
+    foreign_user_matchers,
+    github_saml_service_provider_id,
+    saml_account_match_values,
+    saml_attribute_match_values,
 )
+
 
 @dataclass
 class SAMLHasAccountEdgeProperties(EdgeProperties):
-    match_values: list[str] | None = None
+    schema_contract_version: str = SAML_CONTRACT_VERSION
+    match_values: list[str] = field(default_factory=list)
+    scoped_exact_match_values: list[str] = field(default_factory=list)
+    entra_object_id_match_values: list[str] = field(default_factory=list)
+    direct_binding: bool = False
+    direct_binding_source: str | None = None
+    external_identity_id: str | None = None
     account_state: str = "unknown"
+
 
 @dataclass
 class GHExternalIdentityProperties(GHNodeProperties):
@@ -70,6 +83,7 @@ class SAMLIdentity(BaseModel):
     given_name: str | None = Field(alias="givenName", default=None)
     name_id: str | None = Field(alias="nameId", default=None)
     username: str | None = None
+    attributes: list[dict[str, object]] = Field(default_factory=list)
 
 
 class User(BaseModel):
@@ -128,6 +142,7 @@ class ExternalIdentity(BaseAsset):
 
     # Additional
     environment_slug: str
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
 
     @property
     def node_id(self) -> str:
@@ -201,61 +216,49 @@ class ExternalIdentity(BaseAsset):
         )
         foreign_kind = foreign_user_kind(foreign_idp_type)
 
-        foreign_env_key = None
-        if foreign_idp_type == "okta":
-            foreign_env_key = "tenant_domain"
-        elif foreign_idp_type == "pingone":
-            foreign_env_key = "environmentid"
-        elif foreign_idp_type == "entra":
-            foreign_env_key = "tenantid"
-
         foreign_username = None
-        if self.saml_identity and self.saml_identity.name_id:
-            foreign_username = self.saml_identity.name_id
-        elif self.saml_identity and self.saml_identity.username:
+        if self.saml_identity and self.saml_identity.username:
             foreign_username = self.saml_identity.username
         elif self.scim_identity and self.scim_identity.username:
             foreign_username = self.scim_identity.username
 
-        match_key = "name"
-        if foreign_idp_type == "pingone":
-            match_key = "email"
-        elif foreign_idp_type == "okta":
-            match_key = "login"
-
-        # # GH_MapsToUser → foreign IdP user node (match by name)
-        matchers = None
-        if foreign_kind and foreign_username:
-            matchers = [PropertyMatch(key=match_key, value=foreign_username)]
-            if foreign_env_key and foreign_env_id:
-                matchers.append(
-                    PropertyMatch(key=foreign_env_key, value=foreign_env_id)
-                )
-
+        matchers = foreign_user_matchers(
+            foreign_kind,
+            foreign_env_id,
+            foreign_username,
+            self.saml_identity.attributes if self.saml_identity else [],
+        )
+        if foreign_kind and matchers:
             yield Edge(
                 kind=ek.MAPS_TO_USER,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=ConditionalEdgePath(
-                    kind=foreign_kind, 
-                    property_matchers=matchers
+                    kind=foreign_kind,
+                    property_matchers=matchers,
                 ),
                 properties=EdgeProperties(traversable=False),
             )
 
         # SyncedToGHUser: foreign IdP user → GitHub user (traversable, with composition)
         if matchers and self.user and self.user.id:
-            gh_id = self.node_id.upper()
+            composition_matchers = [
+                matcher for matcher in matchers if matcher.key in {"name", "objectid"}
+            ]
+            composition_predicates = " OR ".join(
+                f"n.{matcher.key} = '{matcher.value}'"
+                for matcher in composition_matchers
+            )
             q = (
                 f"MATCH p=()<-[:GH_SyncedToEnvironment]-(:GH_SamlIdentityProvider)"
                 f"-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)"
                 f"-[:GH_MapsToUser]->(n) "
-                f"WHERE n.objectid = '{gh_id}' OR n.name = '{foreign_username.upper()}' RETURN p"
+                f"WHERE {composition_predicates} RETURN p"
             )
             yield Edge(
                 kind=ek.SYNCED_TO_GH_USER,
                 start=ConditionalEdgePath(
                     kind=foreign_kind,
-                    property_matchers=matchers
+                    property_matchers=matchers,
                 ),
                 end=EdgePath(value=self.user.id, match_by="id"),
                 properties=GHEdgeProperties(
@@ -267,27 +270,59 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def service_provider_node_id(self) -> str | None:
-        return build_service_provider_node_id(
+        return github_saml_service_provider_id(
             self.idp.get("environment_type"),
             self.environment_slug,
+            self.github_deployment_id,
+        )
+
+    @property
+    def saml_scoped_exact_match_values(self) -> list[str]:
+        if not self.saml_identity:
+            return []
+        return saml_account_match_values(
+            self.saml_identity.username,
+            self.saml_identity.name_id,
+        )
+
+    @property
+    def enterprise_managed_user_scim_match_values(self) -> list[str]:
+        if self.idp.get("environment_type") != "enterprise":
+            return []
+        if self.saml_scoped_exact_match_values or not self.scim_identity:
+            return []
+        return saml_account_match_values(self.scim_identity.username)
+
+    @property
+    def scoped_exact_match_values(self) -> list[str]:
+        return (
+            self.saml_scoped_exact_match_values
+            or self.enterprise_managed_user_scim_match_values
+        )
+
+    @property
+    def entra_object_id_match_values(self) -> list[str]:
+        if not self.saml_identity:
+            return []
+        return saml_attribute_match_values(
+            self.saml_identity.attributes,
+            ENTRA_OBJECT_ID_CLAIM,
         )
 
     @property
     def saml_match_values(self) -> list[str]:
-        values = []
+        return saml_account_match_values(
+            *self.scoped_exact_match_values,
+            *self.entra_object_id_match_values,
+        )
 
-        if self.saml_identity and self.saml_identity.name_id:
-            values.append(self.saml_identity.name_id)
-
-        cleaned = []
-        seen = set()
-        for value in values:
-            v = str(value).strip()
-            if v and v not in seen:
-                cleaned.append(v)
-                seen.add(v)
-
-        return cleaned
+    @property
+    def saml_direct_binding_source(self) -> str | None:
+        if self.saml_scoped_exact_match_values:
+            return "GH_ExternalIdentity.saml_identity"
+        if self.enterprise_managed_user_scim_match_values:
+            return "GH_ExternalIdentity.scim_identity (Enterprise Managed Users)"
+        return None
 
     @property
     def edges(self):
@@ -310,6 +345,11 @@ class ExternalIdentity(BaseAsset):
                 properties=SAMLHasAccountEdgeProperties(
                     traversable=False,
                     match_values=match_values,
+                    scoped_exact_match_values=self.scoped_exact_match_values,
+                    entra_object_id_match_values=self.entra_object_id_match_values,
+                    direct_binding=True,
+                    direct_binding_source=self.saml_direct_binding_source,
+                    external_identity_id=self.node_id,
                     account_state="unknown",
                 ),
             )

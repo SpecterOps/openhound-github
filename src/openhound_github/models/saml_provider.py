@@ -2,13 +2,17 @@ from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from .saml_helpers import build_service_provider_node_id, detect_foreign_idp, foreign_user_kind
+from .saml_helpers import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+    detect_foreign_idp,
+)
 
 
 @dataclass
@@ -34,6 +38,8 @@ class GHSamlProviderProperties(GHNodeProperties):
     idp_certificate: str | None = None
     environment_name: str | None = None
     foreign_environment_id: str | None = None
+    github_deployment_id: str | None = None
+    github_web_origin: str | None = None
     query_environments: str | None = None
     query_external_identities: str | None = None
 
@@ -65,13 +71,15 @@ class GHSamlProviderProperties(GHNodeProperties):
 class SamlProvider(BaseAsset):
     """One record from `saml_provider` → one GH_SamlIdentityProvider node + GH_HasSamlIdentityProvider from org."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
 
     digest_method: str | None = None
-    idp_certificate: str | None = None
+    idp_certificate: str | None = Field(default=None, alias="idpCertificate")
     issuer: str | None = None
-    signature_method: str | None = None
-    sso_url: str | None = None
+    signature_method: str | None = Field(default=None, alias="signatureMethod")
+    sso_url: str | None = Field(default=None, alias="ssoUrl")
     # Detected foreign IdP type and tenant, derived from issuer/sso_url
     # foreign_idp_type: str | None = None  # e.g. "entra", "okta", "pingone"
     foreign_environment_id: str | None = None  # tenant/org ID in the foreign IdP
@@ -80,7 +88,9 @@ class SamlProvider(BaseAsset):
     environment_node_id: str # organization.id (GraphQL global ID)
     environment_name: str
     environment_slug: str
-    environment_type: str 
+    environment_type: str
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
     @property
     def node_id(self) -> str:
@@ -104,6 +114,8 @@ class SamlProvider(BaseAsset):
                 environment_name=self.environment_name,
                 environmentid=self.environment_node_id,
                 foreign_environment_id=foreign_environment_id,
+                github_deployment_id=self.github_deployment_id,
+                github_web_origin=self.github_web_origin,
                 query_environments=f"MATCH p=(:GitHub)-[:GH_HasSamlIdentityProvider]->(:GH_SamlIdentityProvider {{node_id:'{self.node_id}'}}) RETURN p",
                 query_external_identities=f"MATCH p=(:GH_SamlIdentityProvider {{node_id:'{self.node_id}'}})-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity) RETURN p",
             ),

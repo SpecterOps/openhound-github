@@ -70,3 +70,8 @@ SAML_SERVICE_PROVIDER = "SAML_ServiceProvider"
 SAML_ISSUER = "SAML_Issuer"
 SAML_ASSERTION_CONSUMER_SERVICE = "SAML_AssertionConsumerService"
 SAML_CLAIM_MAPPING = "SAML_ClaimMapping"
+
+# External node kinds used only as correlation endpoints
+AZ_USER = "AZUser"
+OKTA_USER = "Okta_User"
+PINGONE_USER = "PingOne_User"

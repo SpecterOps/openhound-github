@@ -32,6 +32,10 @@ from openhound_github.models import (
     SamlIssuer,
     ExternalIdentity,
 )
+from openhound_github.models.saml_helpers import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,8 @@ class SourceContext:
     sso_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
@@ -377,6 +383,8 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         "environment_name": enterprise_data.name,
         "environment_slug": enterprise_data.slug,
         "environment_type": "enterprise",
+        "github_deployment_id": ctx.github_deployment_id,
+        "github_web_origin": ctx.github_web_origin,
     }
 
 @app.transformer(
@@ -393,6 +401,8 @@ def enterprise_saml_service_provider(saml_provider: SamlProvider, ctx: SourceCon
         "environment_name": saml_provider["environment_name"],
         "environment_slug": saml_provider["environment_slug"],
         "environment_type": saml_provider["environment_type"],
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
 @app.transformer(
@@ -409,6 +419,8 @@ def enterprise_saml_assertion_consumer_service(
         "environment_type": saml_provider.get("environment_type"),
         "environment_node_id": saml_provider.get("environment_node_id"),
         "environment_name": saml_provider.get("environment_name"),
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
 @app.transformer(
@@ -428,6 +440,8 @@ def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
         "environment_type": saml_provider.get("environment_type"),
         "environment_node_id": saml_provider.get("environment_node_id"),
         "environment_name": saml_provider.get("environment_name"),
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
 @app.transformer(
@@ -481,6 +495,9 @@ def enterprise_external_identity(
                 yield {
                     **identity,
                     "environment_slug": saml_provider.get("environment_slug"),
+                    "github_deployment_id": saml_provider.get(
+                        "github_deployment_id"
+                    ),
                 }
 
 
