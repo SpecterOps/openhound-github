@@ -286,6 +286,121 @@
       "is_traversable": false
     },
     {
+      "name": "GH_CreateEnterpriseOrganizations",
+      "description": "[Enterprise] Enterprise role can create organizations",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_EditEnterpriseCustomPropertiesForOrganizations",
+      "description": "[Enterprise] Enterprise role can edit custom properties for organizations",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseAdmins",
+      "description": "[Enterprise] Enterprise role can manage enterprise administrators",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_ManageEnterpriseIdentityProvider",
+      "description": "[Enterprise] Enterprise role can manage the enterprise identity provider",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseMembers",
+      "description": "[Enterprise] Enterprise role can manage enterprise members",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_ManageEnterpriseOrganizationAdmins",
+      "description": "[Enterprise] Enterprise role can manage organization administrators",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_ManageEnterpriseOrganizations",
+      "description": "[Enterprise] Enterprise role can manage organizations",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseReferrals",
+      "description": "[Enterprise] Enterprise role can manage referrals",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseTeams",
+      "description": "[Enterprise] Enterprise role can manage enterprise teams",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseAuditLog",
+      "description": "[Enterprise] Enterprise role can read the audit log",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseDomainVerification",
+      "description": "[Enterprise] Enterprise role can read domain verification data",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseMembers",
+      "description": "[Enterprise] Enterprise role can read enterprise members",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseOrgProjects",
+      "description": "[Enterprise] Enterprise role can read organization projects",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseOrganizationAdmin",
+      "description": "[Enterprise] Enterprise role can read organization administration data",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_SetEnterpriseInteractionLimits",
+      "description": "[Enterprise] Enterprise role can set interaction limits",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ViewEnterpriseActionsUsageMetrics",
+      "description": "[Enterprise] Enterprise role can view Actions usage metrics",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ViewEnterpriseBilling",
+      "description": "[Enterprise] Enterprise role can view billing data",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ViewEnterpriseSecretScanningAlerts",
+      "description": "[Enterprise] Enterprise role can view secret-scanning alerts",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseActionsPolicies",
+      "description": "[Enterprise] Enterprise role can write Actions policies",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseBilling",
+      "description": "[Enterprise] Enterprise role can write billing settings",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterprisePersonalAccessTokenPolicies",
+      "description": "[Enterprise] Enterprise role can write personal access token policies",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseSso",
+      "description": "[Enterprise] Enterprise role can write SSO settings",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseTeamMembers",
+      "description": "[Enterprise] Enterprise role can write enterprise team membership",
+      "is_traversable": false
+    },
+    {
       "name": "GH_Owns",
       "description": "Organization owns a repository",
       "is_traversable": true

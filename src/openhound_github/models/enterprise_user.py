@@ -8,6 +8,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.enterprise_helpers import enterprise_role_node_id
 
 
 @dataclass
@@ -47,6 +48,13 @@ class GHEnterpriseUserProperties(GHNodeProperties):
             kind=ek.HAS_MEMBER,
             description="Enterprise has user member",
             traversable=False,
+        ),
+        EdgeDef(
+            start=nk.USER,
+            end=nk.ENTERPRISE_ROLE,
+            kind=ek.HAS_ROLE,
+            description="Enterprise user has built-in members role",
+            traversable=True,
         ),
     ],
 )
@@ -94,3 +102,14 @@ class EnterpriseUser(BaseAsset):
                 end=EdgePath(value=self.node_id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
             )
+        yield Edge(
+            kind=ek.HAS_ROLE,
+            start=EdgePath(value=self.node_id, match_by="id"),
+            end=EdgePath(
+                value=enterprise_role_node_id(
+                    self._lookup.enterprise_id(), "members"
+                ),
+                match_by="id",
+            ),
+            properties=EdgeProperties(traversable=True),
+        )

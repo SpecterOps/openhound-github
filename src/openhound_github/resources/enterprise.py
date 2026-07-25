@@ -354,12 +354,22 @@ def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
         "enterprise_slug": ctx.enterprise_name,
     }
 
+    yield {
+        "id": "members",
+        "name": "members",
+        "description": "Built-in role assigned to enterprise members",
+        "source": "Default",
+        "permissions": [],
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
+
 
 @app.transformer(
     name="enterprise_role_teams", columns=EnterpriseRoleTeam, parallelized=True
 )
 def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
-    if role.id == "owners":
+    if role.id in {"owners", "members"}:
         return
 
     for page in ctx.client.paginate(
@@ -380,7 +390,7 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
     name="enterprise_role_users", columns=EnterpriseRoleUser, parallelized=True
 )
 def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
-    if role.id == "owners":
+    if role.id in {"owners", "members"}:
         return
 
     for page in ctx.client.paginate(
