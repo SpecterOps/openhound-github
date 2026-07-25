@@ -51,7 +51,14 @@ class GHEnvVariableProperties(GHNodeProperties):
             kind=ek.CONTAINS,
             description="Environment contains variable",
             traversable=False,
-        )
+        ),
+        EdgeDef(
+            start=nk.ENVIRONMENT,
+            end=nk.ENVIRONMENT_VARIABLE,
+            kind=ek.HAS_VARIABLE,
+            description="Environment has variable",
+            traversable=True,
+        ),
     ],
 )
 class EnvironmentVariable(BaseAsset):
@@ -105,4 +112,10 @@ class EnvironmentVariable(BaseAsset):
             start=EdgePath(value=self.environment_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
+        )
+        yield Edge(
+            kind=ek.HAS_VARIABLE,
+            start=EdgePath(value=self.environment_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=True),
         )

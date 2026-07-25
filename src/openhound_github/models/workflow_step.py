@@ -103,6 +103,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
         ),
         EdgeDef(
             start=nk.WORKFLOW_STEP,
+            end=nk.ENVIRONMENT_SECRET,
+            kind=ek.USES_SECRET,
+            description="Workflow step references environment secret",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.WORKFLOW_STEP,
             end=nk.REPO_VARIABLE,
             kind=ek.USES_VARIABLE,
             description="Workflow step references repository variable",
@@ -115,20 +122,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
             description="Workflow step references organization variable",
             traversable=False,
         ),
-        # EdgeDef(
-        #     start=nk.WORKFLOW_STEP,
-        #     end=nk.ENVIRONMENT_SECRET,
-        #     kind=ek.USES_SECRET,
-        #     description="Workflow step references environment secret",
-        #     traversable=False,
-        # ),
-        # EdgeDef(
-        #     start=nk.WORKFLOW_STEP,
-        #     end=nk.ENVIRONMENT_VARIABLE,
-        #     kind=ek.USES_VARIABLE,
-        #     description="Workflow step references environment variable",
-        #     traversable=False,
-        # ),
+        EdgeDef(
+            start=nk.WORKFLOW_STEP,
+            end=nk.ENVIRONMENT_VARIABLE,
+            kind=ek.USES_VARIABLE,
+            description="Workflow step references environment variable",
+            traversable=False,
+        ),
     ],
 )
 class WorkflowStep(BaseAsset):
@@ -227,6 +227,29 @@ class WorkflowStep(BaseAsset):
                     properties=EdgeProperties(traversable=False),
                 )
 
+            if self.job_environment and "${{" not in self.job_environment:
+                if self._lookup.environment_secret_for_environment(
+                    ref.name, self.repository_node_id, self.job_environment
+                ):
+                    yield Edge(
+                        kind=ek.USES_SECRET,
+                        start=EdgePath(value=self.node_id, match_by="id"),
+                        end=ConditionalEdgePath(
+                            kind=nk.ENVIRONMENT_SECRET,
+                            property_matchers=[
+                                PropertyMatch(key="name", value=ref.name.upper()),
+                                PropertyMatch(
+                                    key="deployment_environment_name",
+                                    value=self.job_environment,
+                                ),
+                                PropertyMatch(
+                                    key="repository_id", value=self.repository_node_id
+                                ),
+                            ],
+                        ),
+                        properties=EdgeProperties(traversable=False),
+                    )
+
     @property
     def _uses_variable_edges(self):
         for ref in self.variable_references:
@@ -260,6 +283,29 @@ class WorkflowStep(BaseAsset):
                     ),
                     properties=EdgeProperties(traversable=False),
                 )
+
+            if self.job_environment and "${{" not in self.job_environment:
+                if self._lookup.environment_variable_for_environment(
+                    ref.name, self.repository_node_id, self.job_environment
+                ):
+                    yield Edge(
+                        kind=ek.USES_VARIABLE,
+                        start=EdgePath(value=self.node_id, match_by="id"),
+                        end=ConditionalEdgePath(
+                            kind=nk.ENVIRONMENT_VARIABLE,
+                            property_matchers=[
+                                PropertyMatch(key="name", value=ref.name.upper()),
+                                PropertyMatch(
+                                    key="deployment_environment_name",
+                                    value=self.job_environment,
+                                ),
+                                PropertyMatch(
+                                    key="repository_id", value=self.repository_node_id
+                                ),
+                            ],
+                        ),
+                        properties=EdgeProperties(traversable=False),
+                    )
 
     @property
     def _has_step_edge(self):

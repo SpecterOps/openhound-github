@@ -48,6 +48,13 @@ class GHOrgVariableProperties(GHNodeProperties):
             description="Org contains variable",
             traversable=False,
         ),
+        EdgeDef(
+            start=nk.REPOSITORY,
+            end=nk.ORG_VARIABLE,
+            kind=ek.HAS_VARIABLE,
+            description="Repository can access org variable",
+            traversable=True,
+        ),
     ],
 )
 class OrgVariable(BaseAsset):
@@ -92,16 +99,45 @@ class OrgVariable(BaseAsset):
         )
 
     @property
+    def _all_repo_edges(self):
+        if self.visibility == "all":
+            for repo in self._lookup.repository_node_ids_for_org(self.org_login):
+                for repo_node_id in repo:
+                    yield Edge(
+                        kind=ek.HAS_VARIABLE,
+                        start=EdgePath(value=repo_node_id, match_by="id"),
+                        end=EdgePath(value=self.node_id, match_by="id"),
+                        properties=EdgeProperties(traversable=True),
+                    )
+
+    @property
+    def _private_repo_edges(self):
+        if self.visibility == "private":
+            for repo in self._lookup.private_repository_node_ids_for_org(
+                self.org_login
+            ):
+                for repo_node_id in repo:
+                    yield Edge(
+                        kind=ek.HAS_VARIABLE,
+                        start=EdgePath(value=repo_node_id, match_by="id"),
+                        end=EdgePath(value=self.node_id, match_by="id"),
+                        properties=EdgeProperties(traversable=True),
+                    )
+
+    @property
+    def _contains_edge(self):
+        yield Edge(
+            kind=ek.CONTAINS,
+            start=EdgePath(value=self.org_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+
+    @property
     def edges(self):
-        # TODO: Check if this should indeed not return CONTAINS edge
-        return []
-        # yield Edge(
-        #         kind=ek.CONTAINS,
-        #         start=EdgePath(value=self._lookup.org_id(), match_by="id"),
-        #         end=EdgePath(value=self.node_id, match_by="id"),
-        #         properties=EdgeProperties(traversable=False),
-        #     )
-        #
+        yield from self._contains_edge
+        yield from self._all_repo_edges
+        yield from self._private_repo_edges
 
 
 @app.asset(
@@ -111,7 +147,7 @@ class OrgVariable(BaseAsset):
             end=nk.ORG_VARIABLE,
             kind=ek.HAS_VARIABLE,
             description="Repository can access org variable",
-            traversable=False,
+            traversable=True,
         )
     ],
 )
@@ -140,5 +176,5 @@ class SelectedOrgVariable(BaseAsset):
             kind=ek.HAS_VARIABLE,
             start=EdgePath(value=self.repository_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+            properties=EdgeProperties(traversable=True),
         )
