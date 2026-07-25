@@ -666,6 +666,13 @@ class GHRepoRoleProperties(GHNodeProperties):
             description="Role can delete discussion comments",
             traversable=False,
         ),
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.REPOSITORY,
+            kind=ek.CAN_CREATE_ENVIRONMENT,
+            description="Role can create new environments in the repository by editing workflows",
+            traversable=True,
+        ),
     ],
 )
 class RepoRole(BaseAsset):
@@ -913,6 +920,18 @@ class RepoRole(BaseAsset):
                 )
 
     @property
+    def _can_create_environment_edges(self):
+        write_roles = ["write", "maintain", "admin"]
+        if self.name in write_roles or self.base_role in write_roles:
+            if self._lookup.role_can_create_branch(self.id, self.repository_node_id):
+                yield Edge(
+                    kind=ek.CAN_CREATE_ENVIRONMENT,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.repository_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )
+
+    @property
     def _can_edit_repo_protection_edges(self):
         if "edit_repo_protections" in self.permissions:
             yield Edge(
@@ -965,5 +984,6 @@ class RepoRole(BaseAsset):
         yield from self._bypass_branch_protection_edges
         yield from self._bypass_push_protected_branch_edges
         yield from self._can_create_branch_edges
+        yield from self._can_create_environment_edges
         yield from self._can_edit_repo_protection_edges
         yield from self._can_edit_branch_protection_edges
