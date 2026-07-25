@@ -10,6 +10,7 @@ BRANCH_PROTECTION_RULE = "GH_BranchProtectionRule"
 ENVIRONMENT = "GH_Environment"
 ENVIRONMENT_SECRET = "GH_EnvironmentSecret"
 ENVIRONMENT_VARIABLE = "GH_EnvironmentVariable"
+ENVIRONMENT_BRANCH_POLICY = "GH_EnvironmentBranchPolicy"
 
 # Identity nodes
 EXTERNAL_IDENTITY = "GH_ExternalIdentity"

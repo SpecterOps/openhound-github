@@ -395,6 +395,19 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def environment_deployment_branch_policy(
+        self, environment_name: str, repository_node_id: str
+    ) -> tuple[bool, bool] | None:
+        return self._find_single_row(
+            f"""SELECT
+                coalesce(deployment_branch_policy->>'protected_branches', 'false') = 'true' AS protected_branches,
+                coalesce(deployment_branch_policy->>'custom_branch_policies', 'false') = 'true' AS custom_branch_policies
+            FROM {self.schema}.environments
+            WHERE name = ? AND repository_node_id = ?""",
+            [environment_name, repository_node_id],
+        )
+
+    @lru_cache
     def workflow(self, repository_node_id: str, path: str):
         return self._find_single_object(
             f"""
@@ -407,7 +420,12 @@ class GithubLookup(LookupManager):
     @lru_cache
     def branches_for_repository(self, repository_node_id: str):
         return self._find_all_objects(
-            f"""SELECT id, name FROM {self.schema}.branches WHERE repository_node_id = ?""",
+            f"""SELECT
+                id,
+                name,
+                branch_protection_rule IS NOT NULL AS protected
+            FROM {self.schema}.branches
+            WHERE repository_node_id = ?""",
             [repository_node_id],
         )
 
