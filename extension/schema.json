@@ -143,6 +143,14 @@
       "color": "#D5F2C2"
     },
     {
+      "name": "GH_EnvironmentBranchPolicy",
+      "display_name": "GitHub Environment Branch Policy",
+      "description": "A deployment branch policy attached to a GitHub environment, such as an exact branch name or wildcard pattern like release/*",
+      "is_display_kind": true,
+      "icon": "code-branch",
+      "color": "#B7E3A1"
+    },
+    {
       "name": "GH_OrgSecret",
       "display_name": "GitHub Org Secret",
       "description": "An organization-level GitHub Actions secret that can be scoped to all, private, or selected repositories",
@@ -698,11 +706,6 @@
       "is_traversable": false
     },
     {
-      "name": "GH_HasBranch",
-      "description": "Repository has this branch",
-      "is_traversable": false
-    },
-    {
       "name": "GH_CanEditProtection",
       "description": "[Repository - Computed] Repo role can modify or remove branch protection rules for the repository/branch (computed from GH_EditRepoProtections + GH_ProtectedBy)",
       "is_traversable": true
@@ -718,23 +721,13 @@
       "is_traversable": false
     },
     {
-      "name": "GH_HasWorkflow",
-      "description": "Repository has this workflow",
-      "is_traversable": false
-    },
-    {
-      "name": "GH_HasEnvironment",
-      "description": "Repository or branch has/can deploy to this environment",
-      "is_traversable": false
-    },
-    {
       "name": "GH_HasSecret",
       "description": "Repository or environment has access to this secret",
       "is_traversable": true
     },
     {
       "name": "GH_HasVariable",
-      "description": "Repository has access to this variable (org-level or repo-level)",
+      "description": "Repository or environment has access to this variable",
       "is_traversable": true
     },
     {
@@ -788,6 +781,16 @@
       "is_traversable": true
     },
     {
+      "name": "GH_CanCreateEnvironment",
+      "description": "Repo role can create new GitHub environments in this repository by editing a workflow that references a nonexistent environment name",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_CanEditEnvironment",
+      "description": "Repo admin role can edit the configuration of this GitHub environment",
+      "is_traversable": true
+    },
+    {
       "name": "GH_CanAssumeIdentity",
       "description": "Repository can assume this cloud identity via OIDC federation (Azure workload identity or AWS IAM role)",
       "is_traversable": true
@@ -818,18 +821,8 @@
       "is_traversable": false
     },
     {
-      "name": "GH_HasJob",
-      "description": "[Workflow] Workflow contains this job — GH_Workflow → GH_WorkflowJob",
-      "is_traversable": false
-    },
-    {
       "name": "GH_HasMember",
       "description": "Enterprise or organization has this user as a member",
-      "is_traversable": false
-    },
-    {
-      "name": "GH_HasStep",
-      "description": "[Workflow] Job contains this step — GH_WorkflowJob → GH_WorkflowStep",
       "is_traversable": false
     },
     {
@@ -841,6 +834,21 @@
       "name": "GH_UsesVariable",
       "description": "[Workflow] Step references a variable by name — GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable (name match)",
       "is_traversable": false
+    },
+    {
+      "name": "GH_CanDeployToEnvironment",
+      "description": "[Computed] Repository, branch, or repo role can deploy to this GitHub environment after evaluating deployment branch policy and admin bypass behavior",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_MatchesEnvironmentPolicy",
+      "description": "Branch matches this environment deployment branch policy",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ApprovesDeploymentTo",
+      "description": "User or team is configured as a required reviewer for this environment",
+      "is_traversable": false
     }
   ],
   "environments": [
@@ -848,11 +856,7 @@
       "environment_kind": "GH_Organization",
       "source_kind": "GitHub",
       "principal_kinds": [
-        "GH_User",
-        "GH_Team",
-        "GH_Repository",
-        "GH_Branch",
-        "GH_Environment"
+        "GH_User"
       ]
     }
   ],
