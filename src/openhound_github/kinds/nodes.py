@@ -71,6 +71,12 @@ SAML_ISSUER = "SAML_Issuer"
 SAML_ASSERTION_CONSUMER_SERVICE = "SAML_AssertionConsumerService"
 SAML_CLAIM_MAPPING = "SAML_ClaimMapping"
 
+# Normalized OpenGraph-SCIM nodes
+SCIM_ORGANIZATION = "SCIM_Organization"
+SCIM_USER = "SCIM_User"
+SCIM_GROUP = "SCIM_Group"
+SCIM_ROLE = "SCIM_Role"
+
 # External node kinds used only as correlation endpoints
 AZ_USER = "AZUser"
 OKTA_USER = "Okta_User"

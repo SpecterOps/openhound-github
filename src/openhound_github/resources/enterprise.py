@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from dlt.sources.helpers.rest_client.client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
 
 from openhound_github.graphql import (
     ENTERPRISE_ADMINS_QUERY,
@@ -31,6 +32,9 @@ from openhound_github.models import (
     SamlAssertionConsumerService,
     SamlIssuer,
     ExternalIdentity,
+    ScimGroup,
+    ScimOrganization,
+    ScimUser,
 )
 from openhound_github.models.saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
@@ -46,10 +50,36 @@ class SourceContext:
 
     client: RESTClient
     sso_client: RESTClient | None = None
+    scim_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
+    collect_enterprise_scim: bool = False
+    emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+
+
+def iter_enterprise_scim_resources(
+    client: RESTClient,
+    enterprise_slug: str,
+    resource_kind: str,
+):
+    if resource_kind not in {"Users", "Groups"}:
+        raise ValueError(f"Unsupported enterprise SCIM resource: {resource_kind}")
+    paginator = OffsetPaginator(
+        offset_param="startIndex",
+        limit_param="count",
+        limit=100,
+        offset=1,
+        total_path="totalResults",
+    )
+    for page in client.paginate(
+        f"/scim/v2/enterprises/{enterprise_slug}/{resource_kind}",
+        params={"startIndex": 1, "count": 100},
+        paginator=paginator,
+        data_selector="Resources",
+    ):
+        yield from page
 
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
@@ -103,6 +133,62 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
                     "enterprise_node_id": enterprise_data.id,
                     "enterprise_slug": ctx.enterprise_name,
                 }
+
+
+@app.transformer(
+    name="enterprise_scim_organizations",
+    columns=ScimOrganization,
+    parallelized=True,
+)
+def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    yield {
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
+
+
+@app.transformer(
+    name="enterprise_scim_users",
+    columns=ScimUser,
+    parallelized=True,
+)
+def enterprise_scim_users(enterprise_data: Enterprise, ctx: SourceContext):
+    scim_client = ctx.scim_client or ctx.client
+    if not scim_client or not ctx.enterprise_name:
+        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+    for user in iter_enterprise_scim_resources(
+        scim_client,
+        ctx.enterprise_name,
+        "Users",
+    ):
+        yield {
+            **user,
+            "enterprise_node_id": enterprise_data.id,
+            "enterprise_slug": ctx.enterprise_name,
+            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
+        }
+
+
+@app.transformer(
+    name="enterprise_scim_groups",
+    columns=ScimGroup,
+    parallelized=True,
+)
+def enterprise_scim_groups(enterprise_data: Enterprise, ctx: SourceContext):
+    scim_client = ctx.scim_client or ctx.client
+    if not scim_client or not ctx.enterprise_name:
+        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+    for group in iter_enterprise_scim_resources(
+        scim_client,
+        ctx.enterprise_name,
+        "Groups",
+    ):
+        yield {
+            **group,
+            "enterprise_node_id": enterprise_data.id,
+            "enterprise_slug": ctx.enterprise_name,
+            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
+        }
 
 
 @app.transformer(name="enterprise_members", columns=BaseUser, parallelized=True)
@@ -532,6 +618,15 @@ def enterprise_resources(ctx: SourceContext):
                 enterprise_resource | saml_resource | enterprise_saml_assertion_consumer_service(ctx),
                 enterprise_resource | saml_resource | enterprise_saml_issuer(ctx),
                 enterprise_resource | saml_resource | enterprise_external_identity(ctx),
+            ]
+        )
+
+    if ctx.collect_enterprise_scim:
+        resources.extend(
+            [
+                enterprise_resource | enterprise_scim_organizations(ctx),
+                enterprise_resource | enterprise_scim_users(ctx),
+                enterprise_resource | enterprise_scim_groups(ctx),
             ]
         )
 

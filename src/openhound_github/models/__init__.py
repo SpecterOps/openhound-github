@@ -43,7 +43,7 @@ from .saml_assertion_consumer_service import SamlAssertionConsumerService
 from .saml_provider import SamlProvider
 from .saml_service_provider import SamlServiceProvider
 from .saml_issuer import SamlIssuer
-from .scim_user import ScimResource
+from .scim_user import ScimGroup, ScimOrganization, ScimResource, ScimUser
 from .secret_scanning_alert import SecretScanningAlert
 from .team import Team
 from .team_member import TeamMember
@@ -99,6 +99,9 @@ __all__ = [
     "SamlIssuer",
     "ExternalIdentity",
     "ScimResource",
+    "ScimUser",
+    "ScimGroup",
+    "ScimOrganization",
     "RepoRoleAssignment",
     "Environment",
     "EnvironmentSecret",

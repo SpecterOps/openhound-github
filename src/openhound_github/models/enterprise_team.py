@@ -61,6 +61,13 @@ class GHEnterpriseTeamProperties(GHNodeProperties):
             description="Enterprise contains team",
             traversable=False,
         ),
+        EdgeDef(
+            start=nk.SCIM_GROUP,
+            end=nk.ENTERPRISE_TEAM,
+            kind=ek.SCIM_PROVISIONED,
+            description="SCIM group is provisioned as enterprise team",
+            traversable=True,
+        ),
     ],
 )
 class EnterpriseTeam(BaseAsset):
@@ -114,3 +121,10 @@ class EnterpriseTeam(BaseAsset):
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
+        if self.group_id:
+            yield Edge(
+                kind=ek.SCIM_PROVISIONED,
+                start=EdgePath(value=self.group_id, match_by="id"),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )

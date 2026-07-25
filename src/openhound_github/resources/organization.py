@@ -59,6 +59,7 @@ from openhound_github.models import (
     SamlServiceProvider,
     SamlAssertionConsumerService,
     SamlIssuer,
+    ScimOrganization,
     ScimResource,
     SecretScanningAlert,
     SelectedOrgSecret,
@@ -1878,6 +1879,18 @@ def scim_users(ctx: SourceContext):
             continue
 
 
+@app.transformer(
+    name="org_scim_organizations",
+    columns=ScimOrganization,
+    parallelized=True,
+)
+def org_scim_organizations(org: Organization):
+    yield {
+        "org_login": org.login,
+        "org_node_id": org.node_id,
+    }
+
+
 def organization_resources(ctx: SourceContext):
     org_resource = organizations(ctx)
     roles_resource = org_roles(ctx)
@@ -1916,6 +1929,7 @@ def organization_resources(ctx: SourceContext):
         repos_resource | repository_variables(ctx),
         teams_resource,
         projected_enterprise_teams_resource,
+        org_resource | org_scim_organizations(),
         teams_resource | team_members(ctx),
         teams_resource | team_roles(),
         teams_resource | team_repo_role_assignments(ctx, repo_roles_base),

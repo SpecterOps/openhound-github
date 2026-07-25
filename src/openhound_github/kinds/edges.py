@@ -37,6 +37,13 @@ HAS_SAML_IDENTITY_PROVIDER = "GH_HasSamlIdentityProvider"
 MAPS_TO_USER = "GH_MapsToUser"
 SYNCED_TO_GH_USER = "GH_SyncedTo"
 
+# Normalized OpenGraph-SCIM edges
+SCIM_CONTAINS = "SCIM_Contains"
+SCIM_MEMBER_OF = "SCIM_MemberOf"
+SCIM_HAS_ROLE = "SCIM_HasRole"
+SCIM_MANAGER_OF = "SCIM_ManagerOf"
+SCIM_PROVISIONED = "SCIM_Provisioned"
+
 # Personal access token edges
 HAS_PERSONAL_ACCESS_TOKEN = "GH_HasPersonalAccessToken"
 HAS_PERSONAL_ACCESS_TOKEN_REQUEST = "GH_HasPersonalAccessTokenRequest"
