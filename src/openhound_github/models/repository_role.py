@@ -916,7 +916,7 @@ class RepoRole(BaseAsset):
                     kind=ek.CAN_CREATE_BRANCH,
                     start=EdgePath(value=self.node_id, match_by="id"),
                     end=EdgePath(value=self.repository_node_id, match_by="id"),
-                    properties=EdgeProperties(traversable=False),
+                    properties=EdgeProperties(traversable=True),
                 )
 
     @property

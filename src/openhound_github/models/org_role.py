@@ -208,14 +208,22 @@ class OrgRole(BaseAsset):
     @property
     def _can_create_repos_edge(self):
         if self.type == "default" and (self.name == "owners" or self.name == "members"):
+            creation_flags = self._lookup.members_can_create_repository(
+                self.org_login
+            ) or (False, False, False, False)
             (
-                members_can_create_repositories,
-                members_can_create_public_repositories,
-                members_can_create_internal_repositories,
-                members_can_create_private_repositories,
-            ) = self._lookup.members_can_create_repository(self.org_login)
+                can_create_repositories,
+                can_create_public_repositories,
+                can_create_internal_repositories,
+                can_create_private_repositories,
+            ) = creation_flags
 
-            if members_can_create_private_repositories:
+            if self.name == "owners":
+                can_create_repositories = True
+                can_create_public_repositories = True
+                can_create_private_repositories = True
+
+            if can_create_private_repositories:
                 yield Edge(
                     kind=ek.CAN_CREATE_PRIVATE_REPOSITORIES,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -223,7 +231,7 @@ class OrgRole(BaseAsset):
                     properties=EdgeProperties(traversable=False),
                 )
 
-            if members_can_create_public_repositories:
+            if can_create_public_repositories:
                 yield Edge(
                     kind=ek.CAN_CREATE_PUBLIC_REPOSITORIES,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -231,7 +239,7 @@ class OrgRole(BaseAsset):
                     properties=EdgeProperties(traversable=False),
                 )
 
-            if members_can_create_internal_repositories:
+            if can_create_internal_repositories:
                 yield Edge(
                     kind=ek.CAN_CREATE_INTERNAL_REPOSITORIES,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -239,7 +247,7 @@ class OrgRole(BaseAsset):
                     properties=EdgeProperties(traversable=False),
                 )
 
-            if members_can_create_repositories:
+            if can_create_repositories:
                 yield Edge(
                     kind=ek.CAN_CREATE_REPOSITORIES,
                     start=EdgePath(value=self.node_id, match_by="id"),

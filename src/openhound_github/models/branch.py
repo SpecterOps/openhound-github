@@ -59,7 +59,7 @@ class ProtectionRule(BaseModel):
             end=nk.BRANCH,
             kind=ek.PROTECTED_BY,
             description="Branch is protected by rule",
-            traversable=True,
+            traversable=False,
         ),
     ],
 )
