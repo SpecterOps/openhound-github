@@ -152,7 +152,7 @@ class Team(BaseAsset):
                 kind=ek.BYPASS_PULL_REQUEST_ALLOWANCES,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=rule_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property
@@ -163,7 +163,7 @@ class Team(BaseAsset):
                 kind=ek.RESTRICTIONS_CAN_PUSH,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=rule_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property
@@ -173,7 +173,7 @@ class Team(BaseAsset):
                 kind=ek.MEMBER_OF,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=self.parent_team.id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
+                properties=EdgeProperties(traversable=True),
             )
 
         # yield from self._branch_edges

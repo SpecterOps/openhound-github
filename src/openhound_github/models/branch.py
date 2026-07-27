@@ -117,7 +117,7 @@ class Branch(BaseAsset):
                 kind=ek.PROTECTED_BY,
                 start=EdgePath(value=self.branch_protection_rule.id, match_by="id"),
                 end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property

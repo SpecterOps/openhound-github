@@ -143,7 +143,7 @@ class User(BaseAsset):
                 kind=ek.BYPASS_PULL_REQUEST_ALLOWANCES,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=rule_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property
@@ -154,7 +154,7 @@ class User(BaseAsset):
                 kind=ek.RESTRICTIONS_CAN_PUSH,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(value=rule_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property
