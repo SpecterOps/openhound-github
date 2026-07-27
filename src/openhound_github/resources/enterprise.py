@@ -117,22 +117,29 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name, "after": None},
     }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        for enterprise_object in page_data:
-            es_data = enterprise_object.get("enterprise", {})
-            orgs = (es_data.get("organizations") or {}).get("nodes", [])
-            for org in orgs:
-                yield {
-                    **org,
-                    "enterprise_node_id": enterprise_data.id,
-                    "enterprise_slug": ctx.enterprise_name,
-                }
+    try:
+        for page_data in ctx.client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for enterprise_object in page_data:
+                es_data = enterprise_object.get("enterprise", {})
+                orgs = (es_data.get("organizations") or {}).get("nodes", [])
+                for org in orgs:
+                    yield {
+                        **org,
+                        "enterprise_node_id": enterprise_data.id,
+                        "enterprise_slug": ctx.enterprise_name,
+                    }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_organizations' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_organizations", "phase": "resource_iteration"},
+        )
+        return
 
 
 @app.transformer(
@@ -463,7 +470,15 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name},
     }
 
-    response = client.post("/graphql", json=data).json()
+    try:
+        response = client.post("/graphql", json=data).json()
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_saml_provider' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_saml_provider", "phase": "resource_iteration"},
+        )
+        return
+
     enterprise_object = (response.get("data") or {}).get("enterprise", {})
     saml_provider = (enterprise_object.get("ownerInfo") or {}).get("samlIdentityProvider")
     if not saml_provider:
