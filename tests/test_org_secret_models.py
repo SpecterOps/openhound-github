@@ -89,3 +89,24 @@ def test_owners_always_emit_repository_creation_edges_needed_for_secret_paths() 
     assert ek.CAN_CREATE_REPOSITORIES in kinds
     assert ek.CAN_CREATE_PUBLIC_REPOSITORIES in kinds
     assert ek.CAN_CREATE_PRIVATE_REPOSITORIES in kinds
+
+
+def test_custom_org_role_write_definition_edge_is_traversable() -> None:
+    role = OrgRole(
+        id=2,
+        name="security-manager",
+        type="custom",
+        permissions=["write_organization_custom_org_role"],
+        created_at=datetime.now(),
+        org_node_id="O_1",
+        org_login="acme",
+    )
+    role._lookup = MagicMock()
+
+    edge = next(
+        edge
+        for edge in role.edges
+        if edge.kind == "GH_WriteOrganizationCustomOrgRole"
+    )
+
+    assert edge.properties.traversable is True

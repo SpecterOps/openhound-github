@@ -14,23 +14,56 @@ from openhound_github.main import app
 
 _ALL_REPO_PERMISSIONS = ("read", "triage", "write", "maintain", "admin")
 
-_ORG_PERMISSION_EDGES: dict[str, str] = {
-    "manage_organization_webhooks": "GH_ManageOrganizationWebhooks",
-    "org_bypass_code_scanning_dismissal_requests": "GH_OrgBypassCodeScanningDismissalRequests",
-    "org_bypass_secret_scanning_closure_requests": "GH_OrgBypassSecretScanningClosureRequests",
-    "org_review_and_manage_secret_scanning_bypass_requests": "GH_OrgReviewAndManageSecretScanningBypassRequests",
-    "org_review_and_manage_secret_scanning_closure_requests": "GH_OrgReviewAndManageSecretScanningClosureRequests",
-    "read_organization_actions_usage_metrics": "GH_ReadOrganizationActionsUsageMetrics",
-    "read_organization_custom_org_role": "GH_ReadOrganizationCustomOrgRole",
-    "read_organization_custom_repo_role": "GH_ReadOrganizationCustomRepoRole",
-    "resolve_secret_scanning_alerts": "GH_ResolveSecretScanningAlerts",
-    "view_secret_scanning_alerts": "GH_ViewSecretScanningAlerts",
-    "write_organization_actions_secrets": "GH_WriteOrganizationActionsSecrets",
-    "write_organization_actions_settings": "GH_WriteOrganizationActionsSettings",
-    "write_organization_actions_variables": "GH_WriteOrganizationActionsVariables",
-    "write_organization_custom_org_role": "GH_WriteOrganizationCustomOrgRole",
-    "write_organization_custom_repo_role": "GH_WriteOrganizationCustomRepoRole",
-    "write_organization_network_configurations": "GH_WriteOrganizationNetworkConfigurations",
+_ORG_PERMISSION_EDGES: dict[str, tuple[str, bool]] = {
+    "manage_organization_webhooks": ("GH_ManageOrganizationWebhooks", False),
+    "org_bypass_code_scanning_dismissal_requests": (
+        "GH_OrgBypassCodeScanningDismissalRequests",
+        False,
+    ),
+    "org_bypass_secret_scanning_closure_requests": (
+        "GH_OrgBypassSecretScanningClosureRequests",
+        False,
+    ),
+    "org_review_and_manage_secret_scanning_bypass_requests": (
+        "GH_OrgReviewAndManageSecretScanningBypassRequests",
+        False,
+    ),
+    "org_review_and_manage_secret_scanning_closure_requests": (
+        "GH_OrgReviewAndManageSecretScanningClosureRequests",
+        False,
+    ),
+    "read_organization_actions_usage_metrics": (
+        "GH_ReadOrganizationActionsUsageMetrics",
+        False,
+    ),
+    "read_organization_custom_org_role": ("GH_ReadOrganizationCustomOrgRole", False),
+    "read_organization_custom_repo_role": (
+        "GH_ReadOrganizationCustomRepoRole",
+        False,
+    ),
+    "resolve_secret_scanning_alerts": ("GH_ResolveSecretScanningAlerts", False),
+    "view_secret_scanning_alerts": ("GH_ViewSecretScanningAlerts", False),
+    "write_organization_actions_secrets": (
+        "GH_WriteOrganizationActionsSecrets",
+        False,
+    ),
+    "write_organization_actions_settings": (
+        "GH_WriteOrganizationActionsSettings",
+        False,
+    ),
+    "write_organization_actions_variables": (
+        "GH_WriteOrganizationActionsVariables",
+        False,
+    ),
+    "write_organization_custom_org_role": ("GH_WriteOrganizationCustomOrgRole", True),
+    "write_organization_custom_repo_role": (
+        "GH_WriteOrganizationCustomRepoRole",
+        False,
+    ),
+    "write_organization_network_configurations": (
+        "GH_WriteOrganizationNetworkConfigurations",
+        False,
+    ),
 }
 
 
@@ -330,13 +363,14 @@ class OrgRole(BaseAsset):
                     properties=EdgeProperties(traversable=True),
                 )
             for perm in self.permissions:
-                edge_kind = _ORG_PERMISSION_EDGES.get(perm)
-                if edge_kind:
+                edge_definition = _ORG_PERMISSION_EDGES.get(perm)
+                if edge_definition:
+                    edge_kind, traversable = edge_definition
                     yield Edge(
                         kind=edge_kind,
                         start=EdgePath(value=self.node_id, match_by="id"),
                         end=EdgePath(value=self.org_node_id, match_by="id"),
-                        properties=EdgeProperties(traversable=False),
+                        properties=EdgeProperties(traversable=traversable),
                     )
 
     @property
