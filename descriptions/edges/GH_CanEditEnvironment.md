@@ -7,7 +7,7 @@ Editing an environment is security-relevant because environment configuration co
 This edge is distinct from GH_CanDeployToEnvironment:
 
 - **GH_CanEditEnvironment** means the role can manage the environment's settings.
-- **GH_CanDeployToEnvironment** means the source satisfies the modeled deployment branch policy or administrator bypass condition for the environment.
+- **GH_CanDeployToEnvironment** means the source satisfies the modeled deployment policy, reviewer gate, or administrator bypass condition for the environment.
 
 ```mermaid
 graph LR

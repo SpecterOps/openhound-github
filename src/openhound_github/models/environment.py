@@ -142,14 +142,14 @@ class GHEnvironmentProperties(GHNodeProperties):
             start=nk.USER,
             end=nk.ENVIRONMENT,
             kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
-            description="Reviewer user can approve deployment to environment",
+            description="Reviewer user can self-approve deployment to environment",
             traversable=True,
         ),
         EdgeDef(
             start=nk.TEAM,
             end=nk.ENVIRONMENT,
             kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
-            description="Reviewer team can approve deployment to environment",
+            description="Reviewer team can self-approve deployment to environment",
             traversable=True,
         ),
         EdgeDef(
@@ -233,6 +233,14 @@ class Environment(BaseAsset):
         return []
 
     @property
+    def source_deployment_edges_allowed(self) -> bool:
+        return not self.required_reviewers
+
+    @property
+    def reviewer_self_deployment_edges_allowed(self) -> bool:
+        return self.required_reviewers and not self.prevent_self_review
+
+    @property
     def as_node(self) -> GHNode:
         eid = self.node_id
         return GHNode(
@@ -266,6 +274,7 @@ class Environment(BaseAsset):
             f"-[:GH_Contains]->(env:GH_Environment {{node_id:'{self.node_id}'}}) "
             f"WHERE coalesce(env.custom_branch_policies, false) = false "
             f"AND coalesce(env.protected_branches, false) = false "
+            f"AND coalesce(env.required_reviewers, false) = false "
             f"RETURN p"
         )
 
@@ -277,6 +286,7 @@ class Environment(BaseAsset):
             f"(env:GH_Environment {{node_id:'{self.node_id}'}}) "
             f"WHERE coalesce(env.custom_branch_policies, false) = false "
             f"AND coalesce(env.protected_branches, false) = false "
+            f"AND coalesce(env.required_reviewers, false) = false "
             f"RETURN p, p1"
         )
 
@@ -289,6 +299,7 @@ class Environment(BaseAsset):
             f"(env:GH_Environment {{node_id:'{self.node_id}'}}) "
             f"WHERE coalesce(env.custom_branch_policies, false) = false "
             f"AND env.protected_branches = true "
+            f"AND coalesce(env.required_reviewers, false) = false "
             f"RETURN p, p1"
         )
 
@@ -302,12 +313,25 @@ class Environment(BaseAsset):
             f"RETURN p"
         )
 
+    def _reviewer_can_deploy_query(
+        self, reviewer_node_id: str, reviewer_kind: str
+    ) -> str:
+        return (
+            f"MATCH p=(:{reviewer_kind} {{node_id:'{reviewer_node_id}'}})"
+            f"-[:GH_ApprovesDeploymentTo]->"
+            f"(env:GH_Environment {{node_id:'{self.node_id}'}}) "
+            f"WHERE env.required_reviewers = true "
+            f"AND coalesce(env.prevent_self_review, false) = false "
+            f"RETURN p"
+        )
+
     def _protected_branches_fallback_repo_query(self) -> str:
         return (
             f"MATCH p=(repo:GH_Repository {{node_id:'{self.repository_node_id}'}})"
             f"-[:GH_Contains]->(env:GH_Environment {{node_id:'{self.node_id}'}}) "
             f"WHERE env.protected_branches = true "
             f"AND coalesce(env.custom_branch_policies, false) = false "
+            f"AND coalesce(env.required_reviewers, false) = false "
             f"AND NOT EXISTS {{ "
             f"MATCH (repo)-[:GH_Contains]->(:GH_Branch)"
             f"<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) "
@@ -323,6 +347,7 @@ class Environment(BaseAsset):
             f"(env:GH_Environment {{node_id:'{self.node_id}'}}) "
             f"WHERE env.protected_branches = true "
             f"AND coalesce(env.custom_branch_policies, false) = false "
+            f"AND coalesce(env.required_reviewers, false) = false "
             f"AND NOT EXISTS {{ "
             f"MATCH (repo)-[:GH_Contains]->(:GH_Branch)"
             f"<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) "
@@ -349,7 +374,7 @@ class Environment(BaseAsset):
             properties=EdgeProperties(traversable=True),
         )
 
-        if not self.has_custom_branch_policies and not (
+        if self.source_deployment_edges_allowed and not self.has_custom_branch_policies and not (
             self.deployment_branch_policy
             and self.deployment_branch_policy.protected_branches
         ):
@@ -377,7 +402,7 @@ class Environment(BaseAsset):
                     ),
                 )
 
-        if not self.has_custom_branch_policies and (
+        if self.source_deployment_edges_allowed and not self.has_custom_branch_policies and (
             self.deployment_branch_policy
             and self.deployment_branch_policy.protected_branches
         ):
@@ -452,3 +477,18 @@ class Environment(BaseAsset):
                 end=EdgePath(value=self.node_id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
             )
+
+            if self.reviewer_self_deployment_edges_allowed:
+                reviewer_kind = nk.USER if reviewer_type == "user" else nk.TEAM
+                yield Edge(
+                    kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
+                    start=EdgePath(value=reviewer_node_id, match_by="id"),
+                    end=EdgePath(value=self.node_id, match_by="id"),
+                    properties=GHEdgeProperties(
+                        traversable=True,
+                        composed=True,
+                        query_composition=self._reviewer_can_deploy_query(
+                            reviewer_node_id, reviewer_kind
+                        ),
+                    ),
+                )

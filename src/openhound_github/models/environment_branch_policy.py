@@ -52,6 +52,8 @@ class EnvironmentBranchPolicy(BaseAsset):
     repository_name: str
     repository_node_id: str
     org_login: str
+    required_reviewers: bool | None = None
+    prevent_self_review: bool | None = None
 
     @property
     def org_node_id(self) -> str | None:
@@ -71,6 +73,19 @@ class EnvironmentBranchPolicy(BaseAsset):
             return False
         protected_branches, _custom_branch_policies = row
         return protected_branches
+
+    @property
+    def environment_required_reviewers(self) -> bool:
+        if self.required_reviewers is not None:
+            return self.required_reviewers
+
+        row = self._lookup.environment_deployment_reviewer_policy(
+            self.environment_name, self.repository_node_id
+        )
+        if not row:
+            return False
+        required_reviewers, _prevent_self_review = row
+        return required_reviewers
 
     def matches_branch(self, branch_name: str) -> bool:
         return PurePosixPath(f"/{branch_name}").full_match(
@@ -100,6 +115,7 @@ class EnvironmentBranchPolicy(BaseAsset):
             f"<-[:GH_Contains]-(env:GH_Environment {{node_id:'{self.environment_node_id}'}}) "
             f"WHERE env.custom_branch_policies = true "
             f"AND coalesce(env.protected_branches, false) = false "
+            f"AND coalesce(env.required_reviewers, false) = false "
             f"RETURN p"
         )
 
@@ -115,6 +131,7 @@ class EnvironmentBranchPolicy(BaseAsset):
             f"MATCH p2=(repo)-[:GH_Contains]->(env) "
             f"WHERE env.custom_branch_policies = true "
             f"AND env.protected_branches = true "
+            f"AND coalesce(env.required_reviewers, false) = false "
             f"RETURN p, p1, p2"
         )
 
@@ -135,7 +152,10 @@ class EnvironmentBranchPolicy(BaseAsset):
                     end=EdgePath(value=self.node_id, match_by="id"),
                     properties=EdgeProperties(traversable=False),
                 )
-                if not self.environment_protected_branches or protected:
+                if (
+                    not self.environment_required_reviewers
+                    and (not self.environment_protected_branches or protected)
+                ):
                     yield Edge(
                         kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
                         start=EdgePath(value=branch_id, match_by="id"),

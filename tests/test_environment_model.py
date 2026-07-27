@@ -102,6 +102,23 @@ def _make_environment_branch_policy(name: str) -> EnvironmentBranchPolicy:
         org_login="github",
     )
 
+def _make_unrestricted_environment() -> Environment:
+    env = _make_environment()
+    env.deployment_branch_policy = DeploymentBranchPolicy(
+        protected_branches=False,
+        custom_branch_policies=False,
+    )
+    env._lookup.branches_for_repository.return_value = [
+        ("B_main", "main", False),
+        ("B_release", "release/v1", False),
+    ]
+    return env
+
+
+def _deploy_edges(env: Environment):
+    return [edge for edge in env.edges if edge.kind == ek.CAN_DEPLOY_TO_ENVIRONMENT]
+
+
 def test_environment_node_surfaces_protection_rule_properties() -> None:
     env = _make_environment()
 
@@ -126,6 +143,54 @@ def test_environment_edges_include_required_reviewer_relationships() -> None:
         "MDQ6VGVhbTE=",
     }
 
+
+def test_environment_without_reviewers_emits_repository_and_branch_deploy_edges() -> None:
+    env = _make_unrestricted_environment()
+    env.protection_rules = []
+
+    deploy_edges = _deploy_edges(env)
+
+    assert {edge.start.value for edge in deploy_edges} == {
+        "R_123",
+        "B_main",
+        "B_release",
+    }
+
+
+def test_environment_with_self_review_emits_only_reviewer_deploy_edges() -> None:
+    env = _make_unrestricted_environment()
+
+    deploy_edges = _deploy_edges(env)
+
+    assert {edge.start.value for edge in deploy_edges} == {
+        "MDQ6VXNlcjE=",
+        "MDQ6VGVhbTE=",
+    }
+    assert all(edge.properties.composed for edge in deploy_edges)
+    assert all(
+        "coalesce(env.prevent_self_review, false) = false"
+        in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+
+
+def test_environment_with_prevent_self_review_emits_no_direct_deploy_edges() -> None:
+    env = _make_unrestricted_environment()
+    env.protection_rules[1].prevent_self_review = True
+
+    assert _deploy_edges(env) == []
+
+
+def test_environment_with_prevent_self_review_keeps_admin_bypass_edge() -> None:
+    env = _make_unrestricted_environment()
+    env.protection_rules[1].prevent_self_review = True
+    env.can_admins_bypass = True
+
+    deploy_edges = _deploy_edges(env)
+
+    assert {edge.start.value for edge in deploy_edges} == {"R_123_admin"}
+
+
 def test_environment_branch_policy_single_star_does_not_cross_slashes() -> None:
     policy = _make_environment_branch_policy("release/*")
 
@@ -141,8 +206,40 @@ def test_environment_branch_policy_double_star_crosses_slashes() -> None:
     assert policy.matches_branch("release/v1") is True
     assert policy.matches_branch("release/") is False
 
+
+def test_environment_branch_policy_with_reviewers_suppresses_branch_deploy_edges() -> None:
+    policy = _make_environment_branch_policy("main")
+    policy.required_reviewers = True
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "O_123"
+    lookup.environment_deployment_branch_policy.return_value = (False, True)
+    lookup.branches_for_repository.return_value = [("B_main", "main", False)]
+    policy._lookup = lookup
+
+    edges = list(policy.edges)
+
+    assert any(edge.kind == ek.MATCHES_ENVIRONMENT_POLICY for edge in edges)
+    assert not any(edge.kind == ek.CAN_DEPLOY_TO_ENVIRONMENT for edge in edges)
+
+
+def test_environment_branch_policy_uses_environment_lookup_for_legacy_rows() -> None:
+    policy = _make_environment_branch_policy("main")
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "O_123"
+    lookup.environment_deployment_branch_policy.return_value = (False, True)
+    lookup.environment_deployment_reviewer_policy.return_value = (True, False)
+    lookup.branches_for_repository.return_value = [("B_main", "main", False)]
+    policy._lookup = lookup
+
+    edges = list(policy.edges)
+
+    assert any(edge.kind == ek.MATCHES_ENVIRONMENT_POLICY for edge in edges)
+    assert not any(edge.kind == ek.CAN_DEPLOY_TO_ENVIRONMENT for edge in edges)
+
+
 def test_protected_branches_only_without_any_bpr_allows_all_branches() -> None:
     env = _make_environment()
+    env.protection_rules = []
     env.deployment_branch_policy = DeploymentBranchPolicy(
         protected_branches=True,
         custom_branch_policies=False,
@@ -153,9 +250,7 @@ def test_protected_branches_only_without_any_bpr_allows_all_branches() -> None:
         ("B_release", "release/v1", False),
     ]
 
-    deploy_edges = [
-        edge for edge in env.edges if edge.kind == ek.CAN_DEPLOY_TO_ENVIRONMENT
-    ]
+    deploy_edges = _deploy_edges(env)
 
     assert {edge.start.value for edge in deploy_edges} == {
         "R_123",
