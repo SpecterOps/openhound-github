@@ -116,6 +116,16 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def repository_branch_ruleset_count(self, repository_node_id: str) -> int | None:
+        row = self._find_single_row(
+            f"""SELECT branch_ruleset_count FROM {self.schema}.repositories_graphql WHERE id = ?""",
+            [repository_node_id],
+        )
+        if row is None or row[0] is None:
+            return None
+        return int(row[0])
+
+    @lru_cache
     def idp(self) -> list:
         return self._find_all_objects(
             f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider"""
@@ -428,6 +438,28 @@ class GithubLookup(LookupManager):
                 coalesce(deployment_branch_policy->>'custom_branch_policies', 'false') = 'true' AS custom_branch_policies
             FROM {self.schema}.environments
             WHERE name = ? AND repository_node_id = ?""",
+            [environment_name, repository_node_id],
+        )
+
+    @lru_cache
+    def environment_deployment_reviewer_policy(
+        self, environment_name: str, repository_node_id: str
+    ) -> tuple[bool, bool] | None:
+        return self._find_single_row(
+            f"""SELECT
+                EXISTS (
+                    SELECT 1
+                    FROM json_each(e.protection_rules) AS rule
+                    WHERE json_extract_string(rule.value, '$.type') = 'required_reviewers'
+                ) AS required_reviewers,
+                coalesce((
+                    SELECT json_extract_string(rule.value, '$.prevent_self_review') = 'true'
+                    FROM json_each(e.protection_rules) AS rule
+                    WHERE json_extract_string(rule.value, '$.type') = 'required_reviewers'
+                    LIMIT 1
+                ), false) AS prevent_self_review
+            FROM {self.schema}.environments e
+            WHERE e.name = ? AND e.repository_node_id = ?""",
             [environment_name, repository_node_id],
         )
 

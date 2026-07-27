@@ -251,6 +251,9 @@ query RepoRefs($login: String!, $count: Int!, $after: String) {
             nodes {
                 id
                 name
+                branchRulesets: rulesets(first: 1, includeParents: true, targets: [BRANCH]) {
+                    totalCount
+                }
                 refs(first: 100, refPrefix: "refs/heads/") {
                     nodes {
                         id

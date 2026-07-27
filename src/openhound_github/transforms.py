@@ -16,6 +16,10 @@ def ensure_optional_input_tables(
             branch_protection_rule JSON,
             repository_node_id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.repositories_graphql (
+            id VARCHAR,
+            branch_ruleset_count BIGINT
+        );
         CREATE TABLE IF NOT EXISTS {schema}.branch_protection_rules (
             id VARCHAR,
             repository_node_id VARCHAR,
@@ -51,6 +55,11 @@ def ensure_optional_input_tables(
     con.execute(f"""
         ALTER TABLE {schema}.branches
             ADD COLUMN IF NOT EXISTS branch_protection_rule JSON;
+
+        ALTER TABLE {schema}.repositories_graphql
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.repositories_graphql
+            ADD COLUMN IF NOT EXISTS branch_ruleset_count BIGINT;
 
         ALTER TABLE {schema}.branch_protection_rules
             ADD COLUMN IF NOT EXISTS id VARCHAR;

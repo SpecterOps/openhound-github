@@ -931,7 +931,13 @@ def repositories_graphql(ctx: SourceContext):
             ):
                 repos_page = page_data[0]["organization"]["repositories"]
                 for repo in repos_page["nodes"]:
-                    yield {**repo, "org_login": org_name}
+                    repo_record = {**repo}
+                    branch_rulesets = repo_record.pop("branchRulesets", None) or {}
+                    yield {
+                        **repo_record,
+                        "branch_ruleset_count": branch_rulesets.get("totalCount"),
+                        "org_login": org_name,
+                    }
         except Exception as e:
             logger.error(
                 f"Error in resource 'repositories_graphql' processing organization '{org_name}': {e}",
@@ -1309,6 +1315,8 @@ def environment_branch_policies(environment: Environment, ctx: SourceContext):
                     "repository_name": repo_name,
                     "repository_node_id": repo_node_id,
                     "org_login": environment.org_login,
+                    "required_reviewers": environment.required_reviewers,
+                    "prevent_self_review": environment.prevent_self_review,
                 }
 
 
