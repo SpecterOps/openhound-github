@@ -13,6 +13,7 @@ def ensure_optional_input_tables(
     con.execute(f"""
         CREATE TABLE IF NOT EXISTS {schema}.branches (
             id VARCHAR,
+            name VARCHAR,
             branch_protection_rule JSON,
             repository_node_id VARCHAR
         );
@@ -55,6 +56,8 @@ def ensure_optional_input_tables(
     con.execute(f"""
         ALTER TABLE {schema}.branches
             ADD COLUMN IF NOT EXISTS branch_protection_rule JSON;
+        ALTER TABLE {schema}.branches
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
 
         ALTER TABLE {schema}.repositories_graphql
             ADD COLUMN IF NOT EXISTS id VARCHAR;

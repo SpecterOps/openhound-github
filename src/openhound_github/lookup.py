@@ -126,6 +126,25 @@ class GithubLookup(LookupManager):
         return int(row[0])
 
     @lru_cache
+    def repository_default_branch_collected(self, repository_node_id: str) -> bool:
+        """Return whether the repository's REST default branch was collected."""
+        row = self._find_single_row(
+            f"""
+            SELECT EXISTS (
+                SELECT 1
+                FROM {self.schema}.repositories r
+                JOIN {self.schema}.branches b
+                  ON b.repository_node_id = r.node_id
+                 AND b.name = r.default_branch
+                WHERE r.node_id = ?
+                  AND r.default_branch IS NOT NULL
+            )
+            """,
+            [repository_node_id],
+        )
+        return bool(row and row[0])
+
+    @lru_cache
     def idp(self) -> list:
         return self._find_all_objects(
             f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider"""
