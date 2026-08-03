@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from openhound_github.resources.enterprise import (
     SourceContext,
     enterprise,
+    enterprise_external_identity,
     enterprise_organizations,
     enterprise_saml_provider,
 )
@@ -134,6 +135,27 @@ def test_enterprise_saml_provider_logs_and_returns_on_request_failure(caplog) ->
     assert rows == []
     assert any(
         "Error in resource 'enterprise_saml_provider' processing enterprise 'acme'"
+        in message
+        for message in caplog.messages
+    )
+
+
+def test_enterprise_external_identity_logs_and_returns_on_pagination_failure(
+    caplog,
+) -> None:
+    client = _FailingPaginateClient(payload={})
+    ctx = SourceContext(client=client, sso_client=client, enterprise_name="acme")
+    saml_provider = {
+        "environment_slug": "acme",
+        "github_deployment_id": "github.com",
+    }
+
+    with caplog.at_level(logging.ERROR, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_external_identity.__wrapped__(saml_provider, ctx))
+
+    assert rows == []
+    assert any(
+        "Error in resource 'enterprise_external_identity' processing enterprise 'acme'"
         in message
         for message in caplog.messages
     )

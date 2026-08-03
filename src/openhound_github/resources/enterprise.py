@@ -584,32 +584,41 @@ def enterprise_external_identity(
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
 
-    for page_data in client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        for enterprise_object in page_data:
-            es_data = enterprise_object.get("enterprise", {})
-            page_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
-            if not page_provider:
-                logger.warning(
-                    "No enterprise SAML provider returned while fetching external identities for enterprise '%s'",
-                    ctx.enterprise_name,
+    try:
+        for page_data in client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for enterprise_object in page_data:
+                es_data = enterprise_object.get("enterprise", {})
+                page_provider = (es_data.get("ownerInfo") or {}).get(
+                    "samlIdentityProvider"
                 )
-                return
-            for identity in (page_provider.get("externalIdentities") or {}).get(
-                "nodes"
-            ) or []:
-                yield {
-                    **identity,
-                    "environment_slug": saml_provider.get("environment_slug"),
-                    "github_deployment_id": saml_provider.get(
-                        "github_deployment_id"
-                    ),
-                }
+                if not page_provider:
+                    logger.warning(
+                        "No enterprise SAML provider returned while fetching external identities for enterprise '%s'",
+                        ctx.enterprise_name,
+                    )
+                    return
+                for identity in (page_provider.get("externalIdentities") or {}).get(
+                    "nodes"
+                ) or []:
+                    yield {
+                        **identity,
+                        "environment_slug": saml_provider.get("environment_slug"),
+                        "github_deployment_id": saml_provider.get(
+                            "github_deployment_id"
+                        ),
+                    }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_external_identity' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_external_identity", "phase": "resource_iteration"},
+        )
+        return
 
 
 def enterprise_resources(ctx: SourceContext):
