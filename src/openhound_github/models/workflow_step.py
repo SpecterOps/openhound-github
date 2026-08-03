@@ -220,7 +220,7 @@ class WorkflowStep(BaseAsset):
                         property_matchers=[
                             PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
-                                key="environmentid", value=self.org_node_id.upper()
+                                key="environmentid", value=self.org_node_id
                             ),
                         ],
                     ),
@@ -277,7 +277,7 @@ class WorkflowStep(BaseAsset):
                         property_matchers=[
                             PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
-                                key="environmentid", value=self.org_node_id.upper()
+                                key="environmentid", value=self.org_node_id
                             ),
                         ],
                     ),
