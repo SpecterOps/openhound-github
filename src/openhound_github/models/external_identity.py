@@ -197,6 +197,7 @@ class ExternalIdentity(BaseAsset):
                 "sso_url": None,
                 "environment_node_id": None,
                 "environment_name": None,
+                "environment_type": None,
             }
         provider_id, issuer, sso_url, environment_node_id, environment_name, environment_type = ext_idp[0]
         return {

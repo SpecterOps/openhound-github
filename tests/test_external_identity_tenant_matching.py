@@ -30,6 +30,11 @@ class _Lookup:
         ]
 
 
+class _MissingIdpLookup:
+    def idp_for_environment(self, slug: str):
+        return []
+
+
 def _identity(
     slug: str,
     issuer: str,
@@ -216,3 +221,22 @@ def test_external_identity_omits_okta_edges_without_tenant_scope() -> None:
         and getattr(edge.end, "property_matchers", None)
         for edge in edges
     )
+
+
+def test_external_identity_missing_idp_fallback_includes_environment_type() -> None:
+    identity = _identity(
+        "missing-idp",
+        "http://www.okta.com/example",
+        "https://example.okta.com/app/github/sso/saml",
+        {"username": "user@example.com"},
+    )
+    identity._lookup = _MissingIdpLookup()
+
+    assert identity.idp == {
+        "id": None,
+        "issuer": None,
+        "sso_url": None,
+        "environment_node_id": None,
+        "environment_name": None,
+        "environment_type": None,
+    }
