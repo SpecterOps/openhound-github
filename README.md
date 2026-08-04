@@ -34,6 +34,25 @@ The openhound-github extension collects resources from Github organizations and 
 edges for
 BloodHound.
 
+### Enterprise `ownerInfo` and PAT fallback
+
+GitHub does not expose GraphQL `Enterprise.ownerInfo` to enterprise App installation tokens; it returns `null` even when
+the App has Enterprise people and Enterprise SSO read permissions. Without a fallback, OpenHound continues collecting,
+warns once, and omits enterprise owners, the enterprise SAML identity provider, and its external identities. Do not
+interpret those missing records as absent from GitHub.
+
+For complete enterprise collection, set the optional App credential below to a classic PAT owned by an enterprise owner
+with `read:enterprise`. OpenHound uses this PAT only for the `ownerInfo`-backed owner and SAML queries; all other resources
+continue to use App installation tokens.
+
+```dotenv
+SOURCES__GITHUB__CREDENTIALS__OWNER_INFO_TOKEN=<enterprise-owner-classic-pat>
+```
+
+If the enterprise uses SAML SSO, authorize the PAT for SSO before collection. GitHub documents the
+[`ownerInfo` access requirements](https://docs.github.com/en/enterprise-cloud@latest/graphql/reference/enterprise-admin#enterprise)
+and [PAT SSO authorization](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/authorizing-a-personal-access-token-for-use-with-single-sign-on).
+
 ### Enterprise SCIM and hybrid correlations
 
 Enterprise App collection covers the enterprise itself and every organization installed for the configured GitHub App;

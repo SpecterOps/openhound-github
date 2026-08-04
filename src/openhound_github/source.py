@@ -1,8 +1,7 @@
 import logging
-import time
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import dlt
 from dlt.common.configuration import configspec
@@ -46,6 +45,7 @@ class OrgContext:
 class SourceContext:
     organizations: list[OrgContext] | None = field(default_factory=list)
     client: RESTClient | None = None
+    owner_info_client: RESTClient | None = None
     enterprise_name: str | None = None
     scim_client: RESTClient | None = None
     collect_enterprise_scim: bool = False
@@ -53,7 +53,9 @@ class SourceContext:
     azurehound_path: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    auth_kind: str = "token"
     cache_lock: Lock = field(default_factory=Lock)
+    capability_warnings: set[str] = field(default_factory=set)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -82,6 +84,7 @@ class GithubEnterpriseAppCredentials(CredentialsConfiguration):
     app_id: str | None = None
     key_path: str = None
     enterprise_name: str = None
+    owner_info_token: str | None = None
     api_uri: str = "https://api.github.com"
 
     @property
@@ -162,13 +165,18 @@ def source(
         )
 
     if credentials.auth == "enterprise_app":
+        owner_info_token = getattr(credentials, "owner_info_token", None)
         ctx = SourceContext(
             enterprise_name=credentials.enterprise_name,
+            owner_info_client=token_client(owner_info_token)
+            if owner_info_token
+            else None,
             collect_enterprise_scim=bool(collect_enterprise_scim),
             emit_legacy_scim_correlations=bool(emit_legacy_scim_correlations),
             azurehound_path=azurehound_path,
             github_deployment_id=github_deployment_id,
             github_web_origin=github_web_origin,
+            auth_kind="enterprise_app",
         )
         github_app_session = GithubApp(
             client_id=credentials.client_id,
@@ -209,6 +217,7 @@ def source(
             enterprise_name=None,
             github_deployment_id=github_deployment_id,
             github_web_origin=github_web_origin,
+            auth_kind="org_app",
         )
         org_installation = GithubInstallation(
             installation_id=credentials.install_id,
@@ -241,12 +250,14 @@ def source(
                 azurehound_path=azurehound_path,
                 github_deployment_id=github_deployment_id,
                 github_web_origin=github_web_origin,
+                auth_kind="token",
             )
             return enterprise_resources(ctx)
 
         ctx = SourceContext(
             github_deployment_id=github_deployment_id,
             github_web_origin=github_web_origin,
+            auth_kind="token",
         )
         ctx.organizations.append(
             OrgContext(

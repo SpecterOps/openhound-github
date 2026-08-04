@@ -1,5 +1,6 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from threading import Lock
 
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
@@ -53,6 +54,7 @@ class SourceContext:
     """Shared context for GitHub API access."""
 
     client: RESTClient
+    owner_info_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
     scim_client: RESTClient | None = None
@@ -61,6 +63,64 @@ class SourceContext:
     azurehound_path: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    auth_kind: str = "token"
+    cache_lock: Lock = field(default_factory=Lock)
+    capability_warnings: set[str] = field(default_factory=set)
+
+
+def _enterprise_owner_info(enterprise_data: dict, ctx: SourceContext) -> dict | None:
+    """Return ownerInfo or emit one actionable warning for unavailable data.
+
+    GitHub currently returns ``ownerInfo: null`` to enterprise installation
+    access tokens even when the App has Enterprise people and Enterprise SSO
+    read permissions. Treating that value as an empty object makes a successful
+    collection look complete while silently dropping owners and enterprise SAML
+    identities.
+    """
+    owner_info = enterprise_data.get("ownerInfo")
+    if isinstance(owner_info, dict):
+        return owner_info
+
+    warning_key = "enterprise_owner_info_unavailable"
+    lock = getattr(ctx, "cache_lock", None)
+    warnings = getattr(ctx, "capability_warnings", None)
+    should_warn = True
+    if lock is not None and warnings is not None:
+        with lock:
+            should_warn = warning_key not in warnings
+            warnings.add(warning_key)
+    if should_warn:
+        owner_info_auth_kind = (
+            "token"
+            if getattr(ctx, "owner_info_client", None) is not None
+            else getattr(ctx, "auth_kind", "token")
+        )
+        if owner_info_auth_kind == "enterprise_app":
+            logger.warning(
+                "GitHub returned enterprise ownerInfo as null for enterprise "
+                "App auth. Enterprise owners, the enterprise SAML provider, and "
+                "enterprise SAML external identities are unavailable in this "
+                "collection even with Enterprise people/SSO read permissions. "
+                "Configure credentials.owner_info_token with an enterprise-owner "
+                "classic PAT scoped to read:enterprise to collect these fields."
+            )
+        else:
+            logger.warning(
+                "GitHub returned enterprise ownerInfo as null. Enterprise owners "
+                "and enterprise SAML identity data are unavailable; verify the "
+                "credential belongs to an enterprise owner and has read:enterprise."
+            )
+    return None
+
+
+def _owner_info_api_client(ctx: SourceContext) -> RESTClient:
+    """Use the scoped PAT client for ownerInfo-backed GraphQL resources."""
+    client = ctx.owner_info_client or ctx.client
+    if client is None:
+        raise RuntimeError(
+            f"No ownerInfo API client is available for '{ctx.enterprise_name}'"
+        )
+    return client
 
 
 def iter_enterprise_scim_resources(
@@ -431,7 +491,7 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
         "query": ENTERPRISE_ADMINS_QUERY,
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
-    for page_data in ctx.client.paginate(
+    for page_data in _owner_info_api_client(ctx).paginate(
         "/graphql",
         method="POST",
         json=data,
@@ -440,7 +500,9 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
     ):
         for enterprise_object in page_data:
             es_data = enterprise_object.get("enterprise", {})
-            owner_info = es_data.get("ownerInfo") or {}
+            owner_info = _enterprise_owner_info(es_data, ctx)
+            if owner_info is None:
+                return
             for edge in (owner_info.get("admins") or {}).get("edges") or []:
                 node = edge.get("node")
                 if node and node.get("id"):
@@ -470,7 +532,7 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name, "count": 1, "after": None},
     }
 
-    for page_data in ctx.client.paginate(
+    for page_data in _owner_info_api_client(ctx).paginate(
         "/graphql",
         method="POST",
         json=data,
@@ -479,7 +541,10 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
     ):
         for enterprise_object in page_data:
             es_data = enterprise_object.get("enterprise", {})
-            saml_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
+            owner_info = _enterprise_owner_info(es_data, ctx)
+            if owner_info is None:
+                return
+            saml_provider = owner_info.get("samlIdentityProvider")
             if not saml_provider:
                 return
             yield {
@@ -545,7 +610,7 @@ def enterprise_external_identities(
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
 
-    for page_data in ctx.client.paginate(
+    for page_data in _owner_info_api_client(ctx).paginate(
         "/graphql",
         method="POST",
         json=data,
@@ -554,7 +619,10 @@ def enterprise_external_identities(
     ):
         for enterprise_object in page_data:
             es_data = enterprise_object.get("enterprise", {})
-            page_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
+            owner_info = _enterprise_owner_info(es_data, ctx)
+            if owner_info is None:
+                return
+            page_provider = owner_info.get("samlIdentityProvider")
             if not page_provider:
                 return
             for identity in (page_provider.get("externalIdentities") or {}).get(
