@@ -1,6 +1,106 @@
 import duckdb
 
 
+def ensure_optional_input_tables(
+    con: duckdb.DuckDBPyConnection, schema: str = "github"
+) -> None:
+    """Create typed empty tables for zero-row branch-policy inputs.
+
+    DLT omits resources that yield no rows. Enterprise GitHub App collection can
+    legitimately have no branches, branch-protection rules, or repository roles,
+    while the derived branch transforms still need stable input schemas.
+    """
+    con.execute(f"""
+        CREATE TABLE IF NOT EXISTS {schema}.branches (
+            id VARCHAR,
+            name VARCHAR,
+            branch_protection_rule JSON,
+            repository_node_id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.repositories_graphql (
+            id VARCHAR,
+            branch_ruleset_count BIGINT
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.branch_protection_rules (
+            id VARCHAR,
+            repository_node_id VARCHAR,
+            pattern VARCHAR,
+            requires_approving_reviews BOOLEAN,
+            lock_branch BOOLEAN,
+            restricts_pushes BOOLEAN,
+            is_admin_enforced BOOLEAN,
+            bypass_pull_request_allowances JSON,
+            push_allowances JSON,
+            blocks_creations BOOLEAN
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.repo_roles (
+            id BIGINT,
+            repository_node_id VARCHAR,
+            permissions JSON
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.organization_variables (
+            name VARCHAR,
+            org_login VARCHAR,
+            value VARCHAR,
+            visibility VARCHAR,
+            selected_repositories_url VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.selected_organization_variables (
+            org_login VARCHAR,
+            variable_name VARCHAR,
+            repository_node_id VARCHAR
+        );
+    """)
+    con.execute(f"""
+        ALTER TABLE {schema}.branches
+            ADD COLUMN IF NOT EXISTS branch_protection_rule JSON;
+        ALTER TABLE {schema}.branches
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
+
+        ALTER TABLE {schema}.repositories_graphql
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.repositories_graphql
+            ADD COLUMN IF NOT EXISTS branch_ruleset_count BIGINT;
+
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS pattern VARCHAR;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS requires_approving_reviews BOOLEAN;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS lock_branch BOOLEAN;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS restricts_pushes BOOLEAN;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS is_admin_enforced BOOLEAN;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS bypass_pull_request_allowances JSON;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS push_allowances JSON;
+        ALTER TABLE {schema}.branch_protection_rules
+            ADD COLUMN IF NOT EXISTS blocks_creations BOOLEAN;
+
+        ALTER TABLE {schema}.repo_roles
+            ADD COLUMN IF NOT EXISTS permissions JSON;
+
+        ALTER TABLE {schema}.organization_variables
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
+        ALTER TABLE {schema}.organization_variables
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.selected_organization_variables
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+        ALTER TABLE {schema}.selected_organization_variables
+            ADD COLUMN IF NOT EXISTS variable_name VARCHAR;
+        ALTER TABLE {schema}.selected_organization_variables
+            ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
+    """)
+
 # TODO:
 # This can be optimized to generate the actor_branch_gates table
 # in one go instead of intermedaite tables
@@ -93,6 +193,8 @@ def transforms(con: duckdb.DuckDBPyConnection, schema: str = "github") -> None:
         con: The DuckDB connection to use for creating computed tables.
         schema: The DuckDB schema name containing the source tables.
     """
+
+    ensure_optional_input_tables(con, schema)
     join_branch_bpr(con, schema)
     actor_allowances(con, schema)
     unprotected_branches(con, schema)

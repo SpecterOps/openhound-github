@@ -1,15 +1,16 @@
 ## General Information
 
-The traversable GH_UsesSecret edge links a workflow step to the secret it references via a `${{ secrets.NAME }}` expression. This edge reveals which secrets a step can access at runtime, enabling analysts to trace the blast radius of a compromised workflow.
+The non-traversable GH_UsesSecret edge links a workflow job or step to the secret it references via a `${{ secrets.NAME }}` expression. This edge reveals which secrets a workflow component can access at runtime, enabling analysts to trace the blast radius of a compromised workflow.
 
 ### Matching strategy
 
-Edges use `match_by: property` with two matchers to disambiguate between secrets with the same name across repositories:
+Edges use `match_by: property` with scope-specific matchers to disambiguate between secrets with the same name across repositories and environments:
 
 - **GH_RepoSecret** is matched by `name` + `repository_id` (the GitHub node_id of the repository).
 - **GH_OrgSecret** is matched by `name` + `environmentid` (the node_id of the organization, which acts as the org-level secret scope).
+- **GH_EnvironmentSecret** is matched by `name` + `deployment_environment_name` + `repository_id` when the parent job targets a concrete environment name.
 
-This means one `${{ secrets.MY_SECRET }}` expression in a workflow can produce up to two GH_UsesSecret edges — one to the repo-level secret and one to the org-level secret — reflecting that either could supply the value at runtime depending on scope precedence.
+This means one `${{ secrets.MY_SECRET }}` expression in a workflow can produce edges to repo-level, org-level, and environment-level secrets that share the same name in the applicable scopes. The environment-level edge is only emitted when the workflow job references a literal environment name rather than a dynamic expression.
 
 ### Context property
 

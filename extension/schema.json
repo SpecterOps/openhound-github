@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.2.3",
+    "version": "v1.3.0",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -143,6 +143,14 @@
       "color": "#D5F2C2"
     },
     {
+      "name": "GH_EnvironmentBranchPolicy",
+      "display_name": "GitHub Environment Branch Policy",
+      "description": "A deployment branch policy attached to a GitHub environment, such as an exact branch name or wildcard pattern like release/*",
+      "is_display_kind": true,
+      "icon": "code-branch",
+      "color": "#B7E3A1"
+    },
+    {
       "name": "GH_OrgSecret",
       "display_name": "GitHub Org Secret",
       "description": "An organization-level GitHub Actions secret that can be scoped to all, private, or selected repositories",
@@ -278,6 +286,126 @@
       "is_traversable": false
     },
     {
+      "name": "GH_CreateEnterpriseOrganizations",
+      "description": "[Enterprise] Enterprise role can create organizations",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_EditEnterpriseCustomPropertiesForOrganizations",
+      "description": "[Enterprise] Enterprise role can edit custom properties for organizations",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseAdmins",
+      "description": "[Enterprise] Enterprise role can manage enterprise administrators",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_ManageEnterpriseIdentityProvider",
+      "description": "[Enterprise] Enterprise role can manage the enterprise identity provider",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseMembers",
+      "description": "[Enterprise] Enterprise role can manage enterprise members",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_ManageEnterpriseOrganizationAdmins",
+      "description": "[Enterprise] Enterprise role can manage organization administrators",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_ManageEnterpriseOrganizations",
+      "description": "[Enterprise] Enterprise role can manage organizations",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseReferrals",
+      "description": "[Enterprise] Enterprise role can manage referrals",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ManageEnterpriseTeams",
+      "description": "[Enterprise] Enterprise role can manage enterprise teams",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseAuditLog",
+      "description": "[Enterprise] Enterprise role can read the audit log",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseDomainVerification",
+      "description": "[Enterprise] Enterprise role can read domain verification data",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseMembers",
+      "description": "[Enterprise] Enterprise role can read enterprise members",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseOrgProjects",
+      "description": "[Enterprise] Enterprise role can read organization projects",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ReadEnterpriseOrganizationAdmin",
+      "description": "[Enterprise] Enterprise role can read organization administration data",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_SetEnterpriseInteractionLimits",
+      "description": "[Enterprise] Enterprise role can set interaction limits",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ViewEnterpriseActionsUsageMetrics",
+      "description": "[Enterprise] Enterprise role can view Actions usage metrics",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ViewEnterpriseBilling",
+      "description": "[Enterprise] Enterprise role can view billing data",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ViewEnterpriseSecretScanningAlerts",
+      "description": "[Enterprise] Enterprise role can view secret-scanning alerts",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseActionsPolicies",
+      "description": "[Enterprise] Enterprise role can write Actions policies",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseBilling",
+      "description": "[Enterprise] Enterprise role can write billing settings",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterprisePersonalAccessTokenPolicies",
+      "description": "[Enterprise] Enterprise role can write personal access token policies",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseSso",
+      "description": "[Enterprise] Enterprise role can write SSO settings",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_WriteEnterpriseTeamMembers",
+      "description": "[Enterprise] Enterprise role can write enterprise team membership",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_AssignedTo",
+      "description": "Enterprise team is assigned to an organization",
+      "is_traversable": false
+    },
+    {
       "name": "GH_Owns",
       "description": "Organization owns a repository",
       "is_traversable": true
@@ -295,12 +423,32 @@
     {
       "name": "GH_AddMember",
       "description": "Team role can add members to the team (maintainer privilege)",
-      "is_traversable": true
+      "is_traversable": false
     },
     {
       "name": "GH_HasBaseRole",
       "description": "Role inherits permissions from another role",
       "is_traversable": true
+    },
+    {
+      "name": "GH_CanCreateRepositories",
+      "description": "Role can create repositories in the organization",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_CanCreatePublicRepositories",
+      "description": "Role can create public repositories in the organization",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_CanCreateInternalRepositories",
+      "description": "Role can create internal repositories in the organization",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_CanCreatePrivateRepositories",
+      "description": "Role can create private repositories in the organization",
+      "is_traversable": false
     },
     {
       "name": "GH_ReadRepoContents",
@@ -320,7 +468,7 @@
     {
       "name": "GH_AdminTo",
       "description": "[Repository] Repo role has admin access to the repository.",
-      "is_traversable": false
+      "is_traversable": true
     },
     {
       "name": "GH_BypassBranchProtection",
@@ -698,13 +846,13 @@
       "is_traversable": false
     },
     {
-      "name": "GH_HasBranch",
-      "description": "Repository has this branch",
-      "is_traversable": false
-    },
-    {
       "name": "GH_CanEditProtection",
       "description": "[Repository - Computed] Repo role can modify or remove branch protection rules for the repository/branch (computed from GH_EditRepoProtections + GH_ProtectedBy)",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_CanReadSecret",
+      "description": "Org role can read an organization secret by creating a repository in scope",
       "is_traversable": true
     },
     {
@@ -718,23 +866,13 @@
       "is_traversable": false
     },
     {
-      "name": "GH_HasWorkflow",
-      "description": "Repository has this workflow",
-      "is_traversable": false
-    },
-    {
-      "name": "GH_HasEnvironment",
-      "description": "Repository or branch has/can deploy to this environment",
-      "is_traversable": false
-    },
-    {
       "name": "GH_HasSecret",
       "description": "Repository or environment has access to this secret",
       "is_traversable": true
     },
     {
       "name": "GH_HasVariable",
-      "description": "Repository has access to this variable (org-level or repo-level)",
+      "description": "Repository or environment has access to this variable",
       "is_traversable": true
     },
     {
@@ -778,6 +916,11 @@
       "is_traversable": false
     },
     {
+      "name": "GH_CanUseRunner",
+      "description": "Repository can dispatch jobs to this runner",
+      "is_traversable": false
+    },
+    {
       "name": "GH_CanWriteBranch",
       "description": "[Repository - Computed] Role can push to this branch after evaluating branch protection rules, push restrictions, and bypass allowances",
       "is_traversable": true
@@ -785,6 +928,16 @@
     {
       "name": "GH_CanCreateBranch",
       "description": "[Repository - Computed] Role can create new branches in this repository (unprotected branches that bypass the merge gate)",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_CanCreateEnvironment",
+      "description": "Repo role can create new GitHub environments in this repository by editing a workflow that references a nonexistent environment name",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_CanEditEnvironment",
+      "description": "Repo admin role can edit the configuration of this GitHub environment",
       "is_traversable": true
     },
     {
@@ -818,28 +971,33 @@
       "is_traversable": false
     },
     {
-      "name": "GH_HasJob",
-      "description": "[Workflow] Workflow contains this job — GH_Workflow → GH_WorkflowJob",
-      "is_traversable": false
-    },
-    {
       "name": "GH_HasMember",
       "description": "Enterprise or organization has this user as a member",
       "is_traversable": false
     },
     {
-      "name": "GH_HasStep",
-      "description": "[Workflow] Job contains this step — GH_WorkflowJob → GH_WorkflowStep",
-      "is_traversable": false
-    },
-    {
       "name": "GH_UsesSecret",
-      "description": "[Workflow] Step references a secret by name — GH_WorkflowStep → GH_RepoSecret / GH_OrgSecret (name match)",
+      "description": "[Workflow] Job or step references a secret by name — GH_WorkflowJob / GH_WorkflowStep → GH_RepoSecret / GH_OrgSecret / GH_EnvironmentSecret (scope match)",
       "is_traversable": false
     },
     {
       "name": "GH_UsesVariable",
-      "description": "[Workflow] Step references a variable by name — GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable (name match)",
+      "description": "[Workflow] Job or step references a variable by name — GH_WorkflowJob / GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable / GH_EnvironmentVariable (scope match)",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_CanDeployToEnvironment",
+      "description": "[Computed] Repository, branch, repo role, or self-approving reviewer can deploy to this GitHub environment after evaluating deployment branch policy, reviewer gates, and admin bypass behavior",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_MatchesEnvironmentPolicy",
+      "description": "Branch matches this environment deployment branch policy",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ApprovesDeploymentTo",
+      "description": "User or team is configured as a required reviewer for this environment",
       "is_traversable": false
     }
   ],
@@ -848,11 +1006,7 @@
       "environment_kind": "GH_Organization",
       "source_kind": "GitHub",
       "principal_kinds": [
-        "GH_User",
-        "GH_Team",
-        "GH_Repository",
-        "GH_Branch",
-        "GH_Environment"
+        "GH_User"
       ]
     }
   ],

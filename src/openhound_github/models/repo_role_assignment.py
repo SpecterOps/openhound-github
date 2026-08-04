@@ -73,6 +73,9 @@ class RepoRoleAssignment(BaseAsset):
 
     @property
     def _bypass_edges(self):
+        if not self._lookup.repository_default_branch_collected(self.repo_node_id):
+            return
+
         write_roles = ["write", "maintain", "admin"]
         bypass_roles = ["maintain"]
 

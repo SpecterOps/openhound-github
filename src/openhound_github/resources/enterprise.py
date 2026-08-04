@@ -2,10 +2,12 @@ import logging
 from dataclasses import dataclass
 
 from dlt.sources.helpers.rest_client.client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
 
 from openhound_github.graphql import (
     ENTERPRISE_ADMINS_QUERY,
     ENTERPRISE_MEMBERS_QUERY,
+    ENTERPRISE_SAML_PROVIDER_QUERY,
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
 )
@@ -15,18 +17,28 @@ from openhound_github.models import (
     BaseUser,
     Enterprise,
     EnterpriseAdmin,
-    EnterpriseExternalIdentity,
     EnterpriseManagedUser,
     EnterpriseOrganization,
     EnterpriseRole,
     EnterpriseRoleTeam,
     EnterpriseRoleUser,
-    EnterpriseSamlProvider,
     EnterpriseTeam,
     EnterpriseTeamMember,
     EnterpriseTeamOrganization,
     EnterpriseTeamRole,
     EnterpriseUser,
+    SamlProvider,
+    SamlServiceProvider,
+    SamlAssertionConsumerService,
+    SamlIssuer,
+    ExternalIdentity,
+    ScimGroup,
+    ScimOrganization,
+    ScimUser,
+)
+from openhound_github.models.saml_helpers import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,12 +49,63 @@ class SourceContext:
     """Shared context for GitHub API access."""
 
     client: RESTClient
+    sso_client: RESTClient | None = None
+    scim_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
+    collect_enterprise_scim: bool = False
+    emit_legacy_scim_correlations: bool = False
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+
+
+def iter_enterprise_scim_resources(
+    client: RESTClient,
+    enterprise_slug: str,
+    resource_kind: str,
+):
+    if resource_kind not in {"Users", "Groups"}:
+        raise ValueError(f"Unsupported enterprise SCIM resource: {resource_kind}")
+    paginator = OffsetPaginator(
+        offset_param="startIndex",
+        limit_param="count",
+        limit=100,
+        offset=1,
+        total_path="totalResults",
+    )
+    for page in client.paginate(
+        f"/scim/v2/enterprises/{enterprise_slug}/{resource_kind}",
+        params={"startIndex": 1, "count": 100},
+        paginator=paginator,
+        data_selector="Resources",
+    ):
+        yield from page
 
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
 def enterprise(ctx: SourceContext):
+    data = {
+        "query": ENTERPRISE_QUERY,
+        "variables": {"slug": ctx.enterprise_name, "after": None},
+    }
+
+    try:
+        response = ctx.client.post("/graphql", json=data).json()
+        page_enterprise = (response.get("data") or {}).get("enterprise")
+        if page_enterprise:
+            yield page_enterprise
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise", "phase": "resource_iteration"},
+        )
+        return
+
+
+@app.transformer(
+    name="enterprise_organizations", columns=EnterpriseOrganization, parallelized=True
+)
+def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.organizations.pageInfo",
         cursor_variable="after",
@@ -62,28 +125,76 @@ def enterprise(ctx: SourceContext):
             paginator=paginator,
             data_selector="data",
         ):
-            page_enterprise = page_data[0].get("enterprise")
-
-            if page_enterprise:
-                yield page_enterprise
+            for enterprise_object in page_data:
+                es_data = enterprise_object.get("enterprise", {})
+                orgs = (es_data.get("organizations") or {}).get("nodes", [])
+                for org in orgs:
+                    yield {
+                        **org,
+                        "enterprise_node_id": enterprise_data.id,
+                        "enterprise_slug": ctx.enterprise_name,
+                    }
     except Exception as e:
         logger.error(
-            f"Error in resource 'enterprise' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise", "phase": "resource_iteration"},
+            f"Error in resource 'enterprise_organizations' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_organizations", "phase": "resource_iteration"},
         )
         return
 
 
 @app.transformer(
-    name="enterprise_organizations", columns=EnterpriseOrganization, parallelized=True
+    name="enterprise_scim_organizations",
+    columns=ScimOrganization,
+    parallelized=True,
 )
-def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
-    orgs = (enterprise_data.organizations or {}).get("nodes", [])
-    for org in orgs:
+def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    yield {
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
+
+
+@app.transformer(
+    name="enterprise_scim_users",
+    columns=ScimUser,
+    parallelized=True,
+)
+def enterprise_scim_users(enterprise_data: Enterprise, ctx: SourceContext):
+    scim_client = ctx.scim_client or ctx.client
+    if not scim_client or not ctx.enterprise_name:
+        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+    for user in iter_enterprise_scim_resources(
+        scim_client,
+        ctx.enterprise_name,
+        "Users",
+    ):
         yield {
-            **org,
+            **user,
             "enterprise_node_id": enterprise_data.id,
             "enterprise_slug": ctx.enterprise_name,
+            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
+        }
+
+
+@app.transformer(
+    name="enterprise_scim_groups",
+    columns=ScimGroup,
+    parallelized=True,
+)
+def enterprise_scim_groups(enterprise_data: Enterprise, ctx: SourceContext):
+    scim_client = ctx.scim_client or ctx.client
+    if not scim_client or not ctx.enterprise_name:
+        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+    for group in iter_enterprise_scim_resources(
+        scim_client,
+        ctx.enterprise_name,
+        "Groups",
+    ):
+        yield {
+            **group,
+            "enterprise_node_id": enterprise_data.id,
+            "enterprise_slug": ctx.enterprise_name,
+            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
         }
 
 
@@ -250,12 +361,22 @@ def enterprise_roles(enterprise_data: Enterprise, ctx: SourceContext):
         "enterprise_slug": ctx.enterprise_name,
     }
 
+    yield {
+        "id": "members",
+        "name": "members",
+        "description": "Built-in role assigned to enterprise members",
+        "source": "Default",
+        "permissions": [],
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
+
 
 @app.transformer(
     name="enterprise_role_teams", columns=EnterpriseRoleTeam, parallelized=True
 )
 def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
-    if role.id == "owners":
+    if role.id in {"owners", "members"}:
         return
 
     for page in ctx.client.paginate(
@@ -276,7 +397,7 @@ def enterprise_role_teams(role: EnterpriseRole, ctx: SourceContext):
     name="enterprise_role_users", columns=EnterpriseRoleUser, parallelized=True
 )
 def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
-    if role.id == "owners":
+    if role.id in {"owners", "members"}:
         return
 
     for page in ctx.client.paginate(
@@ -330,48 +451,127 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
 
 
 @app.transformer(
-    name="enterprise_saml_provider", columns=EnterpriseSamlProvider, parallelized=True
+    name="enterprise_saml_provider",
+    table_name="saml_provider",
+    columns=SamlProvider,
+    parallelized=True
 )
 def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-        allow_missing_page_info=True,
-    )
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_saml_provider for enterprise '%s': no SSO client configured",
+            ctx.enterprise_name,
+        )
+        return
+
     data = {
-        "query": ENTERPRISE_SAML_QUERY,
-        "variables": {"slug": ctx.enterprise_name, "count": 1, "after": None},
+        "query": ENTERPRISE_SAML_PROVIDER_QUERY,
+        "variables": {"slug": ctx.enterprise_name},
     }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        for enterprise_object in page_data:
-            es_data = enterprise_object.get("enterprise", {})
-            saml_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
-            if not saml_provider:
-                return
-            yield {
-                **{k: v for k, v in saml_provider.items() if k != "externalIdentities"},
-                "enterprise_node_id": enterprise_data.id,
-                "enterprise_slug": ctx.enterprise_name,
-            }
+    try:
+        response = client.post("/graphql", json=data).json()
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_saml_provider' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_saml_provider", "phase": "resource_iteration"},
+        )
+        return
 
+    enterprise_object = (response.get("data") or {}).get("enterprise", {})
+    saml_provider = (enterprise_object.get("ownerInfo") or {}).get("samlIdentityProvider")
+    if not saml_provider:
+        logger.warning(
+            "No enterprise SAML provider returned for enterprise '%s'",
+            ctx.enterprise_name,
+        )
+        return
+
+    yield {
+        **saml_provider,
+        "environment_node_id": enterprise_data.id,
+        "environment_name": enterprise_data.name,
+        "environment_slug": enterprise_data.slug,
+        "environment_type": "enterprise",
+        "github_deployment_id": ctx.github_deployment_id,
+        "github_web_origin": ctx.github_web_origin,
+    }
 
 @app.transformer(
-    name="enterprise_external_identities",
-    columns=EnterpriseExternalIdentity,
+    name="enterprise_saml_service_provider",
+    table_name="saml_service_provider",
+    columns=SamlServiceProvider,
+    parallelized=True
+)
+def enterprise_saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
+    yield {
+        "id": saml_provider["id"],
+        "issuer": saml_provider.get("issuer"),
+        "environment_node_id": saml_provider["environment_node_id"],
+        "environment_name": saml_provider["environment_name"],
+        "environment_slug": saml_provider["environment_slug"],
+        "environment_type": saml_provider["environment_type"],
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
+    }
+
+@app.transformer(
+    name="enterprise_saml_assertion_consumer_service",
+    table_name="saml_assertion_consumer_service",
+    columns=SamlAssertionConsumerService,
     parallelized=True,
 )
-def enterprise_external_identities(
-    saml_provider: EnterpriseSamlProvider, ctx: SourceContext
+def enterprise_saml_assertion_consumer_service(
+    saml_provider: SamlProvider, ctx: SourceContext
 ):
+    yield {
+        "environment_slug": saml_provider.get("environment_slug"),
+        "environment_type": saml_provider.get("environment_type"),
+        "environment_node_id": saml_provider.get("environment_node_id"),
+        "environment_name": saml_provider.get("environment_name"),
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
+    }
+
+@app.transformer(
+    name="enterprise_saml_issuer",
+    table_name="saml_issuer",
+    columns=SamlIssuer,
+    parallelized=True
+)
+def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
+    issuer = saml_provider.get("issuer")
+    if not issuer:
+        return
+
+    yield {
+        "issuer": issuer,
+        "environment_slug": saml_provider.get("environment_slug"),
+        "environment_type": saml_provider.get("environment_type"),
+        "environment_node_id": saml_provider.get("environment_node_id"),
+        "environment_name": saml_provider.get("environment_name"),
+        "github_deployment_id": saml_provider.get("github_deployment_id"),
+        "github_web_origin": saml_provider.get("github_web_origin"),
+    }
+
+@app.transformer(
+    name="enterprise_external_identity",
+    table_name="external_identities",
+    columns=ExternalIdentity,
+    parallelized=True,
+)
+def enterprise_external_identity(
+    saml_provider: SamlProvider, ctx: SourceContext
+):
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_external_identity for enterprise '%s': no SSO client configured",
+            ctx.enterprise_name,
+        )
+        return
+
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
         cursor_variable="after",
@@ -384,29 +584,41 @@ def enterprise_external_identities(
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
 
-    for page_data in ctx.client.paginate(
-        "/graphql",
-        method="POST",
-        json=data,
-        paginator=paginator,
-        data_selector="data",
-    ):
-        for enterprise_object in page_data:
-            es_data = enterprise_object.get("enterprise", {})
-            page_provider = (es_data.get("ownerInfo") or {}).get("samlIdentityProvider")
-            if not page_provider:
-                return
-            for identity in (page_provider.get("externalIdentities") or {}).get(
-                "nodes"
-            ) or []:
-                yield {
-                    **identity,
-                    "saml_provider_id": saml_provider.id,
-                    "saml_provider_issuer": saml_provider.issuer,
-                    "saml_provider_sso_url": saml_provider.sso_url,
-                    "enterprise_node_id": saml_provider.enterprise_node_id,
-                    "enterprise_slug": saml_provider.enterprise_slug,
-                }
+    try:
+        for page_data in client.paginate(
+            "/graphql",
+            method="POST",
+            json=data,
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for enterprise_object in page_data:
+                es_data = enterprise_object.get("enterprise", {})
+                page_provider = (es_data.get("ownerInfo") or {}).get(
+                    "samlIdentityProvider"
+                )
+                if not page_provider:
+                    logger.warning(
+                        "No enterprise SAML provider returned while fetching external identities for enterprise '%s'",
+                        ctx.enterprise_name,
+                    )
+                    return
+                for identity in (page_provider.get("externalIdentities") or {}).get(
+                    "nodes"
+                ) or []:
+                    yield {
+                        **identity,
+                        "environment_slug": saml_provider.get("environment_slug"),
+                        "github_deployment_id": saml_provider.get(
+                            "github_deployment_id"
+                        ),
+                    }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_external_identity' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_external_identity", "phase": "resource_iteration"},
+        )
+        return
 
 
 def enterprise_resources(ctx: SourceContext):
@@ -415,8 +627,7 @@ def enterprise_resources(ctx: SourceContext):
     members_resource = enterprise_members(ctx)
     teams_resource = enterprise_teams(ctx)
     roles_resource = enterprise_roles(ctx)
-    saml_resource = enterprise_saml_provider(ctx)
-    return (
+    resources = [
         enterprise_resource,
         enterprise_resource | organizations_resource,
         enterprise_resource | members_resource | enterprise_users(ctx),
@@ -430,6 +641,27 @@ def enterprise_resources(ctx: SourceContext):
         enterprise_resource | roles_resource | enterprise_role_teams(ctx),
         # enterprise_resource | enterprise_admin_roles(ctx),
         enterprise_resource | enterprise_admins(ctx),
-        enterprise_resource | saml_resource,
-        enterprise_resource | saml_resource | enterprise_external_identities(ctx),
-    )
+    ]
+
+    if ctx.sso_client:
+        saml_resource = enterprise_saml_provider(ctx)
+        resources.extend(
+            [
+                enterprise_resource | saml_resource,
+                enterprise_resource | saml_resource | enterprise_saml_service_provider(ctx),
+                enterprise_resource | saml_resource | enterprise_saml_assertion_consumer_service(ctx),
+                enterprise_resource | saml_resource | enterprise_saml_issuer(ctx),
+                enterprise_resource | saml_resource | enterprise_external_identity(ctx),
+            ]
+        )
+
+    if ctx.collect_enterprise_scim:
+        resources.extend(
+            [
+                enterprise_resource | enterprise_scim_organizations(ctx),
+                enterprise_resource | enterprise_scim_users(ctx),
+                enterprise_resource | enterprise_scim_groups(ctx),
+            ]
+        )
+
+    return tuple(resources)

@@ -13,6 +13,63 @@ from openhound_github.main import app
 from openhound_github.models.enterprise_helpers import enterprise_role_node_id
 
 
+ENTERPRISE_PERMISSION_EDGES: dict[str, tuple[str, bool]] = {
+    "create_enterprise_organizations": (ek.CREATE_ENTERPRISE_ORGANIZATIONS, False),
+    "edit_enterprise_custom_properties_for_organizations": (
+        ek.EDIT_ENTERPRISE_CUSTOM_PROPERTIES_FOR_ORGANIZATIONS,
+        False,
+    ),
+    "manage_enterprise_admins": (ek.MANAGE_ENTERPRISE_ADMINS, True),
+    "manage_enterprise_identity_provider": (
+        ek.MANAGE_ENTERPRISE_IDENTITY_PROVIDER,
+        False,
+    ),
+    "manage_enterprise_members": (ek.MANAGE_ENTERPRISE_MEMBERS, True),
+    "manage_enterprise_organization_admins": (
+        ek.MANAGE_ENTERPRISE_ORGANIZATION_ADMINS,
+        True,
+    ),
+    "manage_enterprise_organizations": (ek.MANAGE_ENTERPRISE_ORGANIZATIONS, False),
+    "manage_enterprise_referrals": (ek.MANAGE_ENTERPRISE_REFERRALS, False),
+    "manage_enterprise_teams": (ek.MANAGE_ENTERPRISE_TEAMS, False),
+    "read_enterprise_audit_log": (ek.READ_ENTERPRISE_AUDIT_LOG, False),
+    "read_enterprise_domain_verification": (
+        ek.READ_ENTERPRISE_DOMAIN_VERIFICATION,
+        False,
+    ),
+    "read_enterprise_members": (ek.READ_ENTERPRISE_MEMBERS, False),
+    "read_enterprise_org_projects": (ek.READ_ENTERPRISE_ORG_PROJECTS, False),
+    "read_enterprise_organization_admin": (
+        ek.READ_ENTERPRISE_ORGANIZATION_ADMIN,
+        False,
+    ),
+    "set_enterprise_interaction_limits": (
+        ek.SET_ENTERPRISE_INTERACTION_LIMITS,
+        False,
+    ),
+    "view_enterprise_actions_usage_metrics": (
+        ek.VIEW_ENTERPRISE_ACTIONS_USAGE_METRICS,
+        False,
+    ),
+    "view_enterprise_billing": (ek.VIEW_ENTERPRISE_BILLING, False),
+    "view_enterprise_secret_scanning_alerts": (
+        ek.VIEW_ENTERPRISE_SECRET_SCANNING_ALERTS,
+        False,
+    ),
+    "write_enterprise_actions_policies": (
+        ek.WRITE_ENTERPRISE_ACTIONS_POLICIES,
+        False,
+    ),
+    "write_enterprise_billing": (ek.WRITE_ENTERPRISE_BILLING, False),
+    "write_enterprise_personal_access_token_policies": (
+        ek.WRITE_ENTERPRISE_PERSONAL_ACCESS_TOKEN_POLICIES,
+        False,
+    ),
+    "write_enterprise_sso": (ek.WRITE_ENTERPRISE_SSO, False),
+    "write_enterprise_team_members": (ek.WRITE_ENTERPRISE_TEAM_MEMBERS, False),
+}
+
+
 @dataclass
 class GHEnterpriseRoleProperties(GHNodeProperties):
     """Properties for a GitHub enterprise role.
@@ -61,6 +118,16 @@ class GHEnterpriseRoleProperties(GHNodeProperties):
             description="Enterprise contains role",
             traversable=False,
         ),
+        *[
+            EdgeDef(
+                start=nk.ENTERPRISE_ROLE,
+                end=nk.ENTERPRISE,
+                kind=edge_kind,
+                description=f"Enterprise role has {permission} capability",
+                traversable=traversable,
+            )
+            for permission, (edge_kind, traversable) in ENTERPRISE_PERMISSION_EDGES.items()
+        ],
     ],
 )
 class EnterpriseRole(BaseAsset):
@@ -118,3 +185,14 @@ class EnterpriseRole(BaseAsset):
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
+        for permission in self.permissions:
+            edge_definition = ENTERPRISE_PERMISSION_EDGES.get(permission)
+            if not edge_definition:
+                continue
+            edge_kind, traversable = edge_definition
+            yield Edge(
+                kind=edge_kind,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(value=self.enterprise_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=traversable),
+            )

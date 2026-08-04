@@ -50,8 +50,8 @@ class ProtectionRule(BaseModel):
         EdgeDef(
             start=nk.REPOSITORY,
             end=nk.BRANCH,
-            kind=ek.HAS_BRANCH,
-            description="Repository has branch",
+            kind=ek.CONTAINS,
+            description="Repository contains branch",
             traversable=False,
         ),
         EdgeDef(
@@ -59,12 +59,12 @@ class ProtectionRule(BaseModel):
             end=nk.BRANCH,
             kind=ek.PROTECTED_BY,
             description="Branch is protected by rule",
-            traversable=True,
+            traversable=False,
         ),
     ],
 )
 class Branch(BaseAsset):
-    """One record from the `branches` DLT table → one GH_Branch node + GH_HasBranch edge + optional GH_ProtectedBy edge."""
+    """One record from the `branches` DLT table → one GH_Branch node + GH_Contains edge + optional GH_ProtectedBy edge."""
 
     model_config = ConfigDict(populate_by_name=True)
     id: str
@@ -117,13 +117,13 @@ class Branch(BaseAsset):
                 kind=ek.PROTECTED_BY,
                 start=EdgePath(value=self.branch_protection_rule.id, match_by="id"),
                 end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+                properties=EdgeProperties(traversable=False),
             )
 
     @property
     def edges(self):
         yield Edge(
-            kind=ek.HAS_BRANCH,
+            kind=ek.CONTAINS,
             start=EdgePath(value=self.repository_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),

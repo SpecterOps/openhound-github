@@ -10,7 +10,7 @@ the full Organization node regardless of ingestion order:
 """
 from unittest.mock import MagicMock
 
-from openhound_github.models import EnterpriseOrganization
+from openhound_github.models import EnterpriseOrganization, EnterpriseTeamOrganization
 
 
 def _make_org(node_id: str = "ORG_NODE_1", login: str = "acme") -> EnterpriseOrganization:
@@ -67,3 +67,28 @@ def test_collected_resolved_per_node_id_in_multi_org_enterprise() -> None:
 
     assert collected_org.as_node.properties.collected is True
     assert stub_org.as_node.properties.collected is False
+
+
+def test_enterprise_team_organization_matcher_preserves_org_node_id_case() -> None:
+    org_node_id = "MDEyOk9yZ2FuaXphdGlvbjE="
+    assignment = EnterpriseTeamOrganization(
+        node_id=org_node_id,
+        login="github",
+        team_id=7,
+        projected_slug="ent:engineering",
+        enterprise_node_id="ENT_NODE_1",
+        enterprise_slug="example-enterprise",
+    )
+    lookup = MagicMock()
+    lookup.projected_enterprise_team_exists.return_value = True
+    assignment._lookup = lookup
+
+    edge = next(assignment.member_of_team_edges)
+    matcher_values = {
+        matcher.key: matcher.value for matcher in edge.end.property_matchers
+    }
+
+    assert matcher_values == {
+        "environmentid": org_node_id,
+        "slug": "ent:engineering",
+    }

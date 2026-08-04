@@ -47,7 +47,14 @@ class GHEnvironmentSecretProperties(GHNodeProperties):
             kind=ek.CONTAINS,
             description="Environment contains secret",
             traversable=False,
-        )
+        ),
+        EdgeDef(
+            start=nk.ENVIRONMENT,
+            end=nk.ENVIRONMENT_SECRET,
+            kind=ek.HAS_SECRET,
+            description="Environment has secret",
+            traversable=True,
+        ),
     ],
 )
 class EnvironmentSecret(BaseAsset):
@@ -101,4 +108,10 @@ class EnvironmentSecret(BaseAsset):
             start=EdgePath(value=self.environment_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
+        )
+        yield Edge(
+            kind=ek.HAS_SECRET,
+            start=EdgePath(value=self.environment_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=True),
         )

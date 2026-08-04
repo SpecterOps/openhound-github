@@ -10,6 +10,7 @@ BRANCH_PROTECTION_RULE = "GH_BranchProtectionRule"
 ENVIRONMENT = "GH_Environment"
 ENVIRONMENT_SECRET = "GH_EnvironmentSecret"
 ENVIRONMENT_VARIABLE = "GH_EnvironmentVariable"
+ENVIRONMENT_BRANCH_POLICY = "GH_EnvironmentBranchPolicy"
 
 # Identity nodes
 EXTERNAL_IDENTITY = "GH_ExternalIdentity"
@@ -58,8 +59,25 @@ WORKFLOW = "GH_Workflow"
 WORKFLOW_JOB = "GH_WorkflowJob"
 WORKFLOW_STEP = "GH_WorkflowStep"
 
-
 # Enterprise nodes
 ENTERPRISE = "GH_Enterprise"
 ENTERPRISE_TEAM = "GH_EnterpriseTeam"
 ENTERPRISE_ROLE = "GH_EnterpriseRole"
+
+# SAML nodes
+SAML_FEDERATION_PROVIDER = "SAML_FederationProvider"
+SAML_SERVICE_PROVIDER = "SAML_ServiceProvider"
+SAML_ISSUER = "SAML_Issuer"
+SAML_ASSERTION_CONSUMER_SERVICE = "SAML_AssertionConsumerService"
+SAML_CLAIM_MAPPING = "SAML_ClaimMapping"
+
+# Normalized OpenGraph-SCIM nodes
+SCIM_ORGANIZATION = "SCIM_Organization"
+SCIM_USER = "SCIM_User"
+SCIM_GROUP = "SCIM_Group"
+SCIM_ROLE = "SCIM_Role"
+
+# External node kinds used only as correlation endpoints
+AZ_USER = "AZUser"
+OKTA_USER = "Okta_User"
+PINGONE_USER = "PingOne_User"

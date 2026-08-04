@@ -2,12 +2,17 @@ from dataclasses import dataclass
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from .saml_helpers import (
+    DEFAULT_GITHUB_DEPLOYMENT_ID,
+    DEFAULT_GITHUB_WEB_ORIGIN,
+    detect_foreign_idp,
+)
 
 
 @dataclass
@@ -33,6 +38,8 @@ class GHSamlProviderProperties(GHNodeProperties):
     idp_certificate: str | None = None
     environment_name: str | None = None
     foreign_environment_id: str | None = None
+    github_deployment_id: str | None = None
+    github_web_origin: str | None = None
     query_environments: str | None = None
     query_external_identities: str | None = None
 
@@ -40,7 +47,7 @@ class GHSamlProviderProperties(GHNodeProperties):
 @app.asset(
     node=NodeDef(
         kind=nk.SAML_IDENTITY_PROVIDER,
-        description="GitHub Organization SAML Identity Provider",
+        description="SAML Identity Provider for GitHub Organization or Enterprise Account",
         icon="id-badge",
         properties=GHSamlProviderProperties,
     ),
@@ -49,13 +56,22 @@ class GHSamlProviderProperties(GHNodeProperties):
             start=nk.ORGANIZATION,
             end=nk.SAML_IDENTITY_PROVIDER,
             kind=ek.HAS_SAML_IDENTITY_PROVIDER,
-            description="Org uses this SAML IdP",
+            description="GitHub Organization uses this SAML IdP",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ENTERPRISE,
+            end=nk.SAML_IDENTITY_PROVIDER,
+            kind=ek.HAS_SAML_IDENTITY_PROVIDER,
+            description="GitHub Enterprise Account uses this SAML IdP",
             traversable=False,
         ),
     ],
 )
 class SamlProvider(BaseAsset):
     """One record from `saml_provider` → one GH_SamlIdentityProvider node + GH_HasSamlIdentityProvider from org."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
 
@@ -69,9 +85,12 @@ class SamlProvider(BaseAsset):
     foreign_environment_id: str | None = None  # tenant/org ID in the foreign IdP
 
     # Additional
-    org_login: str
-    org_name: str
-    org_node_id: str  # organization.id (GraphQL global ID)
+    environment_node_id: str # organization.id (GraphQL global ID)
+    environment_name: str
+    environment_slug: str
+    environment_type: str
+    github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
+    github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
 
     @property
     def node_id(self) -> str:
@@ -80,23 +99,25 @@ class SamlProvider(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
-        iid = self.node_id
+        _, foreign_environment_id = detect_foreign_idp(self.issuer, self.sso_url)
         return GHNode(
             kinds=[nk.SAML_IDENTITY_PROVIDER],
             properties=GHSamlProviderProperties(
-                name=self.org_name,
-                displayname=self.org_name,
-                node_id=iid,
+                name=self.node_id,
+                displayname=self.environment_name,
+                node_id=self.node_id,
                 issuer=self.issuer,
                 sso_url=self.sso_url,
                 signature_method=self.signature_method,
                 digest_method=self.digest_method,
                 idp_certificate=self.idp_certificate,
-                environment_name=self.org_name,
-                environmentid=self.org_node_id,
-                foreign_environment_id=self.foreign_environment_id,
-                query_environments=f"MATCH p=(:GH_SamlIdentityProvider {{node_id:'{iid}'}})<-[:GH_HasSamlIdentityProvider]-(:GH_Organization) RETURN p",
-                query_external_identities=f"MATCH p=(:GH_SamlIdentityProvider {{node_id:'{iid}'}})-[:GH_HasExternalIdentity]->() RETURN p",
+                environment_name=self.environment_name,
+                environmentid=self.environment_node_id,
+                foreign_environment_id=foreign_environment_id,
+                github_deployment_id=self.github_deployment_id,
+                github_web_origin=self.github_web_origin,
+                query_environments=f"MATCH p=(:GitHub)-[:GH_HasSamlIdentityProvider]->(:GH_SamlIdentityProvider {{node_id:'{self.node_id}'}}) RETURN p",
+                query_external_identities=f"MATCH p=(:GH_SamlIdentityProvider {{node_id:'{self.node_id}'}})-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity) RETURN p",
             ),
         )
 
@@ -104,7 +125,7 @@ class SamlProvider(BaseAsset):
     def edges(self):
         yield Edge(
             kind=ek.HAS_SAML_IDENTITY_PROVIDER,
-            start=EdgePath(value=self.org_node_id, match_by="id"),
+            start=EdgePath(value=self.environment_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )

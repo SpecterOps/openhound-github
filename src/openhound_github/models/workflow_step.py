@@ -49,6 +49,8 @@ class GHWorkflowStepProperties(GHNodeProperties):
         repository_name: The containing repository name.
         repository_id: The containing repository node ID.
         environment_name: The name of the GitHub organization.
+        query_repository: Query for containing repository.
+        query_references: Query for secrets and variables referenced by the step.
     """
 
     step_index: int | None = None
@@ -66,6 +68,8 @@ class GHWorkflowStepProperties(GHNodeProperties):
     repository_name: str | None = None
     repository_id: str | None = None
     environment_name: str | None = None
+    query_repository: str | None = None
+    query_references: str | None = None
 
 
 @app.asset(
@@ -79,7 +83,7 @@ class GHWorkflowStepProperties(GHNodeProperties):
         EdgeDef(
             start=nk.WORKFLOW_JOB,
             end=nk.WORKFLOW_STEP,
-            kind=ek.HAS_STEP,
+            kind=ek.CONTAINS,
             description="Workflow job contains step",
             traversable=False,
         ),
@@ -99,6 +103,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
         ),
         EdgeDef(
             start=nk.WORKFLOW_STEP,
+            end=nk.ENVIRONMENT_SECRET,
+            kind=ek.USES_SECRET,
+            description="Workflow step references environment secret",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.WORKFLOW_STEP,
             end=nk.REPO_VARIABLE,
             kind=ek.USES_VARIABLE,
             description="Workflow step references repository variable",
@@ -111,20 +122,13 @@ class GHWorkflowStepProperties(GHNodeProperties):
             description="Workflow step references organization variable",
             traversable=False,
         ),
-        # EdgeDef(
-        #     start=nk.WORKFLOW_STEP,
-        #     end=nk.ENVIRONMENT_SECRET,
-        #     kind=ek.USES_SECRET,
-        #     description="Workflow step references environment secret",
-        #     traversable=False,
-        # ),
-        # EdgeDef(
-        #     start=nk.WORKFLOW_STEP,
-        #     end=nk.ENVIRONMENT_VARIABLE,
-        #     kind=ek.USES_VARIABLE,
-        #     description="Workflow step references environment variable",
-        #     traversable=False,
-        # ),
+        EdgeDef(
+            start=nk.WORKFLOW_STEP,
+            end=nk.ENVIRONMENT_VARIABLE,
+            kind=ek.USES_VARIABLE,
+            description="Workflow step references environment variable",
+            traversable=False,
+        ),
     ],
 )
 class WorkflowStep(BaseAsset):
@@ -161,6 +165,7 @@ class WorkflowStep(BaseAsset):
     @property
     def as_node(self) -> GHNode:
         name = self.name or f"step-{self.step_index}"
+        sid = self.node_id
         return GHNode(
             kinds=[nk.WORKFLOW_STEP],
             properties=GHWorkflowStepProperties(
@@ -183,6 +188,8 @@ class WorkflowStep(BaseAsset):
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
+                query_repository=f"MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(:GH_WorkflowStep {{node_id:'{sid}'}}) RETURN p",
+                query_references=f"MATCH p=(:GH_WorkflowStep {{node_id: '{sid}'}})-[:GH_UsesSecret|GH_UsesVariable]->() RETURN p",
             ),
         )
 
@@ -213,12 +220,35 @@ class WorkflowStep(BaseAsset):
                         property_matchers=[
                             PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
-                                key="environmentid", value=self.org_node_id.upper()
+                                key="environmentid", value=self.org_node_id
                             ),
                         ],
                     ),
                     properties=EdgeProperties(traversable=False),
                 )
+
+            if self.job_environment and "${{" not in self.job_environment:
+                if self._lookup.environment_secret_for_environment(
+                    ref.name, self.repository_node_id, self.job_environment
+                ):
+                    yield Edge(
+                        kind=ek.USES_SECRET,
+                        start=EdgePath(value=self.node_id, match_by="id"),
+                        end=ConditionalEdgePath(
+                            kind=nk.ENVIRONMENT_SECRET,
+                            property_matchers=[
+                                PropertyMatch(key="name", value=ref.name.upper()),
+                                PropertyMatch(
+                                    key="deployment_environment_name",
+                                    value=self.job_environment,
+                                ),
+                                PropertyMatch(
+                                    key="repository_id", value=self.repository_node_id
+                                ),
+                            ],
+                        ),
+                        properties=EdgeProperties(traversable=False),
+                    )
 
     @property
     def _uses_variable_edges(self):
@@ -247,17 +277,40 @@ class WorkflowStep(BaseAsset):
                         property_matchers=[
                             PropertyMatch(key="name", value=ref.name.upper()),
                             PropertyMatch(
-                                key="environmentid", value=self.org_node_id.upper()
+                                key="environmentid", value=self.org_node_id
                             ),
                         ],
                     ),
                     properties=EdgeProperties(traversable=False),
                 )
 
+            if self.job_environment and "${{" not in self.job_environment:
+                if self._lookup.environment_variable_for_environment(
+                    ref.name, self.repository_node_id, self.job_environment
+                ):
+                    yield Edge(
+                        kind=ek.USES_VARIABLE,
+                        start=EdgePath(value=self.node_id, match_by="id"),
+                        end=ConditionalEdgePath(
+                            kind=nk.ENVIRONMENT_VARIABLE,
+                            property_matchers=[
+                                PropertyMatch(key="name", value=ref.name.upper()),
+                                PropertyMatch(
+                                    key="deployment_environment_name",
+                                    value=self.job_environment,
+                                ),
+                                PropertyMatch(
+                                    key="repository_id", value=self.repository_node_id
+                                ),
+                            ],
+                        ),
+                        properties=EdgeProperties(traversable=False),
+                    )
+
     @property
     def _has_step_edge(self):
         yield Edge(
-            kind=ek.HAS_STEP,
+            kind=ek.CONTAINS,
             start=EdgePath(value=self.job_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),

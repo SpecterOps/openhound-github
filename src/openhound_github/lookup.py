@@ -52,6 +52,30 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def enterprise_idp_for_scope(
+        self, enterprise_node_id: str
+    ) -> tuple[str | None, str | None] | None:
+        return self._find_single_row(
+            f"""SELECT issuer, sso_url
+            FROM {self.schema}.saml_provider
+            WHERE environment_node_id = ? AND environment_type = 'enterprise'
+            LIMIT 1""",
+            [enterprise_node_id],
+        )
+
+    @lru_cache
+    def warn_missing_legacy_scim_okta_tenant_once(
+        self, enterprise_node_id: str, enterprise_name: str
+    ) -> None:
+        logger.warning(
+            "Legacy SCIM correlations are enabled for GitHub enterprise '%s' "
+            "(%s), but no Okta tenant could be derived from its SAML provider; "
+            "skipping IdP-to-SCIM group edges.",
+            enterprise_name,
+            enterprise_node_id,
+        )
+
+    @lru_cache
     def org_login_for_id(self, org_node_id: str) -> str | None:
         return self._find_single_object(
             f"""SELECT login FROM {self.schema}.organizations WHERE node_id = ?""",
@@ -92,16 +116,45 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def repository_branch_ruleset_count(self, repository_node_id: str) -> int | None:
+        row = self._find_single_row(
+            f"""SELECT branch_ruleset_count FROM {self.schema}.repositories_graphql WHERE id = ?""",
+            [repository_node_id],
+        )
+        if row is None or row[0] is None:
+            return None
+        return int(row[0])
+
+    @lru_cache
+    def repository_default_branch_collected(self, repository_node_id: str) -> bool:
+        """Return whether the repository's REST default branch was collected."""
+        row = self._find_single_row(
+            f"""
+            SELECT EXISTS (
+                SELECT 1
+                FROM {self.schema}.repositories r
+                JOIN {self.schema}.branches b
+                  ON b.repository_node_id = r.node_id
+                 AND b.name = r.default_branch
+                WHERE r.node_id = ?
+                  AND r.default_branch IS NOT NULL
+            )
+            """,
+            [repository_node_id],
+        )
+        return bool(row and row[0])
+
+    @lru_cache
     def idp(self) -> list:
         return self._find_all_objects(
             f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider"""
         )
 
     @lru_cache
-    def idp_for_org(self, org_login: str) -> list:
+    def idp_for_environment(self, environment_slug: str) -> list:
         return self._find_all_objects(
-            f"""SELECT id, issuer, sso_url FROM {self.schema}.saml_provider WHERE org_login = ?""",
-            [org_login],
+            f"""SELECT id, issuer, sso_url, environment_node_id, environment_name, environment_type FROM {self.schema}.saml_provider WHERE environment_slug = ?""",
+            [environment_slug],
         )
 
     @lru_cache
@@ -395,6 +448,41 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def environment_deployment_branch_policy(
+        self, environment_name: str, repository_node_id: str
+    ) -> tuple[bool, bool] | None:
+        return self._find_single_row(
+            f"""SELECT
+                coalesce(deployment_branch_policy->>'protected_branches', 'false') = 'true' AS protected_branches,
+                coalesce(deployment_branch_policy->>'custom_branch_policies', 'false') = 'true' AS custom_branch_policies
+            FROM {self.schema}.environments
+            WHERE name = ? AND repository_node_id = ?""",
+            [environment_name, repository_node_id],
+        )
+
+    @lru_cache
+    def environment_deployment_reviewer_policy(
+        self, environment_name: str, repository_node_id: str
+    ) -> tuple[bool, bool] | None:
+        return self._find_single_row(
+            f"""SELECT
+                EXISTS (
+                    SELECT 1
+                    FROM json_each(e.protection_rules) AS rule
+                    WHERE json_extract_string(rule.value, '$.type') = 'required_reviewers'
+                ) AS required_reviewers,
+                coalesce((
+                    SELECT json_extract_string(rule.value, '$.prevent_self_review') = 'true'
+                    FROM json_each(e.protection_rules) AS rule
+                    WHERE json_extract_string(rule.value, '$.type') = 'required_reviewers'
+                    LIMIT 1
+                ), false) AS prevent_self_review
+            FROM {self.schema}.environments e
+            WHERE e.name = ? AND e.repository_node_id = ?""",
+            [environment_name, repository_node_id],
+        )
+
+    @lru_cache
     def workflow(self, repository_node_id: str, path: str):
         return self._find_single_object(
             f"""
@@ -407,7 +495,12 @@ class GithubLookup(LookupManager):
     @lru_cache
     def branches_for_repository(self, repository_node_id: str):
         return self._find_all_objects(
-            f"""SELECT id, name FROM {self.schema}.branches WHERE repository_node_id = ?""",
+            f"""SELECT
+                id,
+                name,
+                branch_protection_rule IS NOT NULL AS protected
+            FROM {self.schema}.branches
+            WHERE repository_node_id = ?""",
             [repository_node_id],
         )
 

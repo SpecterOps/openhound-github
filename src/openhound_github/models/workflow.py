@@ -246,6 +246,9 @@ class GHWorkflowProperties(GHNodeProperties):
         branch: The branch where the workflow file was found.
         contents: The content of the workflow file.
         query_repository: Query for repository.
+        query_jobs: Query for workflow jobs.
+        query_execution: Query for workflow executions.
+        query_references: Query for workflow references (secrets and variables).
         query_editors: Query for editors.
         environment_name: The name of the environment (GitHub organization).
     """
@@ -263,6 +266,9 @@ class GHWorkflowProperties(GHNodeProperties):
     trigger_dispatch_inputs: list[str] | None = None
     is_pwn_requestable: bool = False
     query_repository: str | None = None
+    query_jobs: str | None = None
+    query_execution: str | None = None
+    query_references: str | None = None
     query_editors: str | None = None
     environment_name: str | None = None
 
@@ -278,7 +284,7 @@ class GHWorkflowProperties(GHNodeProperties):
         EdgeDef(
             start=nk.REPOSITORY,
             end=nk.WORKFLOW,
-            kind=ek.HAS_WORKFLOW,
+            kind=ek.CONTAINS,
             description="Repository contains workflow",
             traversable=False,
         ),
@@ -299,7 +305,7 @@ class GHWorkflowProperties(GHNodeProperties):
     ],
 )
 class Workflow(BaseAsset):
-    """One record from `workflows` → one GH_Workflow node + GH_HasWorkflow edge from repo."""
+    """One record from `workflows` → one GH_Workflow node + GH_Contains edge from repo."""
 
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
@@ -456,6 +462,15 @@ class Workflow(BaseAsset):
             self.repository_node_id
         )
 
+        patterns = self.pull_request_target_branches
+        branches = self._lookup.branches_for_repository(self.repository_node_id)
+        target_branch_ids = []
+        for branch_id, branch_name, _protected in branches:
+            if not patterns or any(
+                fnmatch.fnmatchcase(branch_name, pattern) for pattern in patterns
+            ):
+                target_branch_ids.append(branch_id)
+
         for (role_node_id,) in read_contents:
             yield Edge(
                 kind=ek.CAN_PWN_REQUEST,
@@ -464,28 +479,13 @@ class Workflow(BaseAsset):
                 properties=EdgeProperties(traversable=True),
             )
 
-        patterns = self.pull_request_target_branches
-        branches = self._lookup.branches_for_repository(self.repository_node_id)
-        if not patterns:
-            for branch_id, branch_name in branches:
+            for branch_id in target_branch_ids:
                 yield Edge(
                     kind=ek.CAN_PWN_REQUEST,
                     start=EdgePath(value=role_node_id, match_by="id"),
                     end=EdgePath(value=branch_id, match_by="id"),
                     properties=EdgeProperties(traversable=True),
                 )
-
-        else:
-            for branch_id, branch_name in branches:
-                if any(
-                    fnmatch.fnmatchcase(branch_name, pattern) for pattern in patterns
-                ):
-                    yield Edge(
-                        kind=ek.CAN_PWN_REQUEST,
-                        start=EdgePath(value=role_node_id, match_by="id"),
-                        end=EdgePath(value=branch_id, match_by="id"),
-                        properties=EdgeProperties(traversable=True),
-                    )
 
     def workflow_job_rows(self) -> list[dict[str, Any]]:
         document = self.document
@@ -611,10 +611,13 @@ class Workflow(BaseAsset):
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
-                query_repository=f"MATCH p=(:GH_Repository)-[:GH_HasWorkflow]->(:GH_Workflow {{node_id:'{wid}'}}) RETURN p",
+                query_repository=f"MATCH p=(:GH_Repository)-[:GH_Contains]->(:GH_Workflow {{node_id:'{wid}'}}) RETURN p",
+                query_jobs=f"MATCH p=(:GH_Workflow {{node_id:'{wid}'}})-[:GH_Contains]->(:GH_WorkflowJob) RETURN p",
+                query_execution=f"MATCH p=(:GH_Workflow {{node_id:'{wid}'}})-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(:GH_WorkflowStep) RETURN p",
+                query_references=f"MATCH p=(:GH_Workflow {{node_id:'{wid}'}})-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(step:GH_WorkflowStep) OPTIONAL MATCH p1=(step)-[:GH_UsesSecret]->() OPTIONAL MATCH p2=(step)-[:GH_UsesVariable]->() RETURN p,p1,p2",
                 query_editors=(
                     f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_WriteRepoContents|GH_WriteRepoPullRequests*1..]->"
-                    f"(:GH_Repository)-[:GH_HasWorkflow]->(:GH_Workflow {{node_id:'{wid}'}}) "
+                    f"(:GH_Repository)-[:GH_Contains]->(:GH_Workflow {{node_id:'{wid}'}}) "
                     f"MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) RETURN p,p1"
                 ),
             ),
@@ -623,7 +626,7 @@ class Workflow(BaseAsset):
     @property
     def _has_workflow_edge(self):
         yield Edge(
-            kind=ek.HAS_WORKFLOW,
+            kind=ek.CONTAINS,
             start=EdgePath(value=self.repository_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),

@@ -41,6 +41,8 @@ class GHRepositoryProperties(GHNodeProperties):
         actions_enabled: Whether GitHub Actions is enabled for this repository.
         self_hosted_runners_enabled: Whether the repository may use self-hosted runners.
         secret_scanning: Status of secret scanning (e.g., `enabled`, `disabled`).
+        branch_ruleset_count: Number of branch-targeted rulesets that apply to this repository.
+        has_branch_rulesets: Whether at least one branch-targeted ruleset applies to this repository.
         query_branches: Query for branches.
         query_protected_branches: Query for protected branches.
         query_branch_protection_rules: Query for branch protection rules.
@@ -84,6 +86,8 @@ class GHRepositoryProperties(GHNodeProperties):
     actions_enabled: bool | None = None
     self_hosted_runners_enabled: bool | None = None
     secret_scanning: str | None = None
+    branch_ruleset_count: int | None = None
+    has_branch_rulesets: bool | None = None
     query_branches: str | None = None
     query_protected_branches: str | None = None
     query_branch_protection_rules: str | None = None
@@ -147,6 +151,7 @@ class RepositoryQL(BaseModel):
     id: str
     name: str
     refs: Ref
+    branch_ruleset_count: int | None = None
 
     # Additional
     org_login: str
@@ -217,6 +222,7 @@ class Repository(BaseAsset):
     @property
     def as_node(self) -> GHNode:
         rid = self.node_id
+        branch_ruleset_count = self._lookup.repository_branch_ruleset_count(rid)
         return GHNode(
             kinds=[nk.REPOSITORY],
             properties=GHRepositoryProperties(
@@ -246,15 +252,21 @@ class Repository(BaseAsset):
                 environmentid=self.org_node_id,
                 actions_enabled=self.actions_enabled,
                 self_hosted_runners_enabled=self.self_hosted_runners_enabled,
+                branch_ruleset_count=branch_ruleset_count,
+                has_branch_rulesets=(
+                    branch_ruleset_count > 0
+                    if branch_ruleset_count is not None
+                    else None
+                ),
                 # secret_scanning=self.secret_scanning,
-                query_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_HasBranch]->(:GH_Branch) RETURN p",
-                query_protected_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_HasBranch]->(:GH_Branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) RETURN p",
+                query_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Branch) RETURN p",
+                query_protected_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) RETURN p",
                 query_branch_protection_rules=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_BranchProtectionRule) RETURN p",
                 query_roles=f"MATCH p=(:GH_RepoRole)-[*1..]->(:GH_Repository {{node_id: '{rid}'}}) RETURN p",
                 query_teams=f"MATCH p=(:GH_Team)-[:GH_MemberOf|GH_HasRole*1..]->(:GH_RepoRole)-[]->(:GH_Repository {{node_id: '{rid}'}}) RETURN p",
-                query_workflows=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasWorkflow]->(:GH_Workflow)-[:GH_HasJob]->(:GH_WorkflowJob)-[:GH_HasStep]->(step:GH_WorkflowStep) OPTIONAL MATCH p1=(step)-[:GH_UsesSecret]->(:GH_Secret) OPTIONAL MATCH p2=(step)-[:GH_UsesVariable]->(:GH_Variable) RETURN p,p1,p2",
+                query_workflows=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(step:GH_WorkflowStep) OPTIONAL MATCH p1=(step)-[:GH_UsesSecret]->(:GH_Secret) OPTIONAL MATCH p2=(step)-[:GH_UsesVariable]->(:GH_Variable) RETURN p,p1,p2",
                 query_runners=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_CanUseRunner]->(:GH_Runner) RETURN p",
-                query_environments=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_HasEnvironment]->(:GH_Environment) RETURN p",
+                query_environments=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Environment) RETURN p",
                 query_secrets=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasSecret]->(:GH_Secret) RETURN p",
                 query_variables=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasVariable]->(:GH_Variable) RETURN p",
                 query_secret_scanning_alerts=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_SecretScanningAlert) RETURN p",

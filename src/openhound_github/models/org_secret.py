@@ -12,6 +12,18 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 
 
+_ALL_REPOSITORY_CREATION_EDGE_KINDS = (
+    ek.CAN_CREATE_REPOSITORIES,
+    ek.CAN_CREATE_PUBLIC_REPOSITORIES,
+    ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+    ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+)
+_PRIVATE_REPOSITORY_CREATION_EDGE_KINDS = (
+    ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+    ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+)
+
+
 @dataclass
 class GHOrgSecretProperties(GHNodeProperties):
     """Org secret properties and accordion panel queries.
@@ -103,14 +115,34 @@ class OrgSecret(BaseAsset):
             ),
         )
 
-    def _read_secret_query(self, role_node_id: str) -> str:
+    @property
+    def _repository_creation_edge_kinds(self) -> tuple[str, ...]:
+        if self.visibility == "all":
+            return _ALL_REPOSITORY_CREATION_EDGE_KINDS
+        if self.visibility == "private":
+            return _PRIVATE_REPOSITORY_CREATION_EDGE_KINDS
+        return ()
+
+    def _read_secret_query(
+        self, role_node_id: str, edge_kinds: tuple[str, ...]
+    ) -> str:
+        creation_edges = "|".join(edge_kinds)
         return (
             f"MATCH p=(:GH_OrgRole {{node_id:'{role_node_id}'}})"
-            f"-[:GH_CanCreateRepositories|GH_CanCreatePublicRepositories|"
-            f"GH_CanCreateInternalRepositories|GH_CanCreatePrivateRepositories]->"
+            f"-[:{creation_edges}]->"
             f"(:GH_Organization)-[:GH_Contains]->"
             f"(:GH_OrgSecret {{node_id:'{self.node_id}'}}) RETURN p"
         )
+
+    def _members_can_create_repository_in_scope(
+        self, edge_kinds: tuple[str, ...]
+    ) -> bool:
+        creation_flags = self._lookup.members_can_create_repository(self.org_login)
+        if not creation_flags:
+            return False
+
+        permissions = dict(zip(_ALL_REPOSITORY_CREATION_EDGE_KINDS, creation_flags))
+        return any(bool(permissions.get(edge_kind)) for edge_kind in edge_kinds)
 
     @property
     def _all_repo_edges(self):
@@ -149,7 +181,8 @@ class OrgSecret(BaseAsset):
 
     @property
     def _composed_read_secret_edges(self):
-        if self.visibility != "all":
+        edge_kinds = self._repository_creation_edge_kinds
+        if not edge_kinds:
             return
 
         owners_role_id = f"{self.org_node_id}_owners"
@@ -160,11 +193,13 @@ class OrgSecret(BaseAsset):
             properties=GHEdgeProperties(
                 traversable=True,
                 composed=True,
-                query_composition=self._read_secret_query(owners_role_id),
+                query_composition=self._read_secret_query(
+                    owners_role_id, edge_kinds
+                ),
             ),
         )
 
-        if self._lookup.members_can_create_repository(self.org_login):
+        if self._members_can_create_repository_in_scope(edge_kinds):
             members_role_id = f"{self.org_node_id}_members"
             yield Edge(
                 kind=ek.CAN_READ_SECRET,
@@ -173,7 +208,9 @@ class OrgSecret(BaseAsset):
                 properties=GHEdgeProperties(
                     traversable=True,
                     composed=True,
-                    query_composition=self._read_secret_query(members_role_id),
+                    query_composition=self._read_secret_query(
+                        members_role_id, edge_kinds
+                    ),
                 ),
             )
 

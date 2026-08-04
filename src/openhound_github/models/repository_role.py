@@ -666,6 +666,13 @@ class GHRepoRoleProperties(GHNodeProperties):
             description="Role can delete discussion comments",
             traversable=False,
         ),
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.REPOSITORY,
+            kind=ek.CAN_CREATE_ENVIRONMENT,
+            description="Role can create new environments in the repository by editing workflows",
+            traversable=True,
+        ),
     ],
 )
 class RepoRole(BaseAsset):
@@ -696,6 +703,12 @@ class RepoRole(BaseAsset):
     @property
     def org_node_id(self) -> str:
         return self._lookup.org_id_for_login(self.org_login)
+
+    @property
+    def _default_branch_collected(self) -> bool:
+        return self._lookup.repository_default_branch_collected(
+            self.repository_node_id
+        )
 
     @property
     def as_node(self) -> GHNode:
@@ -781,6 +794,9 @@ class RepoRole(BaseAsset):
     @property
     def _unprotected_branches_edges(self):
         """Edges from this role to branches that do not have any branch protection rules applied"""
+        if not self._default_branch_collected:
+            return
+
         write_roles = ["write", "maintain", "admin"]
         if self.name in write_roles or self.base_role in write_roles:
             # TODO: Should we check for base role?
@@ -799,6 +815,8 @@ class RepoRole(BaseAsset):
     @property
     def _push_protected_branch_bypass_edges(self):
         """Allows pushing to protected branches that restrict pushes (ie. can bypass push restrictions but not other protections)"""
+        if not self._default_branch_collected:
+            return
 
         write_roles = ["write", "maintain", "admin"]
         bypass_roles = ["maintain"]
@@ -826,6 +844,9 @@ class RepoRole(BaseAsset):
     def _combined_bypass_edges(self):
         """Branches where both merge gate and push gate are blocked, requiring
         bypass_branch_protection (merge gate) + push_protected_branch (push gate)."""
+        if not self._default_branch_collected:
+            return
+
         write_roles = ["write", "maintain", "admin"]
         bypass_roles = ["maintain"]
 
@@ -854,6 +875,9 @@ class RepoRole(BaseAsset):
 
     @property
     def _admin_bypass_edges(self):
+        if not self._default_branch_collected:
+            return
+
         if self.name == "admin" or self.base_role == "admin":
             admin_bypass_branches = self._lookup._write_admin_bypass(
                 self.repository_node_id
@@ -869,6 +893,8 @@ class RepoRole(BaseAsset):
     @property
     def _branch_protection_bypass_edges(self):
         """Allows pushing to protected branches that restrict pushes (ie. can bypass push restrictions but not other protections)"""
+        if not self._default_branch_collected:
+            return
 
         write_roles = ["write", "maintain", "admin"]
         bypass_branch_protection = (
@@ -902,6 +928,9 @@ class RepoRole(BaseAsset):
 
     @property
     def _can_create_branch_edges(self):
+        if not self._default_branch_collected:
+            return
+
         write_roles = ["write", "maintain", "admin"]
         if self.name in write_roles or self.base_role in write_roles:
             if self._lookup.role_can_create_branch(self.id, self.repository_node_id):
@@ -909,7 +938,22 @@ class RepoRole(BaseAsset):
                     kind=ek.CAN_CREATE_BRANCH,
                     start=EdgePath(value=self.node_id, match_by="id"),
                     end=EdgePath(value=self.repository_node_id, match_by="id"),
-                    properties=EdgeProperties(traversable=False),
+                    properties=EdgeProperties(traversable=True),
+                )
+
+    @property
+    def _can_create_environment_edges(self):
+        if not self._default_branch_collected:
+            return
+
+        write_roles = ["write", "maintain", "admin"]
+        if self.name in write_roles or self.base_role in write_roles:
+            if self._lookup.role_can_create_branch(self.id, self.repository_node_id):
+                yield Edge(
+                    kind=ek.CAN_CREATE_ENVIRONMENT,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=self.repository_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
                 )
 
     @property
@@ -924,6 +968,9 @@ class RepoRole(BaseAsset):
 
     @property
     def _can_edit_branch_protection_edges(self):
+        if not self._default_branch_collected:
+            return
+
         write_roles = ["write", "maintain", "admin"]
         has_edit_permissions = (
             "edit_repo_protections" in self.permissions
@@ -965,5 +1012,6 @@ class RepoRole(BaseAsset):
         yield from self._bypass_branch_protection_edges
         yield from self._bypass_push_protected_branch_edges
         yield from self._can_create_branch_edges
+        yield from self._can_create_environment_edges
         yield from self._can_edit_repo_protection_edges
         yield from self._can_edit_branch_protection_edges
