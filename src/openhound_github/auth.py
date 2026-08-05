@@ -27,7 +27,7 @@ class AccountConfig(BaseModel):
 
 class InstallationResponse(BaseModel):
     id: int
-    client_id: str
+    client_id: str | None = None
     account: AccountConfig
     target_type: str
     app_id: int | None = None
@@ -39,15 +39,32 @@ class TokenResponse(BaseModel):
     expires_at: datetime
 
 
+def resolve_github_app_jwt_issuer(
+    *, client_id: str | None, app_id: str | int | None
+) -> str:
+    """Select the configured identifier for GitHub App JWT authentication."""
+    normalized_client_id = str(client_id).strip() if client_id is not None else ""
+    if normalized_client_id:
+        return normalized_client_id
+
+    normalized_app_id = str(app_id).strip() if app_id is not None else ""
+    if normalized_app_id:
+        return normalized_app_id
+
+    raise ValueError(
+        "GitHub App credentials require either client_id or app_id for the JWT issuer"
+    )
+
+
 class GithubSession:
     def __init__(
         self,
-        client_id: str,
+        jwt_issuer: str,
         private_key_path: str,
         api_uri: str = "https://api.github.com/",
     ):
         self.api_uri = api_uri
-        self.client_id = client_id
+        self.jwt_issuer = jwt_issuer
         self.private_key_path = private_key_path
         self.client = RESTClient(
             base_url=self.api_uri,
@@ -59,9 +76,11 @@ class GithubSession:
         now_utc = datetime.now(timezone.utc).timestamp()
         header = {"alg": "RS256", "typ": "JWT"}
         claims = {
-            "iss": self.client_id,
+            "iss": self.jwt_issuer,
             "iat": int(now_utc - 10),  # Issued 10 seconds in the past
-            "exp": int(now_utc + 540),  # Expires in 9 minutes (GitHub max is 10, leaving room for clock drift)
+            "exp": int(
+                now_utc + 540
+            ),  # Expires in 9 minutes (GitHub max is 10, leaving room for clock drift)
         }
 
         try:
@@ -86,12 +105,12 @@ class GithubInstallation(GithubSession):
     def __init__(
         self,
         installation_id: str,
-        client_id: str,
+        jwt_issuer: str,
         private_key_path: str,
         api_uri: str = "https://api.github.com/",
     ):
         self.installation_id = installation_id
-        super().__init__(client_id, private_key_path, api_uri)
+        super().__init__(jwt_issuer, private_key_path, api_uri)
 
     @property
     def token(self) -> TokenResponse:
@@ -108,14 +127,11 @@ class GithubInstallation(GithubSession):
 class GithubApp(GithubSession):
     def __init__(
         self,
-        client_id: str,
+        jwt_issuer: str,
         private_key_path: str,
         api_uri: str = "https://api.github.com/",
     ):
-        self.client_id = client_id
-        self.private_key_path = private_key_path
-        self.api_uri = api_uri
-        super().__init__(client_id, private_key_path, api_uri)
+        super().__init__(jwt_issuer, private_key_path, api_uri)
 
     @property
     def installations(self) -> Iterator[InstallationResponse]:

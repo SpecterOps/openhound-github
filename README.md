@@ -34,6 +34,12 @@ The openhound-github extension collects resources from Github organizations and 
 edges for
 BloodHound.
 
+### GitHub App JWT issuer
+
+Enterprise GitHub App credentials accept either `client_id` or `app_id` as the
+JWT issuer. When both are configured, `client_id` is preferred. At least one
+identifier must be supplied together with `key_path` and `enterprise_name`.
+
 ### Enterprise SCIM and hybrid correlations
 
 When `SOURCES__GITHUB__COLLECT_ENTERPRISE_SCIM=true`, a token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.
