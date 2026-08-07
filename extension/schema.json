@@ -12,7 +12,7 @@
       "description": "A GitHub Enterprise account that contains organizations, enterprise teams, roles, and managed users",
       "is_display_kind": true,
       "icon": "globe",
-      "color": "#6EA8FE"
+      "color": "#7C6FF2"
     },
     {
       "name": "GH_EnterpriseTeam",
@@ -180,7 +180,7 @@
       "description": "An organization-level GitHub Actions variable that can be scoped to all, private, or selected repositories. Unlike secrets, variable values are readable.",
       "is_display_kind": true,
       "icon": "lock-open",
-      "color": "#E8B84D"
+      "color": "#78D98B"
     },
     {
       "name": "GH_RepoVariable",
@@ -188,7 +188,7 @@
       "description": "A repository-level GitHub Actions variable accessible only to workflows in that repository. Unlike secrets, variable values are readable.",
       "is_display_kind": true,
       "icon": "lock-open",
-      "color": "#E89B5C"
+      "color": "#66C7E8"
     },
     {
       "name": "GH_Secret",
@@ -220,7 +220,7 @@
       "description": "An enterprise-scoped GitHub self-hosted runner group that controls runner access and visibility",
       "is_display_kind": true,
       "icon": "server",
-      "color": "#94A3B8"
+      "color": "#9A8CF5"
     },
     {
       "name": "GH_OrgRunnerGroup",
@@ -228,7 +228,7 @@
       "description": "An organization-scoped GitHub self-hosted runner group that controls runner access and visibility",
       "is_display_kind": true,
       "icon": "server",
-      "color": "#94A3B8"
+      "color": "#7BE89A"
     },
     {
       "name": "GH_EnterpriseRunner",
@@ -236,7 +236,7 @@
       "description": "An enterprise-scoped GitHub self-hosted runner available to organizations through enterprise runner groups",
       "is_display_kind": true,
       "icon": "microchip",
-      "color": "#16A34A"
+      "color": "#5F54D9"
     },
     {
       "name": "GH_OrgRunner",
@@ -260,7 +260,7 @@
       "description": "An environment-level GitHub Actions variable scoped to a specific deployment environment. Unlike secrets, variable values are readable.",
       "is_display_kind": true,
       "icon": "lock-open",
-      "color": "#D4A84B"
+      "color": "#A7D77B"
     },
     {
       "name": "GH_SecretScanningAlert",
@@ -1054,6 +1054,13 @@
   "environments": [
     {
       "environment_kind": "GH_Organization",
+      "source_kind": "GitHub",
+      "principal_kinds": [
+        "GH_User"
+      ]
+    },
+    {
+      "environment_kind": "GH_Enterprise",
       "source_kind": "GitHub",
       "principal_kinds": [
         "GH_User"
