@@ -38,7 +38,17 @@ from .repository import Repository, RepositoryQL
 from .repository_role import BaseRepoRole, RepoRole
 from .repository_secret import RepoSecret
 from .repository_variable import RepoVariable
-from .runner import OrgRunner, OrgRunnerGroupMembership, RepoRunner, RunnerGroup
+from .runner import (
+    EnterpriseRunner,
+    EnterpriseRunnerGroup,
+    EnterpriseRunnerGroupMembership,
+    EnterpriseRunnerGroupOrganization,
+    OrgRunner,
+    OrgRunnerGroup,
+    OrgRunnerGroupAccess,
+    OrgRunnerGroupMembership,
+    RepoRunner,
+)
 from .saml_assertion_consumer_service import SamlAssertionConsumerService
 from .saml_provider import SamlProvider
 from .saml_service_provider import SamlServiceProvider
@@ -79,8 +89,13 @@ __all__ = [
     "SelectedOrgVariable",
     "RepoSecret",
     "RepoVariable",
-    "RunnerGroup",
+    "EnterpriseRunner",
+    "EnterpriseRunnerGroup",
+    "EnterpriseRunnerGroupMembership",
+    "EnterpriseRunnerGroupOrganization",
     "OrgRunner",
+    "OrgRunnerGroup",
+    "OrgRunnerGroupAccess",
     "OrgRunnerGroupMembership",
     "RepoRunner",
     "SecretScanningAlert",

@@ -1,6 +1,8 @@
 # Generic
 CONTAINS = "GH_Contains"
 ASSIGNED_TO = "GH_AssignedTo"
+INHERITED_FROM = "GH_InheritedFrom"
+GRANTS_ACCESS_TO = "GH_GrantsAccessTo"
 
 # Administrative edges
 ADMIN_TO = "GH_AdminTo"

@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.3.0",
+    "version": "v1.3.1",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -191,12 +191,52 @@
       "color": "#E89B5C"
     },
     {
+      "name": "GH_Secret",
+      "display_name": "GitHub Secret",
+      "description": "Generic label applied to GitHub secret nodes across organization, repository, and environment scope",
+      "is_display_kind": false
+    },
+    {
+      "name": "GH_Variable",
+      "display_name": "GitHub Variable",
+      "description": "Generic label applied to GitHub variable nodes across organization, repository, and environment scope",
+      "is_display_kind": false
+    },
+    {
       "name": "GH_RunnerGroup",
       "display_name": "GitHub Runner Group",
-      "description": "A GitHub self-hosted runner group that controls runner access and visibility",
+      "description": "Generic label applied to GitHub self-hosted runner group nodes across enterprise and organization scope",
+      "is_display_kind": false
+    },
+    {
+      "name": "GH_Runner",
+      "display_name": "GitHub Runner",
+      "description": "Generic label applied to GitHub self-hosted runner nodes across enterprise, organization, and repository scope",
+      "is_display_kind": false
+    },
+    {
+      "name": "GH_EnterpriseRunnerGroup",
+      "display_name": "GitHub Enterprise Runner Group",
+      "description": "An enterprise-scoped GitHub self-hosted runner group that controls runner access and visibility",
       "is_display_kind": true,
       "icon": "server",
       "color": "#94A3B8"
+    },
+    {
+      "name": "GH_OrgRunnerGroup",
+      "display_name": "GitHub Org Runner Group",
+      "description": "An organization-scoped GitHub self-hosted runner group that controls runner access and visibility",
+      "is_display_kind": true,
+      "icon": "server",
+      "color": "#94A3B8"
+    },
+    {
+      "name": "GH_EnterpriseRunner",
+      "display_name": "GitHub Enterprise Runner",
+      "description": "An enterprise-scoped GitHub self-hosted runner available to organizations through enterprise runner groups",
+      "is_display_kind": true,
+      "icon": "microchip",
+      "color": "#16A34A"
     },
     {
       "name": "GH_OrgRunner",
@@ -402,7 +442,17 @@
     },
     {
       "name": "GH_AssignedTo",
-      "description": "Enterprise team is assigned to an organization",
+      "description": "Enterprise-scoped team or runner group is assigned to an organization",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_InheritedFrom",
+      "description": "Organization runner group is inherited from an enterprise runner group",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_GrantsAccessTo",
+      "description": "Organization runner group grants a repository access to its available runners",
       "is_traversable": false
     },
     {
@@ -917,7 +967,7 @@
     },
     {
       "name": "GH_CanUseRunner",
-      "description": "Repository can dispatch jobs to this runner",
+      "description": "Repository can dispatch jobs to this self-hosted runner",
       "is_traversable": false
     },
     {

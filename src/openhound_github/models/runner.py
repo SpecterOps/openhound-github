@@ -7,10 +7,11 @@ from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 from pydantic import Field
 
-from openhound_github.graph import GHNode, GHNodeProperties
+from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.runner_ids import runner_group_node_id, runner_node_id
 
 
 @dataclass
@@ -18,6 +19,7 @@ class GHRunnerGroupProperties(GHNodeProperties):
     """Properties for GHRunnerGroupProperties.
     
     Attributes:
+        scope: Whether the runner group is enterprise or organization scoped.
         group_id: The GitHub runner group ID.
         group_name: The runner group display name.
         visibility: Which repositories can use this group: `all`, `private`, or `selected`.
@@ -27,11 +29,14 @@ class GHRunnerGroupProperties(GHNodeProperties):
         restricted_to_workflows: Whether access is restricted to selected workflows.
         selected_workflows: JSON array of selected workflows, if configured.
         runners_url: API URL for runners in this group.
-        environment_name: The name of the environment (GitHub organization).
+        selected_organizations_url: API URL for organizations assigned to an enterprise group.
+        environment_name: The name of the environment (GitHub organization or enterprise).
         query_runners: Query for runners.
+        query_organizations: Query for organizations assigned to an enterprise group.
         query_repositories: Query for repositories.
     """
 
+    scope: str | None = None
     group_id: int | None = None
     group_name: str | None = None
     visibility: str | None = None
@@ -41,29 +46,38 @@ class GHRunnerGroupProperties(GHNodeProperties):
     restricted_to_workflows: bool | None = None
     selected_workflows: str | None = None
     runners_url: str | None = None
+    selected_organizations_url: str | None = None
     environment_name: str | None = None
     query_runners: str | None = None
+    query_organizations: str | None = None
     query_repositories: str | None = None
 
 
 @app.asset(
     node=NodeDef(
-        kind=nk.RUNNER_GROUP,
-        description="GitHub self-hosted runner group",
+        kind=nk.ORG_RUNNER_GROUP,
+        description="GitHub organization-scoped self-hosted runner group",
         icon="server",
         properties=GHRunnerGroupProperties,
     ),
     edges=[
         EdgeDef(
             start=nk.ORGANIZATION,
-            end=nk.RUNNER_GROUP,
+            end=nk.ORG_RUNNER_GROUP,
             kind=ek.CONTAINS,
-            description="Organization contains runner group",
+            description="Organization contains organization runner group",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ORG_RUNNER_GROUP,
+            end=nk.ENTERPRISE_RUNNER_GROUP,
+            kind=ek.INHERITED_FROM,
+            description="Organization runner group is inherited from enterprise runner group",
             traversable=False,
         ),
     ],
 )
-class RunnerGroup(BaseAsset):
+class OrgRunnerGroup(BaseAsset):
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
     id: int
@@ -85,17 +99,23 @@ class RunnerGroup(BaseAsset):
 
     @property
     def node_id(self) -> str:
-        return f"{self.org_node_id}_runner_group_{self.id}"
+        return runner_group_node_id(self.org_node_id, self.id)
 
     @property
     def as_node(self) -> GHNode:
         gid = self.node_id
+        query_runners = (
+            f"MATCH p=(:GH_OrgRunnerGroup {{node_id:'{gid}'}})-[:GH_InheritedFrom]->(:GH_EnterpriseRunnerGroup)-[:GH_Contains]->(:GH_EnterpriseRunner) RETURN p"
+            if self.inherited
+            else f"MATCH p=(:GH_OrgRunnerGroup {{node_id:'{gid}'}})-[:GH_Contains]->(:GH_OrgRunner) RETURN p"
+        )
         return GHNode(
-            kinds=[nk.RUNNER_GROUP],
+            kinds=[nk.ORG_RUNNER_GROUP, nk.RUNNER_GROUP],
             properties=GHRunnerGroupProperties(
                 name=f"{self.org_login}/{self.name}",
                 displayname=self.name,
                 node_id=gid,
+                scope="organization",
                 group_id=self.id,
                 group_name=self.name,
                 visibility=self.visibility,
@@ -107,8 +127,8 @@ class RunnerGroup(BaseAsset):
                 runners_url=self.runners_url,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
-                query_runners=f"MATCH p=(:GH_RunnerGroup {{node_id:'{gid}'}})-[:GH_Contains]->(:GH_OrgRunner) RETURN p",
-                query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunner)<-[:GH_Contains]-(:GH_RunnerGroup {{node_id:'{gid}'}}) RETURN p",
+                query_runners=query_runners,
+                query_repositories=f"MATCH p=(:GH_OrgRunnerGroup {{node_id:'{gid}'}})-[:GH_GrantsAccessTo]->(:GH_Repository) RETURN p",
             ),
         )
 
@@ -120,6 +140,150 @@ class RunnerGroup(BaseAsset):
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
+        if self.inherited:
+            enterprise_runner_group_node_id = (
+                self._lookup.enterprise_runner_group_node_id_for_inherited_org_group(
+                    self.org_node_id, self.name
+                )
+            )
+            if enterprise_runner_group_node_id:
+                yield Edge(
+                    kind=ek.INHERITED_FROM,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(
+                        value=enterprise_runner_group_node_id,
+                        match_by="id",
+                    ),
+                    properties=EdgeProperties(traversable=False),
+                )
+
+
+@app.asset(
+    node=NodeDef(
+        kind=nk.ENTERPRISE_RUNNER_GROUP,
+        description="GitHub enterprise-scoped self-hosted runner group",
+        icon="server",
+        properties=GHRunnerGroupProperties,
+    ),
+    edges=[
+        EdgeDef(
+            start=nk.ENTERPRISE,
+            end=nk.ENTERPRISE_RUNNER_GROUP,
+            kind=ek.CONTAINS,
+            description="Enterprise contains enterprise runner group",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.ENTERPRISE_RUNNER_GROUP,
+            end=nk.ORGANIZATION,
+            kind=ek.ASSIGNED_TO,
+            description="Enterprise runner group is assigned to organization",
+            traversable=False,
+        ),
+    ],
+)
+class EnterpriseRunnerGroup(BaseAsset):
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
+    id: int
+    name: str
+    visibility: str | None = None
+    default: bool | None = None
+    allows_public_repositories: bool | None = None
+    restricted_to_workflows: bool | None = None
+    selected_workflows: list[str] | None = None
+    runners_url: str | None = None
+    selected_organizations_url: str | None = None
+
+    # Additional
+    enterprise_node_id: str
+    enterprise_slug: str
+
+    @property
+    def node_id(self) -> str:
+        return runner_group_node_id(self.enterprise_node_id, self.id)
+
+    @property
+    def as_node(self) -> GHNode:
+        gid = self.node_id
+        return GHNode(
+            kinds=[nk.ENTERPRISE_RUNNER_GROUP, nk.RUNNER_GROUP],
+            properties=GHRunnerGroupProperties(
+                name=f"{self.enterprise_slug}/{self.name}",
+                displayname=self.name,
+                node_id=gid,
+                scope="enterprise",
+                group_id=self.id,
+                group_name=self.name,
+                visibility=self.visibility,
+                default=self.default,
+                allows_public_repositories=self.allows_public_repositories,
+                restricted_to_workflows=self.restricted_to_workflows,
+                selected_workflows=json.dumps(self.selected_workflows or []),
+                runners_url=self.runners_url,
+                selected_organizations_url=self.selected_organizations_url,
+                environment_name=self.enterprise_slug,
+                environmentid=self.enterprise_node_id,
+                query_runners=f"MATCH p=(:GH_EnterpriseRunnerGroup {{node_id:'{gid}'}})-[:GH_Contains]->(:GH_EnterpriseRunner) RETURN p",
+                query_organizations=f"MATCH p=(:GH_EnterpriseRunnerGroup {{node_id:'{gid}'}})-[:GH_AssignedTo]->(:GH_Organization) RETURN p",
+                query_repositories=f"MATCH p=(:GH_EnterpriseRunnerGroup {{node_id:'{gid}'}})<-[:GH_InheritedFrom]-(:GH_OrgRunnerGroup)-[:GH_GrantsAccessTo]->(:GH_Repository) RETURN p",
+            ),
+        )
+
+    @property
+    def edges(self):
+        yield Edge(
+            kind=ek.CONTAINS,
+            start=EdgePath(value=self.enterprise_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+        if self.visibility == "all":
+            for (organization_node_id,) in self._lookup.enterprise_organization_node_ids(
+                self.enterprise_node_id
+            ):
+                yield Edge(
+                    kind=ek.ASSIGNED_TO,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=organization_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )
+
+
+@app.asset(
+    edges=[
+        EdgeDef(
+            start=nk.ENTERPRISE_RUNNER_GROUP,
+            end=nk.ORGANIZATION,
+            kind=ek.ASSIGNED_TO,
+            description="Enterprise runner group is assigned to organization",
+            traversable=False,
+        ),
+    ],
+)
+class EnterpriseRunnerGroupOrganization(BaseAsset):
+    node_id: str
+    login: str | None = None
+    runner_group_id: int
+    enterprise_node_id: str
+    enterprise_slug: str
+
+    @property
+    def as_node(self):
+        return None
+
+    @property
+    def enterprise_runner_group_node_id(self) -> str:
+        return runner_group_node_id(self.enterprise_node_id, self.runner_group_id)
+
+    @property
+    def edges(self):
+        yield Edge(
+            kind=ek.ASSIGNED_TO,
+            start=EdgePath(value=self.enterprise_runner_group_node_id, match_by="id"),
+            end=EdgePath(value=self.node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
 
 
 @dataclass
@@ -127,7 +291,7 @@ class GHRunnerProperties(GHNodeProperties):
     """Properties for GHRunnerProperties.
     
     Attributes:
-        scope: Whether the runner is organization or repository scoped.
+        scope: Whether the runner is enterprise, organization, or repository scoped.
         runner_id: The GitHub runner ID.
         os: The runner operating system.
         status: The runner status.
@@ -189,7 +353,7 @@ class OrgRunner(BaseAsset):
 
     @property
     def node_id(self) -> str:
-        return f"{self.org_node_id}_org_runner_{self.id}"
+        return runner_node_id(self.org_node_id, self.id)
 
     @property
     def as_node(self) -> GHNode:
@@ -197,7 +361,7 @@ class OrgRunner(BaseAsset):
         return GHNode(
             kinds=[nk.ORG_RUNNER, nk.RUNNER],
             properties=GHRunnerProperties(
-                name=self.name,
+                name=f"{self.org_login}/{self.name}",
                 displayname=self.name,
                 node_id=rid,
                 scope="organization",
@@ -209,8 +373,61 @@ class OrgRunner(BaseAsset):
                 labels=json.dumps(self.labels),
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
-                query_group=f"MATCH p=(:GH_RunnerGroup)-[:GH_Contains]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
+                query_group=f"MATCH p=(:GH_OrgRunnerGroup)-[:GH_Contains]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
+            ),
+        )
+
+    @property
+    def edges(self):
+        return []
+
+
+@app.asset(
+    node=NodeDef(
+        kind=nk.ENTERPRISE_RUNNER,
+        description="GitHub enterprise-scoped self-hosted runner",
+        icon="microchip",
+        properties=GHRunnerProperties,
+    )
+)
+class EnterpriseRunner(BaseAsset):
+    id: int
+    name: str
+    os: str | None = None
+    status: str | None = None
+    busy: bool | None = None
+    ephemeral: bool | None = None
+    labels: list[dict] = Field(default_factory=list)
+
+    # Additional
+    enterprise_node_id: str
+    enterprise_slug: str
+
+    @property
+    def node_id(self) -> str:
+        return runner_node_id(self.enterprise_node_id, self.id)
+
+    @property
+    def as_node(self) -> GHNode:
+        rid = self.node_id
+        return GHNode(
+            kinds=[nk.ENTERPRISE_RUNNER, nk.RUNNER],
+            properties=GHRunnerProperties(
+                name=f"{self.enterprise_slug}/{self.name}",
+                displayname=self.name,
+                node_id=rid,
+                scope="enterprise",
+                runner_id=self.id,
+                os=self.os,
+                status=self.status,
+                busy=self.busy,
+                ephemeral=self.ephemeral,
+                labels=json.dumps(self.labels),
+                environment_name=self.enterprise_slug,
+                environmentid=self.enterprise_node_id,
+                query_group=f"MATCH p=(:GH_EnterpriseRunnerGroup)-[:GH_Contains]->(:GH_EnterpriseRunner {{node_id:'{rid}'}}) RETURN p",
+                query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_EnterpriseRunner {{node_id:'{rid}'}}) RETURN p",
             ),
         )
 
@@ -222,10 +439,111 @@ class OrgRunner(BaseAsset):
 @app.asset(
     edges=[
         EdgeDef(
-            start=nk.RUNNER_GROUP,
+            start=nk.ORG_RUNNER_GROUP,
+            end=nk.REPOSITORY,
+            kind=ek.GRANTS_ACCESS_TO,
+            description="Organization runner group grants repository access to runners",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.REPOSITORY,
+            end=nk.ENTERPRISE_RUNNER,
+            kind=ek.CAN_USE_RUNNER,
+            description="Repository can dispatch jobs to inherited enterprise runner",
+            traversable=False,
+        ),
+    ],
+)
+class OrgRunnerGroupAccess(BaseAsset):
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
+    runner_group_id: int
+    runner_group_name: str
+    runner_group_visibility: str | None = None
+    inherited: bool | None = None
+    accessible_repo_node_ids: list[str] = Field(default_factory=list)
+
+    # Additional
+    org_login: str
+
+    @property
+    def org_node_id(self) -> str | None:
+        return self._lookup.org_id_for_login(self.org_login)
+
+    @property
+    def runner_group_node_id(self) -> str:
+        return runner_group_node_id(self.org_node_id, self.runner_group_id)
+
+    @property
+    def as_node(self):
+        return None
+
+    @property
+    def repository_node_ids(self):
+        if self.runner_group_visibility == "all":
+            return self._lookup.repository_node_ids_for_org(self.org_login)
+        if self.runner_group_visibility == "private":
+            return self._lookup.private_repository_node_ids_for_org(self.org_login)
+        return [(repo_node_id,) for repo_node_id in self.accessible_repo_node_ids]
+
+    def _inherited_can_use_runner_query(
+        self, repository_node_id: str, runner_node_id: str
+    ) -> str:
+        return (
+            f"MATCH p=(:GH_Repository {{node_id:'{repository_node_id}'}})"
+            f"<-[:GH_GrantsAccessTo]-(:GH_OrgRunnerGroup {{node_id:'{self.runner_group_node_id}'}})"
+            "-[:GH_InheritedFrom]->(:GH_EnterpriseRunnerGroup)"
+            f"-[:GH_Contains]->(:GH_EnterpriseRunner {{node_id:'{runner_node_id}'}}) RETURN p"
+        )
+
+    @property
+    def _grants_access_to_edges(self):
+        for (repo_node_id,) in self.repository_node_ids:
+            yield Edge(
+                kind=ek.GRANTS_ACCESS_TO,
+                start=EdgePath(value=self.runner_group_node_id, match_by="id"),
+                end=EdgePath(value=repo_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=False),
+            )
+
+    @property
+    def _inherited_can_use_runner_edges(self):
+        if not self.inherited:
+            return
+
+        runner_node_ids = (
+            self._lookup.enterprise_runner_node_ids_for_inherited_org_group(
+                self.org_node_id, self.runner_group_name
+            )
+        )
+        for (repo_node_id,) in self.repository_node_ids:
+            for (enterprise_runner_node_id,) in runner_node_ids:
+                yield Edge(
+                    kind=ek.CAN_USE_RUNNER,
+                    start=EdgePath(value=repo_node_id, match_by="id"),
+                    end=EdgePath(value=enterprise_runner_node_id, match_by="id"),
+                    properties=GHEdgeProperties(
+                        traversable=False,
+                        composed=True,
+                        query_composition=self._inherited_can_use_runner_query(
+                            repo_node_id, enterprise_runner_node_id
+                        ),
+                    ),
+                )
+
+    @property
+    def edges(self):
+        yield from self._grants_access_to_edges
+        yield from self._inherited_can_use_runner_edges
+
+
+@app.asset(
+    edges=[
+        EdgeDef(
+            start=nk.ORG_RUNNER_GROUP,
             end=nk.ORG_RUNNER,
             kind=ek.CONTAINS,
-            description="Runner group contains organization runner",
+            description="Organization runner group contains organization runner",
             traversable=False,
         ),
         EdgeDef(
@@ -239,6 +557,7 @@ class OrgRunner(BaseAsset):
 )
 class OrgRunnerGroupMembership(BaseAsset):
     runner_group_id: int
+    runner_group_name: str | None = None
     runner_id: int
     runner_group_visibility: str | None = None
     accessible_repo_node_ids: list[str] = Field(default_factory=list)
@@ -256,16 +575,24 @@ class OrgRunnerGroupMembership(BaseAsset):
 
     @property
     def _runner_node_id(self):
-        return f"{self.org_node_id}_org_runner_{self.runner_id}"
+        return runner_node_id(self.org_node_id, self.runner_id)
+
+    @property
+    def _runner_group_node_id(self):
+        return runner_group_node_id(self.org_node_id, self.runner_group_id)
+
+    def _can_use_runner_query(self, repository_node_id: str) -> str:
+        return (
+            f"MATCH p=(:GH_Repository {{node_id:'{repository_node_id}'}})"
+            f"<-[:GH_GrantsAccessTo]-(:GH_OrgRunnerGroup {{node_id:'{self._runner_group_node_id}'}})"
+            f"-[:GH_Contains]->(:GH_OrgRunner {{node_id:'{self._runner_node_id}'}}) RETURN p"
+        )
 
     @property
     def _contains_edge(self):
         yield Edge(
             kind=ek.CONTAINS,
-            start=EdgePath(
-                value=f"{self.org_node_id}_runner_group_{self.runner_group_id}",
-                match_by="id",
-            ),
+            start=EdgePath(value=self._runner_group_node_id, match_by="id"),
             end=EdgePath(value=self._runner_node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
@@ -288,13 +615,58 @@ class OrgRunnerGroupMembership(BaseAsset):
                 kind=ek.CAN_USE_RUNNER,
                 start=EdgePath(value=repo_node_id, match_by="id"),
                 end=EdgePath(value=self._runner_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=False),
+                properties=GHEdgeProperties(
+                    traversable=False,
+                    composed=True,
+                    query_composition=self._can_use_runner_query(repo_node_id),
+                ),
             )
 
     @property
     def edges(self):
         yield from self._can_use_runner_edges
         yield from self._contains_edge
+
+
+@app.asset(
+    edges=[
+        EdgeDef(
+            start=nk.ENTERPRISE_RUNNER_GROUP,
+            end=nk.ENTERPRISE_RUNNER,
+            kind=ek.CONTAINS,
+            description="Enterprise runner group contains enterprise runner",
+            traversable=False,
+        ),
+    ],
+)
+class EnterpriseRunnerGroupMembership(BaseAsset):
+    runner_group_id: int
+    runner_id: int
+
+    # Additional
+    enterprise_node_id: str
+    enterprise_slug: str
+
+    @property
+    def as_node(self):
+        return None
+
+    @property
+    def _runner_group_node_id(self) -> str:
+        return runner_group_node_id(self.enterprise_node_id, self.runner_group_id)
+
+    @property
+    def _runner_node_id(self) -> str:
+        return runner_node_id(self.enterprise_node_id, self.runner_id)
+
+    @property
+    def edges(self):
+        yield Edge(
+            kind=ek.CONTAINS,
+            start=EdgePath(value=self._runner_group_node_id, match_by="id"),
+            end=EdgePath(value=self._runner_node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
 
 
 @app.asset(
@@ -342,7 +714,7 @@ class RepoRunner(BaseAsset):
 
     @property
     def node_id(self) -> str:
-        return f"{self.repository_node_id}_repo_runner_{self.id}"
+        return runner_node_id(self.repository_node_id, self.id)
 
     @property
     def as_node(self) -> GHNode:
@@ -350,7 +722,7 @@ class RepoRunner(BaseAsset):
         return GHNode(
             kinds=[nk.REPO_RUNNER, nk.RUNNER],
             properties=GHRunnerProperties(
-                name=self.name,
+                name=f"{self.repository_full_name}/{self.name}",
                 displayname=self.name,
                 node_id=rid,
                 scope="repository",

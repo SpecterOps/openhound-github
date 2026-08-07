@@ -19,6 +19,10 @@ from openhound_github.models import (
     EnterpriseAdmin,
     EnterpriseManagedUser,
     EnterpriseOrganization,
+    EnterpriseRunner,
+    EnterpriseRunnerGroup,
+    EnterpriseRunnerGroupMembership,
+    EnterpriseRunnerGroupOrganization,
     EnterpriseRole,
     EnterpriseRoleTeam,
     EnterpriseRoleUser,
@@ -278,6 +282,161 @@ def enterprise_teams(enterprise_data: Enterprise, ctx: SourceContext):
                 "enterprise_node_id": enterprise_data.id,
                 "enterprise_slug": ctx.enterprise_name,
             }
+
+
+@app.transformer(
+    name="enterprise_runner_groups",
+    columns=EnterpriseRunnerGroup,
+    parallelized=True,
+)
+def enterprise_runner_groups(enterprise_data: Enterprise, ctx: SourceContext):
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_runner_groups for enterprise '%s': no PAT-backed client configured",
+            ctx.enterprise_name,
+        )
+        return
+
+    try:
+        for page in client.paginate(
+            f"/enterprises/{ctx.enterprise_name}/actions/runner-groups",
+            params={"per_page": 100},
+            data_selector="runner_groups",
+        ):
+            for group in page:
+                yield {
+                    **group,
+                    "enterprise_node_id": enterprise_data.id,
+                    "enterprise_slug": ctx.enterprise_name,
+                }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_runner_groups' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_runner_groups", "phase": "resource_iteration"},
+        )
+        return
+
+
+@app.transformer(
+    name="enterprise_runners",
+    columns=EnterpriseRunner,
+    parallelized=True,
+)
+def enterprise_runners(enterprise_data: Enterprise, ctx: SourceContext):
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_runners for enterprise '%s': no PAT-backed client configured",
+            ctx.enterprise_name,
+        )
+        return
+
+    try:
+        for page in client.paginate(
+            f"/enterprises/{ctx.enterprise_name}/actions/runners",
+            params={"per_page": 100},
+            data_selector="runners",
+        ):
+            for runner in page:
+                yield {
+                    **runner,
+                    "enterprise_node_id": enterprise_data.id,
+                    "enterprise_slug": ctx.enterprise_name,
+                }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_runners' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={"resource": "enterprise_runners", "phase": "resource_iteration"},
+        )
+        return
+
+
+@app.transformer(
+    name="enterprise_runner_group_memberships",
+    columns=EnterpriseRunnerGroupMembership,
+    parallelized=True,
+)
+def enterprise_runner_group_memberships(
+    group: EnterpriseRunnerGroup, ctx: SourceContext
+):
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_runner_group_memberships for enterprise '%s': no PAT-backed client configured",
+            ctx.enterprise_name,
+        )
+        return
+
+    try:
+        for page in client.paginate(
+            f"/enterprises/{ctx.enterprise_name}/actions/runner-groups/{group.id}/runners",
+            params={"per_page": 100},
+            data_selector="runners",
+        ):
+            for runner in page:
+                yield {
+                    "runner_group_id": group.id,
+                    "runner_id": runner["id"],
+                    "enterprise_node_id": group.enterprise_node_id,
+                    "enterprise_slug": group.enterprise_slug,
+                }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_runner_group_memberships' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={
+                "resource": "enterprise_runner_group_memberships",
+                "phase": "resource_iteration",
+            },
+        )
+        return
+
+
+@app.transformer(
+    name="enterprise_runner_group_organizations",
+    columns=EnterpriseRunnerGroupOrganization,
+    parallelized=True,
+)
+def enterprise_runner_group_organizations(
+    group: EnterpriseRunnerGroup, ctx: SourceContext
+):
+    if group.visibility != "selected":
+        return
+
+    client = ctx.sso_client
+    if not client:
+        logger.info(
+            "Skipping enterprise_runner_group_organizations for enterprise '%s': no PAT-backed client configured",
+            ctx.enterprise_name,
+        )
+        return
+
+    try:
+        for page in client.paginate(
+            f"/enterprises/{ctx.enterprise_name}/actions/runner-groups/{group.id}/organizations",
+            params={"per_page": 100},
+            data_selector="organizations",
+        ):
+            for organization in page:
+                node_id = organization.get("node_id")
+                if not node_id:
+                    continue
+                yield {
+                    "node_id": node_id,
+                    "login": organization.get("login"),
+                    "runner_group_id": group.id,
+                    "enterprise_node_id": group.enterprise_node_id,
+                    "enterprise_slug": group.enterprise_slug,
+                }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'enterprise_runner_group_organizations' processing enterprise '{ctx.enterprise_name}': {e}",
+            extra={
+                "resource": "enterprise_runner_group_organizations",
+                "phase": "resource_iteration",
+            },
+        )
+        return
 
 
 @app.transformer(
@@ -627,6 +786,7 @@ def enterprise_resources(ctx: SourceContext):
     members_resource = enterprise_members(ctx)
     teams_resource = enterprise_teams(ctx)
     roles_resource = enterprise_roles(ctx)
+    runner_groups_resource = enterprise_runner_groups(ctx)
     resources = [
         enterprise_resource,
         enterprise_resource | organizations_resource,
@@ -652,6 +812,14 @@ def enterprise_resources(ctx: SourceContext):
                 enterprise_resource | saml_resource | enterprise_saml_assertion_consumer_service(ctx),
                 enterprise_resource | saml_resource | enterprise_saml_issuer(ctx),
                 enterprise_resource | saml_resource | enterprise_external_identity(ctx),
+                enterprise_resource | runner_groups_resource,
+                enterprise_resource | enterprise_runners(ctx),
+                enterprise_resource
+                | runner_groups_resource
+                | enterprise_runner_group_memberships(ctx),
+                enterprise_resource
+                | runner_groups_resource
+                | enterprise_runner_group_organizations(ctx),
             ]
         )
 
