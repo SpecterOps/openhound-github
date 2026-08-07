@@ -1250,7 +1250,7 @@ def org_runner_group_memberships(
                     "accessible_repo_node_ids": access.accessible_repo_node_ids,
                     "org_login": org_name,
                 }
-    except Exception as e:
+    except requests.RequestException as e:
         logger.error(
             f"Error in resource 'org_runner_group_memberships' processing organization '{org_name}': {e}",
             extra={

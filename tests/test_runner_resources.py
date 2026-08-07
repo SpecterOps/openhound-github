@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+from dlt.sources.helpers import requests
+
 from openhound_github.resources.organization import (
     OrgContext,
     SourceContext,
@@ -21,7 +23,7 @@ class _FakeClient:
 class _FailingClient(_FakeClient):
     def paginate(self, path: str, **kwargs):
         self.paginate_calls.append((path, kwargs))
-        raise RuntimeError("runner group membership unavailable")
+        raise requests.RequestException("runner group membership unavailable")
 
 
 def _ctx(client: _FakeClient) -> SourceContext:
