@@ -1235,20 +1235,30 @@ def org_runner_group_memberships(
 
     org_name = access.org_login
     client = _client_for_org(ctx, org_name)
-    for runner_page in client.paginate(
-        f"/orgs/{org_name}/actions/runner-groups/{access.runner_group_id}/runners",
-        params={"per_page": 100},
-        data_selector="runners",
-    ):
-        for runner in runner_page:
-            yield {
-                "runner_group_id": access.runner_group_id,
-                "runner_group_name": access.runner_group_name,
-                "runner_id": runner["id"],
-                "runner_group_visibility": access.runner_group_visibility,
-                "accessible_repo_node_ids": access.accessible_repo_node_ids,
-                "org_login": org_name,
-            }
+    try:
+        for runner_page in client.paginate(
+            f"/orgs/{org_name}/actions/runner-groups/{access.runner_group_id}/runners",
+            params={"per_page": 100},
+            data_selector="runners",
+        ):
+            for runner in runner_page:
+                yield {
+                    "runner_group_id": access.runner_group_id,
+                    "runner_group_name": access.runner_group_name,
+                    "runner_id": runner["id"],
+                    "runner_group_visibility": access.runner_group_visibility,
+                    "accessible_repo_node_ids": access.accessible_repo_node_ids,
+                    "org_login": org_name,
+                }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'org_runner_group_memberships' processing organization '{org_name}': {e}",
+            extra={
+                "resource": "org_runner_group_memberships",
+                "phase": "resource_iteration",
+            },
+        )
+        return
 
 
 @app.transformer(name="repo_runners", columns=RepoRunner, parallelized=True)

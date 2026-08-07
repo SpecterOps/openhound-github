@@ -18,6 +18,12 @@ class _FakeClient:
         return iter(self.pages.get(path, []))
 
 
+class _FailingClient(_FakeClient):
+    def paginate(self, path: str, **kwargs):
+        self.paginate_calls.append((path, kwargs))
+        raise RuntimeError("runner group membership unavailable")
+
+
 def _ctx(client: _FakeClient) -> SourceContext:
     return SourceContext(
         client=client,
@@ -103,6 +109,28 @@ def test_native_org_runner_group_access_collects_runner_memberships() -> None:
             "org_login": "acme",
         }
     ]
+    assert client.paginate_calls == [
+        (
+            "/orgs/acme/actions/runner-groups/1/runners",
+            {"params": {"per_page": 100}, "data_selector": "runners"},
+        )
+    ]
+
+
+def test_native_org_runner_group_membership_request_failure_yields_no_rows() -> None:
+    client = _FailingClient({})
+    access = {
+        "runner_group_id": 1,
+        "runner_group_name": "Default",
+        "runner_group_visibility": "all",
+        "inherited": False,
+        "accessible_repo_node_ids": [],
+        "org_login": "acme",
+    }
+
+    rows = list(org_runner_group_memberships.__wrapped__(access, _ctx(client)))
+
+    assert rows == []
     assert client.paginate_calls == [
         (
             "/orgs/acme/actions/runner-groups/1/runners",
