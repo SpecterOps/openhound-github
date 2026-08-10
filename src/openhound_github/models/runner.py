@@ -53,6 +53,33 @@ class GHRunnerGroupProperties(GHNodeProperties):
     query_repositories: str | None = None
 
 
+def _runner_group_repository_node_ids(
+    lookup,
+    org_login: str,
+    visibility: str | None,
+    allows_public_repositories: bool | None,
+    accessible_repo_node_ids: list[str],
+):
+    if visibility == "all":
+        if allows_public_repositories is False:
+            return lookup.private_repository_node_ids_for_org(org_login)
+        return lookup.repository_node_ids_for_org(org_login)
+
+    if visibility == "private":
+        return lookup.private_repository_node_ids_for_org(org_login)
+
+    repo_node_ids = [(repo_node_id,) for repo_node_id in accessible_repo_node_ids]
+    if allows_public_repositories is not False:
+        return repo_node_ids
+
+    private_repo_node_ids = set(lookup.private_repository_node_ids_for_org(org_login))
+    return [
+        (repo_node_id,)
+        for (repo_node_id,) in repo_node_ids
+        if (repo_node_id,) in private_repo_node_ids
+    ]
+
+
 @app.asset(
     node=NodeDef(
         kind=nk.ORG_RUNNER_GROUP,
@@ -460,6 +487,7 @@ class OrgRunnerGroupAccess(BaseAsset):
     runner_group_id: int
     runner_group_name: str
     runner_group_visibility: str | None = None
+    allows_public_repositories: bool | None = None
     inherited: bool | None = None
     accessible_repo_node_ids: list[str] = Field(default_factory=list)
 
@@ -480,11 +508,13 @@ class OrgRunnerGroupAccess(BaseAsset):
 
     @property
     def repository_node_ids(self):
-        if self.runner_group_visibility == "all":
-            return self._lookup.repository_node_ids_for_org(self.org_login)
-        if self.runner_group_visibility == "private":
-            return self._lookup.private_repository_node_ids_for_org(self.org_login)
-        return [(repo_node_id,) for repo_node_id in self.accessible_repo_node_ids]
+        return _runner_group_repository_node_ids(
+            self._lookup,
+            self.org_login,
+            self.runner_group_visibility,
+            self.allows_public_repositories,
+            self.accessible_repo_node_ids,
+        )
 
     def _inherited_can_use_runner_query(
         self, repository_node_id: str, runner_node_id: str
@@ -560,6 +590,7 @@ class OrgRunnerGroupMembership(BaseAsset):
     runner_group_name: str | None = None
     runner_id: int
     runner_group_visibility: str | None = None
+    allows_public_repositories: bool | None = None
     accessible_repo_node_ids: list[str] = Field(default_factory=list)
 
     # Additional
@@ -599,16 +630,13 @@ class OrgRunnerGroupMembership(BaseAsset):
 
     @property
     def _can_use_runner_edges(self):
-        if self.runner_group_visibility == "all":
-            repo_node_ids = self._lookup.repository_node_ids_for_org(self.org_login)
-        elif self.runner_group_visibility == "private":
-            repo_node_ids = self._lookup.private_repository_node_ids_for_org(
-                self.org_login
-            )
-        else:
-            repo_node_ids = [
-                (repo_node_id,) for repo_node_id in self.accessible_repo_node_ids
-            ]
+        repo_node_ids = _runner_group_repository_node_ids(
+            self._lookup,
+            self.org_login,
+            self.runner_group_visibility,
+            self.allows_public_repositories,
+            self.accessible_repo_node_ids,
+        )
 
         for (repo_node_id,) in repo_node_ids:
             yield Edge(

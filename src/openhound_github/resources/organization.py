@@ -1209,6 +1209,7 @@ def org_runner_group_access(group: OrgRunnerGroup, ctx: SourceContext):
         "runner_group_id": group.id,
         "runner_group_name": group.name,
         "runner_group_visibility": group.visibility,
+        "allows_public_repositories": group.allows_public_repositories,
         "inherited": group.inherited,
         "accessible_repo_node_ids": _selected_runner_group_repo_node_ids(
             group_row, client, org_name
@@ -1247,6 +1248,7 @@ def org_runner_group_memberships(
                     "runner_group_name": access.runner_group_name,
                     "runner_id": runner["id"],
                     "runner_group_visibility": access.runner_group_visibility,
+                    "allows_public_repositories": access.allows_public_repositories,
                     "accessible_repo_node_ids": access.accessible_repo_node_ids,
                     "org_login": org_name,
                 }

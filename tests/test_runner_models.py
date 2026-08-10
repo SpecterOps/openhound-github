@@ -216,6 +216,55 @@ def test_org_runner_group_access_grants_repositories_and_composes_inherited_runn
     assert "GH_InheritedFrom" in edges[1].properties.query_composition
 
 
+def test_org_runner_group_access_all_visibility_excludes_public_repositories_when_disabled() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Default",
+        runner_group_visibility="all",
+        allows_public_repositories=False,
+        inherited=True,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.private_repository_node_ids_for_org.return_value = [("REPO_PRIVATE",)]
+    lookup.enterprise_runner_node_ids_for_inherited_org_group.return_value = [
+        ("ENT_1_runner_9",)
+    ]
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [
+        ek.GRANTS_ACCESS_TO,
+        ek.CAN_USE_RUNNER,
+    ]
+    assert edges[0].end.value == "REPO_PRIVATE"
+    assert edges[1].start.value == "REPO_PRIVATE"
+    lookup.private_repository_node_ids_for_org.assert_called_with("acme")
+    lookup.repository_node_ids_for_org.assert_not_called()
+
+
+def test_org_runner_group_access_selected_visibility_excludes_public_repositories_when_disabled() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Selected",
+        runner_group_visibility="selected",
+        allows_public_repositories=False,
+        accessible_repo_node_ids=["REPO_PRIVATE", "REPO_PUBLIC"],
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.private_repository_node_ids_for_org.return_value = [("REPO_PRIVATE",)]
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [ek.GRANTS_ACCESS_TO]
+    assert edges[0].end.value == "REPO_PRIVATE"
+
+
 def test_native_org_runner_group_membership_composes_can_use_runner_through_access() -> None:
     membership = OrgRunnerGroupMembership(
         runner_group_id=1,
@@ -236,6 +285,28 @@ def test_native_org_runner_group_membership_composes_can_use_runner_through_acce
     assert "GH_GrantsAccessTo" in edges[0].properties.query_composition
     assert edges[1].start.value == "ORG_1_runner_group_1"
     assert edges[1].end.value == "ORG_1_runner_9"
+
+
+def test_native_org_runner_group_membership_excludes_public_repositories_when_disabled() -> None:
+    membership = OrgRunnerGroupMembership(
+        runner_group_id=1,
+        runner_group_name="Default",
+        runner_id=9,
+        runner_group_visibility="all",
+        allows_public_repositories=False,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.private_repository_node_ids_for_org.return_value = [("REPO_PRIVATE",)]
+    membership._lookup = lookup
+
+    edges = list(membership.edges)
+
+    assert [edge.kind for edge in edges] == [ek.CAN_USE_RUNNER, ek.CONTAINS]
+    assert edges[0].start.value == "REPO_PRIVATE"
+    lookup.private_repository_node_ids_for_org.assert_called_with("acme")
+    lookup.repository_node_ids_for_org.assert_not_called()
 
 
 def test_enterprise_organization_lookup_filters_to_enterprise() -> None:
