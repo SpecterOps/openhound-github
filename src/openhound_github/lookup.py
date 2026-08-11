@@ -4,6 +4,8 @@ import duckdb
 from duckdb import DuckDBPyConnection
 from openhound.core.lookup import LookupManager, logger
 
+from openhound_github.runner_ids import runner_group_node_id, runner_node_id
+
 
 class GithubLookup(LookupManager):
     def __init__(self, client: DuckDBPyConnection, schema: str = "github"):
@@ -50,6 +52,84 @@ class GithubLookup(LookupManager):
     def enterprise_id(self) -> str | None:
         res = self._find_single_object(f"""SELECT id FROM {self.schema}.enterprise""")
         return res
+
+    @lru_cache
+    def enterprise_organization_node_ids(self, enterprise_node_id: str):
+        return self._find_all_objects(
+            f"""SELECT id FROM {self.schema}.enterprise_organizations WHERE enterprise_node_id = ?""",
+            [enterprise_node_id],
+        )
+
+    @lru_cache
+    def _enterprise_runner_group_identity_for_inherited_org_group(
+        self, org_node_id: str, group_name: str
+    ) -> tuple[str, int] | None:
+        rows = self._find_all_objects(
+            f"""
+            WITH candidate_groups AS (
+                SELECT erg.enterprise_node_id, erg.id
+                FROM {self.schema}.enterprise_runner_groups erg
+                JOIN {self.schema}.enterprise_organizations eo
+                  ON eo.enterprise_node_id = erg.enterprise_node_id
+                WHERE eo.id = ?
+                  AND erg.visibility = 'all'
+                  AND erg.name = ?
+
+                UNION
+
+                SELECT erg.enterprise_node_id, erg.id
+                FROM {self.schema}.enterprise_runner_groups erg
+                JOIN {self.schema}.enterprise_runner_group_organizations ergo
+                  ON ergo.enterprise_node_id = erg.enterprise_node_id
+                 AND ergo.runner_group_id = erg.id
+                WHERE ergo.node_id = ?
+                  AND erg.name = ?
+            )
+            SELECT enterprise_node_id, id
+            FROM candidate_groups
+            """,
+            [org_node_id, group_name, org_node_id, group_name],
+        )
+        if not rows or len(rows) != 1:
+            return None
+
+        enterprise_node_id, runner_group_id = rows[0]
+        return str(enterprise_node_id), int(runner_group_id)
+
+    @lru_cache
+    def enterprise_runner_group_node_id_for_inherited_org_group(
+        self, org_node_id: str, group_name: str
+    ) -> str | None:
+        identity = self._enterprise_runner_group_identity_for_inherited_org_group(
+            org_node_id, group_name
+        )
+        if not identity:
+            return None
+
+        enterprise_node_id, runner_group_id = identity
+        return runner_group_node_id(enterprise_node_id, runner_group_id)
+
+    @lru_cache
+    def enterprise_runner_node_ids_for_inherited_org_group(
+        self, org_node_id: str, group_name: str
+    ):
+        identity = self._enterprise_runner_group_identity_for_inherited_org_group(
+            org_node_id, group_name
+        )
+        if not identity:
+            return []
+
+        enterprise_node_id, runner_group_id = identity
+        rows = self._find_all_objects(
+            f"""
+            SELECT runner_id
+            FROM {self.schema}.enterprise_runner_group_memberships
+            WHERE enterprise_node_id = ?
+              AND runner_group_id = ?
+            """,
+            [enterprise_node_id, runner_group_id],
+        )
+        return [(runner_node_id(enterprise_node_id, int(runner_id)),) for (runner_id,) in rows]
 
     @lru_cache
     def enterprise_idp_for_scope(

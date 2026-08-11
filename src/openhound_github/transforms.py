@@ -52,6 +52,26 @@ def ensure_optional_input_tables(
             variable_name VARCHAR,
             repository_node_id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_organizations (
+            id VARCHAR,
+            enterprise_node_id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_runner_groups (
+            id BIGINT,
+            name VARCHAR,
+            visibility VARCHAR,
+            enterprise_node_id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_runner_group_organizations (
+            node_id VARCHAR,
+            runner_group_id BIGINT,
+            enterprise_node_id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_runner_group_memberships (
+            runner_group_id BIGINT,
+            runner_id BIGINT,
+            enterprise_node_id VARCHAR
+        );
     """)
     con.execute(f"""
         ALTER TABLE {schema}.branches
@@ -99,6 +119,34 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS variable_name VARCHAR;
         ALTER TABLE {schema}.selected_organization_variables
             ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
+
+        ALTER TABLE {schema}.enterprise_organizations
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.enterprise_organizations
+            ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+
+        ALTER TABLE {schema}.enterprise_runner_groups
+            ADD COLUMN IF NOT EXISTS id BIGINT;
+        ALTER TABLE {schema}.enterprise_runner_groups
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
+        ALTER TABLE {schema}.enterprise_runner_groups
+            ADD COLUMN IF NOT EXISTS visibility VARCHAR;
+        ALTER TABLE {schema}.enterprise_runner_groups
+            ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+
+        ALTER TABLE {schema}.enterprise_runner_group_organizations
+            ADD COLUMN IF NOT EXISTS node_id VARCHAR;
+        ALTER TABLE {schema}.enterprise_runner_group_organizations
+            ADD COLUMN IF NOT EXISTS runner_group_id BIGINT;
+        ALTER TABLE {schema}.enterprise_runner_group_organizations
+            ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+
+        ALTER TABLE {schema}.enterprise_runner_group_memberships
+            ADD COLUMN IF NOT EXISTS runner_group_id BIGINT;
+        ALTER TABLE {schema}.enterprise_runner_group_memberships
+            ADD COLUMN IF NOT EXISTS runner_id BIGINT;
+        ALTER TABLE {schema}.enterprise_runner_group_memberships
+            ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
     """)
 
 # TODO:

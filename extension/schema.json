@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.3.0",
+    "version": "v1.3.1",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -12,7 +12,7 @@
       "description": "A GitHub Enterprise account that contains organizations, enterprise teams, roles, and managed users",
       "is_display_kind": true,
       "icon": "globe",
-      "color": "#6EA8FE"
+      "color": "#7C6FF2"
     },
     {
       "name": "GH_EnterpriseTeam",
@@ -180,7 +180,7 @@
       "description": "An organization-level GitHub Actions variable that can be scoped to all, private, or selected repositories. Unlike secrets, variable values are readable.",
       "is_display_kind": true,
       "icon": "lock-open",
-      "color": "#E8B84D"
+      "color": "#78D98B"
     },
     {
       "name": "GH_RepoVariable",
@@ -188,15 +188,55 @@
       "description": "A repository-level GitHub Actions variable accessible only to workflows in that repository. Unlike secrets, variable values are readable.",
       "is_display_kind": true,
       "icon": "lock-open",
-      "color": "#E89B5C"
+      "color": "#66C7E8"
+    },
+    {
+      "name": "GH_Secret",
+      "display_name": "GitHub Secret",
+      "description": "Generic label applied to GitHub secret nodes across organization, repository, and environment scope",
+      "is_display_kind": false
+    },
+    {
+      "name": "GH_Variable",
+      "display_name": "GitHub Variable",
+      "description": "Generic label applied to GitHub variable nodes across organization, repository, and environment scope",
+      "is_display_kind": false
     },
     {
       "name": "GH_RunnerGroup",
       "display_name": "GitHub Runner Group",
-      "description": "A GitHub self-hosted runner group that controls runner access and visibility",
+      "description": "Generic label applied to GitHub self-hosted runner group nodes across enterprise and organization scope",
+      "is_display_kind": false
+    },
+    {
+      "name": "GH_Runner",
+      "display_name": "GitHub Runner",
+      "description": "Generic label applied to GitHub self-hosted runner nodes across enterprise, organization, and repository scope",
+      "is_display_kind": false
+    },
+    {
+      "name": "GH_EnterpriseRunnerGroup",
+      "display_name": "GitHub Enterprise Runner Group",
+      "description": "An enterprise-scoped GitHub self-hosted runner group that controls runner access and visibility",
       "is_display_kind": true,
       "icon": "server",
-      "color": "#94A3B8"
+      "color": "#9A8CF5"
+    },
+    {
+      "name": "GH_OrgRunnerGroup",
+      "display_name": "GitHub Org Runner Group",
+      "description": "An organization-scoped GitHub self-hosted runner group that controls runner access and visibility",
+      "is_display_kind": true,
+      "icon": "server",
+      "color": "#7BE89A"
+    },
+    {
+      "name": "GH_EnterpriseRunner",
+      "display_name": "GitHub Enterprise Runner",
+      "description": "An enterprise-scoped GitHub self-hosted runner available to organizations through enterprise runner groups",
+      "is_display_kind": true,
+      "icon": "microchip",
+      "color": "#5F54D9"
     },
     {
       "name": "GH_OrgRunner",
@@ -220,7 +260,7 @@
       "description": "An environment-level GitHub Actions variable scoped to a specific deployment environment. Unlike secrets, variable values are readable.",
       "is_display_kind": true,
       "icon": "lock-open",
-      "color": "#D4A84B"
+      "color": "#A7D77B"
     },
     {
       "name": "GH_SecretScanningAlert",
@@ -402,7 +442,17 @@
     },
     {
       "name": "GH_AssignedTo",
-      "description": "Enterprise team is assigned to an organization",
+      "description": "Enterprise-scoped team or runner group is assigned to an organization",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_InheritedFrom",
+      "description": "Organization runner group is inherited from an enterprise runner group",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_GrantsAccessTo",
+      "description": "Organization runner group grants a repository access to its available runners",
       "is_traversable": false
     },
     {
@@ -917,7 +967,12 @@
     },
     {
       "name": "GH_CanUseRunner",
-      "description": "Repository can dispatch jobs to this runner",
+      "description": "Repository can dispatch jobs to this self-hosted runner",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_CanCreateRepositoryWithRunnerAccess",
+      "description": "Org role can create a repository that inherits access to this runner group",
       "is_traversable": false
     },
     {
@@ -1004,6 +1059,13 @@
   "environments": [
     {
       "environment_kind": "GH_Organization",
+      "source_kind": "GitHub",
+      "principal_kinds": [
+        "GH_User"
+      ]
+    },
+    {
+      "environment_kind": "GH_Enterprise",
       "source_kind": "GitHub",
       "principal_kinds": [
         "GH_User"

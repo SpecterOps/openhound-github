@@ -40,6 +40,8 @@ from openhound_github.models import (
     OrgRoleMember,
     OrgRoleTeam,
     OrgRunner,
+    OrgRunnerGroup,
+    OrgRunnerGroupAccess,
     OrgRunnerGroupMembership,
     OrgSecret,
     OrgVariable,
@@ -54,7 +56,6 @@ from openhound_github.models import (
     Repository,
     RepositoryQL,
     RepoVariable,
-    RunnerGroup,
     SamlProvider,
     SamlServiceProvider,
     SamlAssertionConsumerService,
@@ -1144,7 +1145,7 @@ def environments(repo: Repository, ctx: SourceContext):
             }
 
 
-@app.resource(name="runner_groups", columns=RunnerGroup, parallelized=True)
+@app.resource(name="runner_groups", columns=OrgRunnerGroup, parallelized=True)
 def runner_groups(ctx: SourceContext):
     for org in ctx.organizations:
         org_name = org.org_name
@@ -1193,35 +1194,73 @@ def org_runners(ctx: SourceContext):
 
 
 @app.transformer(
-    name="org_runner_group_memberships",
-    columns=OrgRunnerGroupMembership,
+    name="org_runner_group_access",
+    columns=OrgRunnerGroupAccess,
     parallelized=True,
 )
-def org_runner_group_memberships(
-    group: RunnerGroup, ctx: SourceContext, repos: list | None = None
-):
+def org_runner_group_access(group: OrgRunnerGroup, ctx: SourceContext):
     org_name = group.org_login
     client = _client_for_org(ctx, org_name)
     group_row = {
         "id": group.id,
         "visibility": group.visibility,
     }
-    accessible_repo_node_ids = _selected_runner_group_repo_node_ids(
-        group_row, client, org_name
-    )
-    for runner_page in client.paginate(
-        f"/orgs/{org_name}/actions/runner-groups/{group.id}/runners",
-        params={"per_page": 100},
-        data_selector="runners",
-    ):
-        for runner in runner_page:
-            yield {
-                "runner_group_id": group.id,
-                "runner_id": runner["id"],
-                "runner_group_visibility": group.visibility,
-                "accessible_repo_node_ids": accessible_repo_node_ids,
-                "org_login": org_name,
-            }
+    yield {
+        "runner_group_id": group.id,
+        "runner_group_name": group.name,
+        "runner_group_visibility": group.visibility,
+        "allows_public_repositories": group.allows_public_repositories,
+        "inherited": group.inherited,
+        "accessible_repo_node_ids": _selected_runner_group_repo_node_ids(
+            group_row, client, org_name
+        ),
+        "org_login": org_name,
+    }
+
+
+@app.transformer(
+    name="org_runner_group_memberships",
+    columns=OrgRunnerGroupMembership,
+    parallelized=True,
+)
+def org_runner_group_memberships(
+    access: OrgRunnerGroupAccess | dict[str, Any],
+    ctx: SourceContext,
+    repos: list | None = None,
+):
+    if isinstance(access, dict):
+        access = OrgRunnerGroupAccess.model_validate(access)
+
+    if access.inherited:
+        return
+
+    org_name = access.org_login
+    client = _client_for_org(ctx, org_name)
+    try:
+        for runner_page in client.paginate(
+            f"/orgs/{org_name}/actions/runner-groups/{access.runner_group_id}/runners",
+            params={"per_page": 100},
+            data_selector="runners",
+        ):
+            for runner in runner_page:
+                yield {
+                    "runner_group_id": access.runner_group_id,
+                    "runner_group_name": access.runner_group_name,
+                    "runner_id": runner["id"],
+                    "runner_group_visibility": access.runner_group_visibility,
+                    "allows_public_repositories": access.allows_public_repositories,
+                    "accessible_repo_node_ids": access.accessible_repo_node_ids,
+                    "org_login": org_name,
+                }
+    except requests.RequestException as e:
+        logger.error(
+            f"Error in resource 'org_runner_group_memberships' processing organization '{org_name}': {e}",
+            extra={
+                "resource": "org_runner_group_memberships",
+                "phase": "resource_iteration",
+            },
+        )
+        return
 
 
 @app.transformer(name="repo_runners", columns=RepoRunner, parallelized=True)
@@ -1912,6 +1951,7 @@ def organization_resources(ctx: SourceContext):
     repositories_graphql_resource = repositories_graphql(ctx)
     app_installs_resource = app_installations(ctx)
     runner_groups_resource = runner_groups(ctx)
+    runner_group_access_resource = runner_groups_resource | org_runner_group_access(ctx)
     branch_prot_rules_resource = (
         repositories_graphql_resource | branch_protection_rules(ctx)
     )
@@ -1960,7 +2000,8 @@ def organization_resources(ctx: SourceContext):
         environments_resource | environment_branch_policies(ctx),
         runner_groups_resource,
         org_runners(ctx),
-        runner_groups_resource | org_runner_group_memberships(ctx),
+        runner_group_access_resource,
+        runner_group_access_resource | org_runner_group_memberships(ctx),
         personal_access_tokens_resource,
         personal_access_tokens_resource | pat_repo_access(ctx),
         organization_secrets_resource,

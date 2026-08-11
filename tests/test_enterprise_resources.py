@@ -6,6 +6,10 @@ from openhound_github.resources.enterprise import (
     enterprise,
     enterprise_external_identity,
     enterprise_organizations,
+    enterprise_runner_group_memberships,
+    enterprise_runner_group_organizations,
+    enterprise_runner_groups,
+    enterprise_runners,
     enterprise_saml_provider,
 )
 
@@ -159,3 +163,155 @@ def test_enterprise_external_identity_logs_and_returns_on_pagination_failure(
         in message
         for message in caplog.messages
     )
+
+
+def test_enterprise_runner_groups_use_pat_backed_client() -> None:
+    app_client = _FakeClient(payload={})
+    pat_client = _FakeClient(
+        payload={},
+        pages=[
+            [
+                {
+                    "id": 2,
+                    "name": "enterprise-runners",
+                    "visibility": "selected",
+                }
+            ]
+        ],
+    )
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="acme",
+    )
+    enterprise_data = SimpleNamespace(id="E_1")
+
+    rows = list(enterprise_runner_groups.__wrapped__(enterprise_data, ctx))
+
+    assert rows == [
+        {
+            "id": 2,
+            "name": "enterprise-runners",
+            "visibility": "selected",
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+        }
+    ]
+    assert pat_client.paginate_calls[0][0] == "/enterprises/acme/actions/runner-groups"
+    assert app_client.paginate_calls == []
+
+
+def test_enterprise_runners_and_memberships_use_enterprise_scope() -> None:
+    pat_client = _FakeClient(
+        payload={},
+        pages=[[{"id": 9, "name": "runner-1"}]],
+    )
+    ctx = SourceContext(
+        client=_FakeClient(payload={}),
+        sso_client=pat_client,
+        enterprise_name="acme",
+    )
+    enterprise_data = SimpleNamespace(id="E_1")
+
+    runner_rows = list(enterprise_runners.__wrapped__(enterprise_data, ctx))
+
+    assert runner_rows == [
+        {
+            "id": 9,
+            "name": "runner-1",
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+        }
+    ]
+
+    group = SimpleNamespace(
+        id=2,
+        visibility="selected",
+        enterprise_node_id="E_1",
+        enterprise_slug="acme",
+    )
+    membership_rows = list(
+        enterprise_runner_group_memberships.__wrapped__(group, ctx)
+    )
+
+    assert membership_rows == [
+        {
+            "runner_group_id": 2,
+            "runner_id": 9,
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+        }
+    ]
+    assert pat_client.paginate_calls == [
+        (
+            "/enterprises/acme/actions/runners",
+            {"params": {"per_page": 100}, "data_selector": "runners"},
+        ),
+        (
+            "/enterprises/acme/actions/runner-groups/2/runners",
+            {"params": {"per_page": 100}, "data_selector": "runners"},
+        ),
+    ]
+
+
+def test_enterprise_runner_group_organizations_emit_group_assignments() -> None:
+    pat_client = _FakeClient(
+        payload={},
+        pages=[
+            [
+                {
+                    "node_id": "ORG_1",
+                    "login": "acme-org",
+                }
+            ]
+        ],
+    )
+    ctx = SourceContext(
+        client=_FakeClient(payload={}),
+        sso_client=pat_client,
+        enterprise_name="acme",
+    )
+    group = SimpleNamespace(
+        id=2,
+        visibility="selected",
+        enterprise_node_id="E_1",
+        enterprise_slug="acme",
+    )
+
+    rows = list(enterprise_runner_group_organizations.__wrapped__(group, ctx))
+
+    assert rows == [
+        {
+            "node_id": "ORG_1",
+            "login": "acme-org",
+            "runner_group_id": 2,
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+        }
+    ]
+    assert pat_client.paginate_calls == [
+        (
+            "/enterprises/acme/actions/runner-groups/2/organizations",
+            {"params": {"per_page": 100}, "data_selector": "organizations"},
+        )
+    ]
+
+
+def test_enterprise_runner_group_organizations_skip_non_selected_groups() -> None:
+    pat_client = _FakeClient(payload={}, pages=[[{"node_id": "ORG_1"}]])
+    ctx = SourceContext(
+        client=_FakeClient(payload={}),
+        sso_client=pat_client,
+        enterprise_name="acme",
+    )
+    group = SimpleNamespace(
+        id=1,
+        visibility="all",
+        enterprise_node_id="E_1",
+        enterprise_slug="acme",
+    )
+
+    rows = list(enterprise_runner_group_organizations.__wrapped__(group, ctx))
+
+    assert rows == []
+    assert pat_client.paginate_calls == []

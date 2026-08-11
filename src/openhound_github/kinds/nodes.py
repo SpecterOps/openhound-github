@@ -39,7 +39,10 @@ DEFAULT_ROLE = "GH_RepoRole"
 # Runner nodes
 RUNNER = "GH_Runner"
 RUNNER_GROUP = "GH_RunnerGroup"
+ENTERPRISE_RUNNER = "GH_EnterpriseRunner"
+ENTERPRISE_RUNNER_GROUP = "GH_EnterpriseRunnerGroup"
 ORG_RUNNER = "GH_OrgRunner"
+ORG_RUNNER_GROUP = "GH_OrgRunnerGroup"
 
 # Security nodes
 SECRET_SCANNING_ALERT = "GH_SecretScanningAlert"

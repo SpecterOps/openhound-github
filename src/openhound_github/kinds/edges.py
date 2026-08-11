@@ -1,6 +1,8 @@
 # Generic
 CONTAINS = "GH_Contains"
 ASSIGNED_TO = "GH_AssignedTo"
+INHERITED_FROM = "GH_InheritedFrom"
+GRANTS_ACCESS_TO = "GH_GrantsAccessTo"
 
 # Administrative edges
 ADMIN_TO = "GH_AdminTo"
@@ -16,6 +18,7 @@ MEMBER_OF = "GH_MemberOf"
 # Access and capability edges
 CAN_ACCESS = "GH_CanAccess"
 CAN_USE_RUNNER = "GH_CanUseRunner"
+CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS = "GH_CanCreateRepositoryWithRunnerAccess"
 CAN_CREATE_BRANCH = "GH_CanCreateBranch"
 CAN_CREATE_ENVIRONMENT = "GH_CanCreateEnvironment"
 CAN_EDIT_ENVIRONMENT = "GH_CanEditEnvironment"
