@@ -200,6 +200,7 @@ def test_org_runner_group_access_grants_repositories_and_composes_inherited_runn
     lookup.enterprise_runner_node_ids_for_inherited_org_group.return_value = [
         ("ENT_1_runner_9",)
     ]
+    lookup.members_can_create_repository.return_value = (False, False, False, False)
     access._lookup = lookup
 
     edges = list(access.edges)
@@ -207,6 +208,7 @@ def test_org_runner_group_access_grants_repositories_and_composes_inherited_runn
     assert [edge.kind for edge in edges] == [
         ek.GRANTS_ACCESS_TO,
         ek.CAN_USE_RUNNER,
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
     ]
     assert edges[0].start.value == "ORG_1_runner_group_1"
     assert edges[0].end.value == "REPO_1"
@@ -214,6 +216,8 @@ def test_org_runner_group_access_grants_repositories_and_composes_inherited_runn
     assert edges[1].end.value == "ENT_1_runner_9"
     assert edges[1].properties.composed is True
     assert "GH_InheritedFrom" in edges[1].properties.query_composition
+    assert edges[2].start.value == "ORG_1_owners"
+    assert edges[2].end.value == "ORG_1_runner_group_1"
 
 
 def test_org_runner_group_access_all_visibility_excludes_public_repositories_when_disabled() -> None:
@@ -231,6 +235,7 @@ def test_org_runner_group_access_all_visibility_excludes_public_repositories_whe
     lookup.enterprise_runner_node_ids_for_inherited_org_group.return_value = [
         ("ENT_1_runner_9",)
     ]
+    lookup.members_can_create_repository.return_value = (False, False, False, False)
     access._lookup = lookup
 
     edges = list(access.edges)
@@ -238,6 +243,7 @@ def test_org_runner_group_access_all_visibility_excludes_public_repositories_whe
     assert [edge.kind for edge in edges] == [
         ek.GRANTS_ACCESS_TO,
         ek.CAN_USE_RUNNER,
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
     ]
     assert edges[0].end.value == "REPO_PRIVATE"
     assert edges[1].start.value == "REPO_PRIVATE"
@@ -263,6 +269,108 @@ def test_org_runner_group_access_selected_visibility_excludes_public_repositorie
 
     assert [edge.kind for edge in edges] == [ek.GRANTS_ACCESS_TO]
     assert edges[0].end.value == "REPO_PRIVATE"
+
+
+def test_org_runner_group_access_all_visibility_emits_latent_access_for_members_with_creation_capability() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Default",
+        runner_group_visibility="all",
+        allows_public_repositories=True,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.repository_node_ids_for_org.return_value = []
+    lookup.members_can_create_repository.return_value = (True, False, False, False)
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
+    ]
+    assert [edge.start.value for edge in edges] == ["ORG_1_owners", "ORG_1_members"]
+    assert {edge.end.value for edge in edges} == {"ORG_1_runner_group_1"}
+    query = edges[1].properties.query_composition
+    assert "GH_CanCreateRepositories" in query
+    assert "GH_CanCreatePublicRepositories" in query
+    assert "GH_CanCreateInternalRepositories" in query
+    assert "GH_CanCreatePrivateRepositories" in query
+    assert "GH_Contains" in query
+
+
+def test_org_runner_group_access_without_public_access_requires_private_or_internal_creation() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Default",
+        runner_group_visibility="all",
+        allows_public_repositories=False,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.private_repository_node_ids_for_org.return_value = []
+    lookup.members_can_create_repository.return_value = (True, True, False, False)
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
+    ]
+    assert edges[0].start.value == "ORG_1_owners"
+    query = edges[0].properties.query_composition
+    assert "GH_CanCreateInternalRepositories" in query
+    assert "GH_CanCreatePrivateRepositories" in query
+    assert "GH_CanCreateRepositories" not in query
+    assert "GH_CanCreatePublicRepositories" not in query
+
+
+def test_org_runner_group_access_private_visibility_requires_private_or_internal_creation() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Private",
+        runner_group_visibility="private",
+        allows_public_repositories=True,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.private_repository_node_ids_for_org.return_value = []
+    lookup.members_can_create_repository.return_value = (False, False, True, False)
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
+    ]
+    assert [edge.start.value for edge in edges] == ["ORG_1_owners", "ORG_1_members"]
+    query = edges[1].properties.query_composition
+    assert "GH_CanCreateInternalRepositories" in query
+    assert "GH_CanCreatePrivateRepositories" in query
+    assert "GH_CanCreateRepositories" not in query
+    assert "GH_CanCreatePublicRepositories" not in query
+
+
+def test_org_runner_group_access_selected_visibility_does_not_emit_latent_access() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Selected",
+        runner_group_visibility="selected",
+        allows_public_repositories=True,
+        accessible_repo_node_ids=[],
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.members_can_create_repository.return_value = (True, True, True, True)
+    access._lookup = lookup
+
+    assert list(access.edges) == []
 
 
 def test_native_org_runner_group_membership_composes_can_use_runner_through_access() -> None:

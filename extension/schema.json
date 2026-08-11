@@ -971,6 +971,11 @@
       "is_traversable": false
     },
     {
+      "name": "GH_CanCreateRepositoryWithRunnerAccess",
+      "description": "Org role can create a repository that inherits access to this runner group",
+      "is_traversable": false
+    },
+    {
       "name": "GH_CanWriteBranch",
       "description": "[Repository - Computed] Role can push to this branch after evaluating branch protection rules, push restrictions, and bypass allowances",
       "is_traversable": true

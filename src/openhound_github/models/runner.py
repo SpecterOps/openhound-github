@@ -14,6 +14,18 @@ from openhound_github.main import app
 from openhound_github.runner_ids import runner_group_node_id, runner_node_id
 
 
+_ALL_REPOSITORY_CREATION_EDGE_KINDS = (
+    ek.CAN_CREATE_REPOSITORIES,
+    ek.CAN_CREATE_PUBLIC_REPOSITORIES,
+    ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+    ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+)
+_PRIVATE_REPOSITORY_CREATION_EDGE_KINDS = (
+    ek.CAN_CREATE_INTERNAL_REPOSITORIES,
+    ek.CAN_CREATE_PRIVATE_REPOSITORIES,
+)
+
+
 @dataclass
 class GHRunnerGroupProperties(GHNodeProperties):
     """Properties for GHRunnerGroupProperties.
@@ -479,6 +491,13 @@ class EnterpriseRunner(BaseAsset):
             description="Repository can dispatch jobs to inherited enterprise runner",
             traversable=False,
         ),
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.ORG_RUNNER_GROUP,
+            kind=ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
+            description="Org role can create a repository that inherits access to this runner group",
+            traversable=False,
+        ),
     ],
 )
 class OrgRunnerGroupAccess(BaseAsset):
@@ -514,6 +533,37 @@ class OrgRunnerGroupAccess(BaseAsset):
             self.runner_group_visibility,
             self.allows_public_repositories,
             self.accessible_repo_node_ids,
+        )
+
+    @property
+    def _repository_creation_edge_kinds(self) -> tuple[str, ...]:
+        if self.runner_group_visibility == "all":
+            if self.allows_public_repositories is False:
+                return _PRIVATE_REPOSITORY_CREATION_EDGE_KINDS
+            return _ALL_REPOSITORY_CREATION_EDGE_KINDS
+        if self.runner_group_visibility == "private":
+            return _PRIVATE_REPOSITORY_CREATION_EDGE_KINDS
+        return ()
+
+    def _members_can_create_repository_in_scope(
+        self, edge_kinds: tuple[str, ...]
+    ) -> bool:
+        creation_flags = self._lookup.members_can_create_repository(self.org_login)
+        if not creation_flags:
+            return False
+
+        permissions = dict(zip(_ALL_REPOSITORY_CREATION_EDGE_KINDS, creation_flags))
+        return any(bool(permissions.get(edge_kind)) for edge_kind in edge_kinds)
+
+    def _can_create_repository_with_runner_access_query(
+        self, role_node_id: str, edge_kinds: tuple[str, ...]
+    ) -> str:
+        creation_edges = "|".join(edge_kinds)
+        return (
+            f"MATCH p=(:GH_OrgRole {{node_id:'{role_node_id}'}})"
+            f"-[:{creation_edges}]->"
+            "(:GH_Organization)-[:GH_Contains]->"
+            f"(:GH_OrgRunnerGroup {{node_id:'{self.runner_group_node_id}'}}) RETURN p"
         )
 
     def _inherited_can_use_runner_query(
@@ -562,9 +612,45 @@ class OrgRunnerGroupAccess(BaseAsset):
                 )
 
     @property
+    def _can_create_repository_with_runner_access_edges(self):
+        edge_kinds = self._repository_creation_edge_kinds
+        if not edge_kinds:
+            return
+
+        owners_role_id = f"{self.org_node_id}_owners"
+        yield Edge(
+            kind=ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
+            start=EdgePath(value=owners_role_id, match_by="id"),
+            end=EdgePath(value=self.runner_group_node_id, match_by="id"),
+            properties=GHEdgeProperties(
+                traversable=False,
+                composed=True,
+                query_composition=self._can_create_repository_with_runner_access_query(
+                    owners_role_id, edge_kinds
+                ),
+            ),
+        )
+
+        if self._members_can_create_repository_in_scope(edge_kinds):
+            members_role_id = f"{self.org_node_id}_members"
+            yield Edge(
+                kind=ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
+                start=EdgePath(value=members_role_id, match_by="id"),
+                end=EdgePath(value=self.runner_group_node_id, match_by="id"),
+                properties=GHEdgeProperties(
+                    traversable=False,
+                    composed=True,
+                    query_composition=self._can_create_repository_with_runner_access_query(
+                        members_role_id, edge_kinds
+                    ),
+                ),
+            )
+
+    @property
     def edges(self):
         yield from self._grants_access_to_edges
         yield from self._inherited_can_use_runner_edges
+        yield from self._can_create_repository_with_runner_access_edges
 
 
 @app.asset(
