@@ -18,6 +18,7 @@ from openhound_github.auth import (
     GithubApp,
     GitHubAppInstallationAuth,
     GithubInstallation,
+    resolve_github_app_jwt_issuer,
 )
 from openhound_github.helpers import github_retry_policy
 from openhound_github.main import app
@@ -75,8 +76,8 @@ class GithubCredentials(CredentialsConfiguration):
 
 @configspec
 class GithubEnterpriseAppCredentials(CredentialsConfiguration):
-    client_id: str = None
-    app_id: str = None
+    client_id: str | None = None
+    app_id: str | None = None
     key_path: str = None
     enterprise_name: str = None
     pat_token: str | None = None
@@ -151,6 +152,10 @@ def source(
         return client(BearerTokenAuth(token=token))
 
     if credentials.auth == "enterprise_app":
+        jwt_issuer = resolve_github_app_jwt_issuer(
+            client_id=credentials.client_id,
+            app_id=credentials.app_id,
+        )
         ctx = SourceContext(
             enterprise_name=credentials.enterprise_name,
             collect_enterprise_scim=bool(collect_enterprise_scim),
@@ -165,14 +170,14 @@ def source(
         elif credentials.pat_token:
             ctx.scim_client = ctx.sso_client
         github_app_session = GithubApp(
-            client_id=credentials.client_id,
+            jwt_issuer=jwt_issuer,
             private_key_path=credentials.key_path,
         )
         for installation in github_app_session.installations:
             if installation.target_type == "Organization":
                 org_installation = GithubInstallation(
                     installation_id=installation.id,
-                    client_id=installation.client_id,
+                    jwt_issuer=jwt_issuer,
                     private_key_path=credentials.key_path,
                 )
                 ctx.organizations.append(
@@ -189,7 +194,7 @@ def source(
             if installation.target_type == "Enterprise":
                 es_installation = GithubInstallation(
                     installation_id=installation.id,
-                    client_id=installation.client_id,
+                    jwt_issuer=jwt_issuer,
                     private_key_path=credentials.key_path,
                 )
                 ctx.client = client(
@@ -206,7 +211,7 @@ def source(
         )
         org_installation = GithubInstallation(
             installation_id=credentials.install_id,
-            client_id=credentials.client_id,
+            jwt_issuer=credentials.client_id,
             private_key_path=credentials.key_path,
         )
         ctx.organizations.append(
