@@ -14,6 +14,11 @@ from openhound_github.models.saml_helpers import (
 from openhound_github.models.saml_issuer import SamlIssuer
 from openhound_github.models.saml_provider import SamlProvider
 from openhound_github.models.saml_service_provider import SamlServiceProvider
+from openhound_github.saml_entity_panel_queries import (
+    ENTITY_PANEL_QUERY_VERSION,
+    cypher_string_literal,
+    node_entity_panel_queries,
+)
 
 
 def _identity_with_lookup(**overrides) -> ExternalIdentity:
@@ -98,6 +103,13 @@ def test_normalized_saml_nodes_expose_contract_metadata() -> None:
     assert acs_properties.github_web_origin == DEFAULT_GITHUB_WEB_ORIGIN
     assert acs_properties.route_source == "github_organization_scope_convention"
     assert acs_properties.schema_contract_version == SAML_CONTRACT_VERSION
+    for node in (issuer.as_node, acs.as_node):
+        assert node.properties.entity_panel_query_version == (
+            ENTITY_PANEL_QUERY_VERSION
+        )
+        for key, value in node_entity_panel_queries(node.kinds[0], node.id).items():
+            assert getattr(node.properties, key) == value
+    assert cypher_string_literal("id'\\\n東京") == "'id\\'\\\\\\n東京'"
 
     implements_edges = list(service_provider.edges)
     assert len(implements_edges) == 1

@@ -6,6 +6,10 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import nodes as nk
 from openhound_github.kinds import edges as ek
 from openhound_github.main import app
+from openhound_github.saml_entity_panel_queries import (
+    ENTITY_PANEL_QUERY_VERSION,
+    node_entity_panel_queries,
+)
 
 from .saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
@@ -30,6 +34,9 @@ class SAMLIssuerProperties(GHNodeProperties):
         github_web_origin: Browser origin for the GitHub deployment.
         native_source_field: Native GitHub field that supplied the issuer.
         schema_contract_version: Shared OpenGraph SAML contract version.
+        entity_panel_query_version: Entity-panel query contract version.
+        query_federation_providers: Query for providers issuing this value.
+        query_service_providers: Query for service providers trusting this value.
     """
     native_id: str | None = None
     scope_type: str | None = None
@@ -39,6 +46,9 @@ class SAMLIssuerProperties(GHNodeProperties):
     github_web_origin: str | None = None
     native_source_field: str | None = None
     schema_contract_version: str = SAML_CONTRACT_VERSION
+    entity_panel_query_version: str | None = None
+    query_federation_providers: str | None = None
+    query_service_providers: str | None = None
 
 @app.asset(
     node=NodeDef(
@@ -75,7 +85,7 @@ class SamlIssuer(BaseAsset):
             self.environment_slug,
             self.github_deployment_id,
         )
-    
+
     @property
     def service_provider_node_id(self) -> str:
         return github_saml_service_provider_id(
@@ -103,9 +113,11 @@ class SamlIssuer(BaseAsset):
                 github_web_origin=self.github_web_origin,
                 native_source_field="GH_SamlIdentityProvider.issuer",
                 schema_contract_version=SAML_CONTRACT_VERSION,
+                entity_panel_query_version=ENTITY_PANEL_QUERY_VERSION,
+                **node_entity_panel_queries(nk.SAML_ISSUER, self.node_id),
             ),
         )
-    
+
     @property
     def edges(self):
         if self.issuer:

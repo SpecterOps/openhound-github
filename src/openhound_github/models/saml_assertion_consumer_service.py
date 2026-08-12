@@ -6,6 +6,10 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.saml_entity_panel_queries import (
+    ENTITY_PANEL_QUERY_VERSION,
+    node_entity_panel_queries,
+)
 
 from .saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
@@ -32,6 +36,9 @@ class SAMLAssertionConsumerServiceProperties(GHNodeProperties):
         github_web_origin: Browser origin for the GitHub deployment.
         route_source: Convention used to derive the ACS route.
         schema_contract_version: Shared OpenGraph SAML contract version.
+        entity_panel_query_version: Entity-panel query contract version.
+        query_federation_providers: Query for providers using this endpoint.
+        query_service_providers: Query for service providers using this endpoint.
     """
     native_id: str | None = None
     scope_type: str | None = None
@@ -42,6 +49,9 @@ class SAMLAssertionConsumerServiceProperties(GHNodeProperties):
     github_web_origin: str | None = None
     route_source: str | None = None
     schema_contract_version: str = SAML_CONTRACT_VERSION
+    entity_panel_query_version: str | None = None
+    query_federation_providers: str | None = None
+    query_service_providers: str | None = None
 
 @app.asset(
     node=NodeDef(
@@ -113,6 +123,10 @@ class SamlAssertionConsumerService(BaseAsset):
                 github_web_origin=self.github_web_origin,
                 route_source=f"github_{scope_type}_scope_convention",
                 schema_contract_version=SAML_CONTRACT_VERSION,
+                entity_panel_query_version=ENTITY_PANEL_QUERY_VERSION,
+                **node_entity_panel_queries(
+                    nk.SAML_ASSERTION_CONSUMER_SERVICE, self.node_id
+                ),
             ),
         )
 
