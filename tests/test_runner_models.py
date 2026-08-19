@@ -484,6 +484,30 @@ def test_inherited_org_runner_group_create_access_requires_enterprise_workflow_p
     assert "coalesce(enterprise_group.restricted_to_workflows, true) = false" in query
 
 
+def test_inherited_org_runner_group_create_access_is_not_emitted_when_enterprise_workflow_policy_is_restricted() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Default",
+        runner_group_visibility="all",
+        allows_public_repositories=True,
+        restricted_to_workflows=False,
+        inherited=True,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.repository_node_ids_for_org.return_value = []
+    lookup.actions_enabled_repositories_for_org.return_value = "all"
+    lookup.members_can_create_repository.return_value = (False, False, False, False)
+    lookup.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group.return_value = (
+        True
+    )
+    access._lookup = lookup
+
+    assert list(access.edges) == []
+    lookup.actions_enabled_repositories_for_org.assert_not_called()
+
+
 def test_native_org_runner_group_membership_emits_structural_and_capability_edges() -> None:
     membership = OrgRunnerGroupMembership(
         runner_group_id=1,

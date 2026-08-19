@@ -46,6 +46,7 @@ def test_org_runner_group_access_collects_selected_repository_policy() -> None:
         name="Default",
         visibility="selected",
         allows_public_repositories=False,
+        restricted_to_workflows=True,
         inherited=True,
         org_login="acme",
     )
@@ -58,7 +59,7 @@ def test_org_runner_group_access_collects_selected_repository_policy() -> None:
             "runner_group_name": "Default",
             "runner_group_visibility": "selected",
             "allows_public_repositories": False,
-            "restricted_to_workflows": None,
+            "restricted_to_workflows": True,
             "inherited": True,
             "accessible_repo_node_ids": ["REPO_1", "REPO_2"],
             "org_login": "acme",
