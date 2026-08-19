@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from threading import Lock
 from typing import Any, Iterator
+from urllib.parse import quote
 
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client.client import RESTClient
@@ -129,6 +130,10 @@ def _client_for_org(ctx: SourceContext, org_login: str) -> RESTClient:
         if org.org_name == org_login:
             return org.client
     return ctx.client
+
+
+def _encode_path_segment(value: str) -> str:
+    return quote(value, safe="")
 
 
 def _repository_roles(ctx: SourceContext) -> list[dict[str, Any]]:
@@ -1297,6 +1302,7 @@ def environment_variables(environment: Environment, ctx: SourceContext):
         EnvironmentVariable (EnvironmentVariable): Environment variable record.
     """
     env_name = environment.name
+    encoded_env_name = _encode_path_segment(env_name)
     env_node_id = environment.node_id
 
     full_repo_name = environment.repository_full_name
@@ -1305,7 +1311,7 @@ def environment_variables(environment: Environment, ctx: SourceContext):
 
     client = _client_for_org(ctx, environment.org_login)
     for page in client.paginate(
-        f"/repos/{full_repo_name}/environments/{env_name}/variables"
+        f"/repos/{full_repo_name}/environments/{encoded_env_name}/variables"
     ):
         for item in page:
             yield {
@@ -1341,10 +1347,11 @@ def environment_branch_policies(environment: Environment, ctx: SourceContext):
         repo_name = environment.repository_name
         repo_node_id = environment.repository_node_id
         env_name = environment.name
+        encoded_env_name = _encode_path_segment(env_name)
         env_node_id = environment.node_id
         client = _client_for_org(ctx, environment.org_login)
         for page in client.paginate(
-            f"/repos/{full_repo_name}/environments/{env_name}/deployment-branch-policies"
+            f"/repos/{full_repo_name}/environments/{encoded_env_name}/deployment-branch-policies"
         ):
             for policy in page:
                 yield {
@@ -1377,10 +1384,11 @@ def environment_secrets(environment: Environment, ctx: SourceContext):
     full_repo_name = environment.repository_full_name
 
     env_name = environment.name
+    encoded_env_name = _encode_path_segment(env_name)
     env_node_id = environment.node_id
     client = _client_for_org(ctx, environment.org_login)
     for page in client.paginate(
-        f"/repos/{full_repo_name}/environments/{env_name}/secrets"
+        f"/repos/{full_repo_name}/environments/{encoded_env_name}/secrets"
     ):
         for secret in page:
             yield {
