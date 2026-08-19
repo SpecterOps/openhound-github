@@ -104,7 +104,9 @@ def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
     captured_issuers: list[str] = []
 
     class FakeGithubApp:
-        def __init__(self, jwt_issuer: str, private_key_path: str) -> None:
+        def __init__(
+            self, jwt_issuer: str, private_key_path: str, api_uri: str
+        ) -> None:
             captured_issuers.append(jwt_issuer)
             self.installations = (
                 SimpleNamespace(
@@ -125,6 +127,7 @@ def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
             installation_id: int,
             jwt_issuer: str,
             private_key_path: str,
+            api_uri: str,
         ) -> None:
             captured_issuers.append(jwt_issuer)
 

@@ -171,7 +171,8 @@ def github_retry_policy(auth: AuthConfigBase):
             and isinstance(auth, GitHubAppInstallationAuth)
             and response.request is not None
         ):
-            auth.refresh_request(response.request)
+            if not auth.refresh_request(response.request):
+                return False
             logger.warning(
                 "GitHub App installation token rejected, retrying request with refreshed token"
             )

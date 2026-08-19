@@ -172,6 +172,7 @@ def source(
         github_app_session = GithubApp(
             jwt_issuer=jwt_issuer,
             private_key_path=credentials.key_path,
+            api_uri=host,
         )
         for installation in github_app_session.installations:
             if installation.target_type == "Organization":
@@ -179,12 +180,16 @@ def source(
                     installation_id=installation.id,
                     jwt_issuer=jwt_issuer,
                     private_key_path=credentials.key_path,
+                    api_uri=host,
                 )
                 ctx.organizations.append(
                     OrgContext(
                         org_name=installation.account.login,
                         client=client(
-                            GitHubAppInstallationAuth(installation=org_installation)
+                            GitHubAppInstallationAuth(
+                                installation=org_installation,
+                                api_uri=host,
+                            )
                         ),
                         enterprise_name=credentials.enterprise_name,
                         github_deployment_id=github_deployment_id,
@@ -196,9 +201,13 @@ def source(
                     installation_id=installation.id,
                     jwt_issuer=jwt_issuer,
                     private_key_path=credentials.key_path,
+                    api_uri=host,
                 )
                 ctx.client = client(
-                    GitHubAppInstallationAuth(installation=es_installation)
+                    GitHubAppInstallationAuth(
+                        installation=es_installation,
+                        api_uri=host,
+                    )
                 )
 
         return (*enterprise_resources(ctx), *organization_resources(ctx))
@@ -213,11 +222,17 @@ def source(
             installation_id=credentials.install_id,
             jwt_issuer=credentials.client_id,
             private_key_path=credentials.key_path,
+            api_uri=host,
         )
         ctx.organizations.append(
             OrgContext(
                 org_name=credentials.org_name,
-                client=client(GitHubAppInstallationAuth(installation=org_installation)),
+                client=client(
+                    GitHubAppInstallationAuth(
+                        installation=org_installation,
+                        api_uri=host,
+                    )
+                ),
                 github_deployment_id=github_deployment_id,
                 github_web_origin=github_web_origin,
             )

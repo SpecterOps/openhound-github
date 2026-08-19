@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Iterator
+from urllib.parse import urlparse
 
 import requests
 from dlt.common.configuration import configspec
@@ -15,6 +16,19 @@ from joserfc.jwk import RSAKey
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+def _normalized_http_origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("GitHub API URI must be an absolute HTTP(S) URL")
+
+    port = parsed.port
+    if (scheme == "http" and port == 80) or (scheme == "https" and port == 443):
+        port = None
+
+    return scheme, parsed.hostname.lower(), port
 
 
 class AccountConfig(BaseModel):
@@ -63,7 +77,8 @@ class GithubSession:
         private_key_path: str,
         api_uri: str = "https://api.github.com/",
     ):
-        self.api_uri = api_uri
+        _normalized_http_origin(api_uri)
+        self.api_uri = f"{api_uri.rstrip('/')}/"
         self.jwt_issuer = jwt_issuer
         self.private_key_path = private_key_path
         self.client = RESTClient(
@@ -158,11 +173,17 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         self,
         installation: GithubInstallation,
         refresh_margin_seconds: int = 300,
+        api_uri: str | None = None,
     ):
         self.installation = installation
         self.refresh_margin_seconds = refresh_margin_seconds
+        self.api_uri = api_uri or getattr(
+            installation, "api_uri", "https://api.github.com/"
+        )
+        self._api_origin = _normalized_http_origin(self.api_uri)
         self.access_token: str | None = None
         self.expires_at: datetime | None = None
+        self._response_refreshed_token: str | None = None
         self._token_lock = Lock()
 
     def _should_refresh(self) -> bool:
@@ -172,13 +193,16 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         refresh_at = self.expires_at - timedelta(seconds=self.refresh_margin_seconds)
         return datetime.now(timezone.utc) >= refresh_at
 
-    def _refresh_token(self) -> None:
+    def _refresh_token(self, *, response_triggered: bool = False) -> None:
         logger.info(
             f"Refreshing access token for {self.installation.installation_id}"
         )
         get_token = self.installation.token
         self.access_token = get_token.token
         self.expires_at = get_token.expires_at
+        self._response_refreshed_token = (
+            get_token.token if response_triggered else None
+        )
 
     def token(self, force_refresh: bool = False) -> str | None:
         if (
@@ -194,24 +218,46 @@ class GitHubAppInstallationAuth(AuthConfigBase):
 
         return self.access_token
 
-    def refresh_request(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
-        """Refresh a rejected prepared request without stampeding token issuance."""
+    def refresh_request(self, request: requests.PreparedRequest) -> bool:
+        """Repair a rejected same-origin request without stampeding token issuance."""
+        try:
+            request_origin = _normalized_http_origin(request.url or "")
+        except ValueError:
+            return False
+
+        if request_origin != self._api_origin:
+            return False
+
         request_authorization = request.headers.get("Authorization")
+        if (
+            not request_authorization
+            or not request_authorization.startswith("Bearer ")
+            or not request_authorization.removeprefix("Bearer ").strip()
+        ):
+            return False
 
         with self._token_lock:
             current_authorization = (
                 f"Bearer {self.access_token}" if self.access_token is not None else None
             )
+            should_refresh = self._should_refresh()
+            if (
+                not should_refresh
+                and request_authorization == current_authorization
+                and self.access_token == self._response_refreshed_token
+            ):
+                return False
+
             if (
                 self.access_token is None
-                or self._should_refresh()
+                or should_refresh
                 or request_authorization == current_authorization
             ):
-                self._refresh_token()
+                self._refresh_token(response_triggered=True)
 
             request.headers["Authorization"] = f"Bearer {self.access_token}"
 
-        return request
+        return True
 
     def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
         request.headers["Authorization"] = f"Bearer {self.token()}"
