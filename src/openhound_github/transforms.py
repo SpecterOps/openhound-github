@@ -4,11 +4,12 @@ import duckdb
 def ensure_optional_input_tables(
     con: duckdb.DuckDBPyConnection, schema: str = "github"
 ) -> None:
-    """Create typed empty tables for zero-row branch-policy inputs.
+    """Create typed empty tables for zero-row derived-edge inputs.
 
     DLT omits resources that yield no rows. Enterprise GitHub App collection can
-    legitimately have no branches, branch-protection rules, or repository roles,
-    while the derived branch transforms still need stable input schemas.
+    legitimately have no branches, branch-protection rules, role assignments, or
+    environment branch policies while the derived transforms still need stable
+    input schemas.
     """
     con.execute(f"""
         CREATE TABLE IF NOT EXISTS {schema}.branches (
@@ -35,8 +36,45 @@ def ensure_optional_input_tables(
         );
         CREATE TABLE IF NOT EXISTS {schema}.repo_roles (
             id BIGINT,
+            name VARCHAR,
+            base_role VARCHAR,
             repository_node_id VARCHAR,
             permissions JSON
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.repo_role_assignments (
+            node_id VARCHAR,
+            assignee_type VARCHAR,
+            repo_node_id VARCHAR,
+            role_name VARCHAR,
+            base_role VARCHAR,
+            role_permissions JSON
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.users (
+            id VARCHAR,
+            role VARCHAR,
+            org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.teams (
+            id VARCHAR,
+            parent_team JSON
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.team_members (
+            team_id VARCHAR,
+            id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.org_role_members (
+            node_id VARCHAR,
+            org_role_name VARCHAR,
+            org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.org_role_teams (
+            node_id VARCHAR,
+            org_role_name VARCHAR,
+            org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.environment_branch_policies (
+            environment_node_id VARCHAR,
+            name VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.organization_variables (
             name VARCHAR,
@@ -106,7 +144,60 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS blocks_creations BOOLEAN;
 
         ALTER TABLE {schema}.repo_roles
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
+        ALTER TABLE {schema}.repo_roles
+            ADD COLUMN IF NOT EXISTS base_role VARCHAR;
+        ALTER TABLE {schema}.repo_roles
             ADD COLUMN IF NOT EXISTS permissions JSON;
+
+        ALTER TABLE {schema}.repo_role_assignments
+            ADD COLUMN IF NOT EXISTS node_id VARCHAR;
+        ALTER TABLE {schema}.repo_role_assignments
+            ADD COLUMN IF NOT EXISTS assignee_type VARCHAR;
+        ALTER TABLE {schema}.repo_role_assignments
+            ADD COLUMN IF NOT EXISTS repo_node_id VARCHAR;
+        ALTER TABLE {schema}.repo_role_assignments
+            ADD COLUMN IF NOT EXISTS role_name VARCHAR;
+        ALTER TABLE {schema}.repo_role_assignments
+            ADD COLUMN IF NOT EXISTS base_role VARCHAR;
+        ALTER TABLE {schema}.repo_role_assignments
+            ADD COLUMN IF NOT EXISTS role_permissions JSON;
+
+        ALTER TABLE {schema}.users
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.users
+            ADD COLUMN IF NOT EXISTS role VARCHAR;
+        ALTER TABLE {schema}.users
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.teams
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.teams
+            ADD COLUMN IF NOT EXISTS parent_team JSON;
+
+        ALTER TABLE {schema}.team_members
+            ADD COLUMN IF NOT EXISTS team_id VARCHAR;
+        ALTER TABLE {schema}.team_members
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+
+        ALTER TABLE {schema}.org_role_members
+            ADD COLUMN IF NOT EXISTS node_id VARCHAR;
+        ALTER TABLE {schema}.org_role_members
+            ADD COLUMN IF NOT EXISTS org_role_name VARCHAR;
+        ALTER TABLE {schema}.org_role_members
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.org_role_teams
+            ADD COLUMN IF NOT EXISTS node_id VARCHAR;
+        ALTER TABLE {schema}.org_role_teams
+            ADD COLUMN IF NOT EXISTS org_role_name VARCHAR;
+        ALTER TABLE {schema}.org_role_teams
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.environment_branch_policies
+            ADD COLUMN IF NOT EXISTS environment_node_id VARCHAR;
+        ALTER TABLE {schema}.environment_branch_policies
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
 
         ALTER TABLE {schema}.organization_variables
             ADD COLUMN IF NOT EXISTS name VARCHAR;

@@ -10,6 +10,9 @@ from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.environment_branch_policy import (
+    matches_environment_branch_policy,
+)
 
 
 class DeploymentBranchPolicy(BaseModel):
@@ -142,14 +145,14 @@ class GHEnvironmentProperties(GHNodeProperties):
             start=nk.USER,
             end=nk.ENVIRONMENT,
             kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
-            description="Reviewer user can self-approve deployment to environment",
+            description="Reviewer user can self-approve and supply deployable code under current branch policy",
             traversable=True,
         ),
         EdgeDef(
             start=nk.TEAM,
             end=nk.ENVIRONMENT,
             kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
-            description="Reviewer team can self-approve deployment to environment",
+            description="Reviewer team can self-approve and supply deployable code under current branch policy",
             traversable=True,
         ),
         EdgeDef(
@@ -241,6 +244,55 @@ class Environment(BaseAsset):
         return self.required_reviewers and not self.prevent_self_review
 
     @property
+    def _reviewer_eligible_branch_ids(self) -> tuple[str, ...]:
+        branches = self._lookup.branches_for_repository(self.repository_node_id)
+
+        if self.has_custom_branch_policies:
+            policy_names = {
+                policy_name
+                for (policy_name,) in self._lookup.environment_branch_policy_names(
+                    self.node_id
+                )
+            }
+            return tuple(
+                branch_id
+                for branch_id, branch_name, protected in branches
+                if any(
+                    matches_environment_branch_policy(branch_name, policy_name)
+                    for policy_name in policy_names
+                )
+                and (
+                    not (
+                        self.deployment_branch_policy
+                        and self.deployment_branch_policy.protected_branches
+                    )
+                    or protected
+                )
+            )
+
+        if (
+            self.deployment_branch_policy
+            and self.deployment_branch_policy.protected_branches
+        ):
+            protected_branch_ids = tuple(
+                branch_id
+                for (branch_id,) in self._lookup.branches_with_bpr(
+                    self.repository_node_id
+                )
+            )
+            if protected_branch_ids:
+                return protected_branch_ids
+
+        return tuple(branch_id for branch_id, _branch_name, _protected in branches)
+
+    @property
+    def _reviewer_can_create_branch_for_deployment(self) -> bool:
+        return not self.has_custom_branch_policies and not (
+            self.deployment_branch_policy
+            and self.deployment_branch_policy.protected_branches
+        )
+
+    @property
     def as_node(self) -> GHNode:
         eid = self.node_id
         return GHNode(
@@ -313,16 +365,89 @@ class Environment(BaseAsset):
             f"RETURN p"
         )
 
-    def _reviewer_can_deploy_query(
+    def _reviewer_can_create_branch_query(
         self, reviewer_node_id: str, reviewer_kind: str
     ) -> str:
         return (
-            f"MATCH p=(:{reviewer_kind} {{node_id:'{reviewer_node_id}'}})"
-            f"-[:GH_ApprovesDeploymentTo]->"
+            f"MATCH p=(actor:{reviewer_kind} {{node_id:'{reviewer_node_id}'}})"
+            f"-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf*1..]->"
+            f"(:GH_RepoRole)-[:GH_CanCreateBranch]->"
+            f"(repo:GH_Repository {{node_id:'{self.repository_node_id}'}}) "
+            f"MATCH p1=(actor)-[:GH_ApprovesDeploymentTo]->"
             f"(env:GH_Environment {{node_id:'{self.node_id}'}}) "
+            f"MATCH p2=(repo)-[:GH_Contains]->(env) "
             f"WHERE env.required_reviewers = true "
             f"AND coalesce(env.prevent_self_review, false) = false "
-            f"RETURN p"
+            f"AND coalesce(env.custom_branch_policies, false) = false "
+            f"AND coalesce(env.protected_branches, false) = false "
+            f"RETURN p, p1, p2"
+        )
+
+    def _reviewer_can_write_branch_query(
+        self, reviewer_node_id: str, reviewer_kind: str, branch_id: str
+    ) -> str:
+        actor_path = (
+            f"MATCH p=(actor:{reviewer_kind} {{node_id:'{reviewer_node_id}'}})"
+            f"-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_CanWriteBranch*1..]->"
+            f"(branch:GH_Branch {{node_id:'{branch_id}'}}) "
+            f"MATCH p1=(actor)-[:GH_ApprovesDeploymentTo]->"
+            f"(env:GH_Environment {{node_id:'{self.node_id}'}}) "
+        )
+        reviewer_policy = (
+            "WHERE env.required_reviewers = true "
+            "AND coalesce(env.prevent_self_review, false) = false "
+        )
+
+        if self.has_custom_branch_policies:
+            return (
+                actor_path
+                + "MATCH p2=(branch)-[:GH_MatchesEnvironmentPolicy]->"
+                "(:GH_EnvironmentBranchPolicy)<-[:GH_Contains]-(env) "
+                + reviewer_policy
+                + "AND env.custom_branch_policies = true "
+                + "RETURN p, p1, p2"
+            )
+
+        if (
+            self.deployment_branch_policy
+            and self.deployment_branch_policy.protected_branches
+        ):
+            if self._lookup.branches_with_bpr(self.repository_node_id):
+                return (
+                    actor_path
+                    + f"MATCH p2=(repo:GH_Repository {{node_id:'{self.repository_node_id}'}})"
+                    f"-[:GH_Contains]->(branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) "
+                    f"MATCH p3=(repo)-[:GH_Contains]->(env) "
+                    + reviewer_policy
+                    + "AND env.protected_branches = true "
+                    + "AND coalesce(env.custom_branch_policies, false) = false "
+                    + "RETURN p, p1, p2, p3"
+                )
+
+            return (
+                actor_path
+                + f"MATCH p2=(repo:GH_Repository {{node_id:'{self.repository_node_id}'}})"
+                f"-[:GH_Contains]->(branch) "
+                f"MATCH p3=(repo)-[:GH_Contains]->(env) "
+                + reviewer_policy
+                + "AND env.protected_branches = true "
+                + "AND coalesce(env.custom_branch_policies, false) = false "
+                + "AND NOT EXISTS { "
+                + "MATCH (repo)-[:GH_Contains]->(:GH_Branch)"
+                + "<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) "
+                + "} "
+                + "RETURN p, p1, p2, p3"
+            )
+
+        return (
+            actor_path
+            + f"MATCH p2=(repo:GH_Repository {{node_id:'{self.repository_node_id}'}})"
+            f"-[:GH_Contains]->(branch) "
+            f"MATCH p3=(repo)-[:GH_Contains]->(env) "
+            + reviewer_policy
+            + "AND coalesce(env.custom_branch_policies, false) = false "
+            + "AND coalesce(env.protected_branches, false) = false "
+            + "RETURN p, p1, p2, p3"
         )
 
     def _protected_branches_fallback_repo_query(self) -> str:
@@ -480,6 +605,26 @@ class Environment(BaseAsset):
 
             if self.reviewer_self_deployment_edges_allowed:
                 reviewer_kind = nk.USER if reviewer_type == "user" else nk.TEAM
+                deployment_path = self._lookup.reviewer_deployment_path(
+                    reviewer_node_id,
+                    reviewer_type,
+                    self.repository_node_id,
+                    self._reviewer_eligible_branch_ids,
+                    self._reviewer_can_create_branch_for_deployment,
+                )
+                if deployment_path is None:
+                    continue
+
+                path_type, branch_id = deployment_path
+                query_composition = (
+                    self._reviewer_can_create_branch_query(
+                        reviewer_node_id, reviewer_kind
+                    )
+                    if path_type == "create_branch"
+                    else self._reviewer_can_write_branch_query(
+                        reviewer_node_id, reviewer_kind, branch_id or ""
+                    )
+                )
                 yield Edge(
                     kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
                     start=EdgePath(value=reviewer_node_id, match_by="id"),
@@ -487,8 +632,6 @@ class Environment(BaseAsset):
                     properties=GHEdgeProperties(
                         traversable=True,
                         composed=True,
-                        query_composition=self._reviewer_can_deploy_query(
-                            reviewer_node_id, reviewer_kind
-                        ),
+                        query_composition=query_composition,
                     ),
                 )

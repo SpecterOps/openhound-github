@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache
 
 import duckdb
@@ -583,6 +584,265 @@ class GithubLookup(LookupManager):
             WHERE repository_node_id = ?""",
             [repository_node_id],
         )
+
+    @lru_cache
+    def environment_branch_policy_names(self, environment_node_id: str):
+        return self._find_all_objects(
+            f"""
+            SELECT name
+            FROM {self.schema}.environment_branch_policies
+            WHERE environment_node_id = ?
+            """,
+            [environment_node_id],
+        )
+
+    @lru_cache
+    def reviewer_repo_role_assignments(
+        self, reviewer_node_id: str, reviewer_kind: str, repository_node_id: str
+    ):
+        reviewer_kind = reviewer_kind.lower()
+        return self._find_all_objects(
+            f"""
+            WITH RECURSIVE
+            repository_org(org_login) AS (
+                SELECT org_login
+                FROM {self.schema}.repositories
+                WHERE node_id = ?
+            ),
+            seed_teams(team_id) AS (
+                SELECT ? WHERE ? = 'team'
+
+                UNION
+
+                SELECT tm.team_id
+                FROM {self.schema}.team_members tm
+                WHERE ? = 'user'
+                  AND tm.id = ?
+            ),
+            actor_teams(team_id) AS (
+                SELECT team_id
+                FROM seed_teams
+
+                UNION
+
+                SELECT json_extract_string(t.parent_team, '$.id')
+                FROM {self.schema}.teams t
+                JOIN actor_teams actor_team ON t.id = actor_team.team_id
+                WHERE t.parent_team IS NOT NULL
+                  AND json_extract_string(t.parent_team, '$.id') IS NOT NULL
+            ),
+            direct_repo_roles(
+                assignment_actor_id,
+                role_id,
+                role_name,
+                base_role,
+                role_permissions
+            ) AS (
+                SELECT DISTINCT
+                    rra.node_id,
+                    rr.id,
+                    rra.role_name,
+                    coalesce(rra.base_role, rr.base_role),
+                    rra.role_permissions
+                FROM {self.schema}.repo_role_assignments rra
+                LEFT JOIN {self.schema}.repo_roles rr
+                  ON rr.repository_node_id = rra.repo_node_id
+                 AND rr.name = rra.role_name
+                WHERE rra.repo_node_id = ?
+                  AND (
+                      (lower(rra.assignee_type) = ? AND rra.node_id = ?)
+                      OR (
+                          lower(rra.assignee_type) = 'team'
+                          AND rra.node_id IN (SELECT team_id FROM actor_teams)
+                      )
+                  )
+            ),
+            actor_org_roles(assignment_actor_id, org_role_name, base_role) AS (
+                SELECT
+                    u.id,
+                    CASE WHEN u.role = 'ADMIN' THEN 'owners' ELSE 'members' END,
+                    org_role.base_role
+                FROM {self.schema}.users u
+                JOIN repository_org repo_org ON repo_org.org_login = u.org_login
+                JOIN {self.schema}.org_roles org_role
+                  ON org_role.org_login = u.org_login
+                 AND org_role.name = CASE
+                     WHEN u.role = 'ADMIN' THEN 'owners'
+                     ELSE 'members'
+                 END
+                WHERE ? = 'user'
+                  AND u.id = ?
+
+                UNION
+
+                SELECT
+                    orm.node_id,
+                    orm.org_role_name,
+                    org_role.base_role
+                FROM {self.schema}.org_role_members orm
+                JOIN repository_org repo_org ON repo_org.org_login = orm.org_login
+                JOIN {self.schema}.org_roles org_role
+                  ON org_role.org_login = orm.org_login
+                 AND org_role.name = orm.org_role_name
+                WHERE ? = 'user'
+                  AND orm.node_id = ?
+
+                UNION
+
+                SELECT
+                    ort.node_id,
+                    ort.org_role_name,
+                    org_role.base_role
+                FROM {self.schema}.org_role_teams ort
+                JOIN repository_org repo_org ON repo_org.org_login = ort.org_login
+                JOIN {self.schema}.org_roles org_role
+                  ON org_role.org_login = ort.org_login
+                 AND org_role.name = ort.org_role_name
+                WHERE ort.node_id IN (SELECT team_id FROM actor_teams)
+            ),
+            org_repo_roles(
+                assignment_actor_id,
+                role_id,
+                role_name,
+                base_role,
+                role_permissions
+            ) AS (
+                SELECT DISTINCT
+                    actor_org_role.assignment_actor_id,
+                    rr.id,
+                    rr.name,
+                    rr.base_role,
+                    rr.permissions
+                FROM actor_org_roles actor_org_role
+                JOIN {self.schema}.repo_roles rr
+                  ON rr.repository_node_id = ?
+                 AND rr.name = actor_org_role.base_role
+            )
+            SELECT * FROM direct_repo_roles
+            UNION
+            SELECT * FROM org_repo_roles
+            """,
+            [
+                repository_node_id,
+                reviewer_node_id,
+                reviewer_kind,
+                reviewer_kind,
+                reviewer_node_id,
+                repository_node_id,
+                reviewer_kind,
+                reviewer_node_id,
+                reviewer_kind,
+                reviewer_node_id,
+                reviewer_kind,
+                reviewer_node_id,
+                repository_node_id,
+            ],
+        )
+
+    @staticmethod
+    def _role_permissions(raw_permissions) -> set[str]:
+        if raw_permissions is None:
+            return set()
+        if isinstance(raw_permissions, str):
+            try:
+                raw_permissions = json.loads(raw_permissions)
+            except json.JSONDecodeError:
+                return set()
+        if not isinstance(raw_permissions, list):
+            return set()
+        return {str(permission) for permission in raw_permissions}
+
+    @lru_cache
+    def reviewer_deployment_path(
+        self,
+        reviewer_node_id: str,
+        reviewer_kind: str,
+        repository_node_id: str,
+        eligible_branch_ids: tuple[str, ...],
+        allow_create_branch: bool,
+    ) -> tuple[str, str | None] | None:
+        if not self.repository_default_branch_collected(repository_node_id):
+            return None
+
+        eligible_branches = set(eligible_branch_ids)
+        write_roles = {"write", "maintain", "admin"}
+        bypass_roles = {"maintain"}
+
+        for (
+            assignment_actor_id,
+            role_id,
+            role_name,
+            base_role,
+            raw_permissions,
+        ) in self.reviewer_repo_role_assignments(
+            reviewer_node_id, reviewer_kind, repository_node_id
+        ):
+            permissions = self._role_permissions(raw_permissions)
+            has_write_access = role_name in write_roles or base_role in write_roles
+            if not has_write_access:
+                continue
+
+            if (
+                allow_create_branch
+                and role_id is not None
+                and self.role_can_create_branch(role_id, repository_node_id)
+            ):
+                return ("create_branch", None)
+
+            writable_branches = {
+                branch_id
+                for (branch_id,) in self.unprotected_branches(repository_node_id)
+            }
+
+            has_push_protected_branch = (
+                ("push_protected_branch" in permissions and base_role in write_roles)
+                or role_name in bypass_roles
+                or base_role in bypass_roles
+            )
+            has_bypass_branch_protection = (
+                "bypass_branch_protection" in permissions and base_role in write_roles
+            )
+
+            if role_name == "admin" or base_role == "admin":
+                writable_branches.update(
+                    branch_id
+                    for (branch_id,) in self._write_admin_bypass(repository_node_id)
+                )
+            if has_push_protected_branch:
+                writable_branches.update(
+                    branch_id
+                    for (branch_id,) in self._write_push_restricted_branch_bypass(
+                        repository_node_id
+                    )
+                )
+            if has_bypass_branch_protection:
+                writable_branches.update(
+                    branch_id
+                    for (branch_id,) in self._write_branch_protection_bypass(
+                        repository_node_id
+                    )
+                )
+            if has_push_protected_branch and has_bypass_branch_protection:
+                writable_branches.update(
+                    branch_id
+                    for (branch_id,) in self._write_combined_bypass(repository_node_id)
+                )
+
+            writable_branches.update(
+                branch_id
+                for (branch_id,) in self.actor_gate_bypass(
+                    assignment_actor_id,
+                    repository_node_id,
+                    has_bypass_branch_protection,
+                    has_push_protected_branch,
+                )
+            )
+
+            for branch_id in eligible_branch_ids:
+                if branch_id in writable_branches and branch_id in eligible_branches:
+                    return ("write_branch", branch_id)
+
+        return None
 
     @lru_cache
     def members_can_fork_private_repositories(self, org_login: str):
