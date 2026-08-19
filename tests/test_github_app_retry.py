@@ -1,3 +1,4 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Event, Lock
@@ -38,6 +39,13 @@ class BlockingFakeInstallation(FakeInstallation):
         if not self.release_token.wait(timeout=1):
             raise TimeoutError("timed out waiting to release fake token refresh")
         return super().token
+
+
+class FailingFakeInstallation(FakeInstallation):
+    @property
+    def token(self) -> TokenResponse:
+        self.token_calls += 1
+        raise RuntimeError("sensitive-token-data")
 
 
 class TrackingLock:
@@ -159,6 +167,23 @@ def test_retry_policy_does_not_retry_replacement_token_bad_credentials() -> None
     assert retry_policy(bad_credentials_response(request), None) is False
     assert request.headers["Authorization"] == "Bearer new-token"
     assert installation.token_calls == 1
+
+
+def test_retry_policy_does_not_retry_when_token_refresh_fails(caplog) -> None:
+    installation = FailingFakeInstallation()
+    auth = GitHubAppInstallationAuth(installation=installation)
+    auth.access_token = "old-token"
+    auth.expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    request = prepared_request("old-token")
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.auth"):
+        should_retry = github_retry_policy(auth)(bad_credentials_response(request), None)
+
+    assert should_retry is False
+    assert request.headers["Authorization"] == "Bearer old-token"
+    assert installation.token_calls == 1
+    assert "Failed to refresh GitHub App installation token" in caplog.text
+    assert "sensitive-token-data" not in caplog.text
 
 
 def test_retry_policy_does_not_repair_bad_credentials_for_bearer_token_auth() -> None:

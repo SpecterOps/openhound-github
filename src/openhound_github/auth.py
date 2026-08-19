@@ -253,7 +253,15 @@ class GitHubAppInstallationAuth(AuthConfigBase):
                 or should_refresh
                 or request_authorization == current_authorization
             ):
-                self._refresh_token(response_triggered=True)
+                try:
+                    self._refresh_token(response_triggered=True)
+                except Exception:
+                    logger.warning(
+                        "Failed to refresh GitHub App installation token for "
+                        "installation %s during request retry",
+                        self.installation.installation_id,
+                    )
+                    return False
 
             request.headers["Authorization"] = f"Bearer {self.access_token}"
 
