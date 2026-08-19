@@ -1,6 +1,7 @@
 import duckdb
 
 from openhound_github.lookup import GithubLookup
+from openhound_github.transforms import ensure_optional_input_tables
 
 
 def _lookup() -> GithubLookup:
@@ -165,6 +166,26 @@ def test_reviewer_deployment_path_unrolls_custom_org_role_through_parent_team() 
 
     assert lookup.reviewer_deployment_path(
         "USER_ORG_TEAM",
+        "user",
+        "REPO_1",
+        ("B_main",),
+        True,
+    ) == ("create_branch", None)
+
+
+def test_reviewer_deployment_path_preserves_direct_assignment_without_org_roles() -> None:
+    lookup = _lookup()
+    lookup.client.execute("DROP TABLE github.org_roles")
+    lookup.client.execute(
+        """
+        INSERT INTO github.repo_role_assignments VALUES
+            ('USER_DIRECT', 'user', 'REPO_1', 'write', NULL, '[]')
+        """
+    )
+    ensure_optional_input_tables(lookup.client)
+
+    assert lookup.reviewer_deployment_path(
+        "USER_DIRECT",
         "user",
         "REPO_1",
         ("B_main",),

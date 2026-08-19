@@ -62,6 +62,15 @@ def ensure_optional_input_tables(
             team_id VARCHAR,
             id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.org_roles (
+            id BIGINT,
+            name VARCHAR,
+            type VARCHAR,
+            base_role VARCHAR,
+            permissions JSON,
+            org_node_id VARCHAR,
+            org_login VARCHAR
+        );
         CREATE TABLE IF NOT EXISTS {schema}.org_role_members (
             node_id VARCHAR,
             org_role_name VARCHAR,
@@ -179,6 +188,21 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS team_id VARCHAR;
         ALTER TABLE {schema}.team_members
             ADD COLUMN IF NOT EXISTS id VARCHAR;
+
+        ALTER TABLE {schema}.org_roles
+            ADD COLUMN IF NOT EXISTS id BIGINT;
+        ALTER TABLE {schema}.org_roles
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
+        ALTER TABLE {schema}.org_roles
+            ADD COLUMN IF NOT EXISTS type VARCHAR;
+        ALTER TABLE {schema}.org_roles
+            ADD COLUMN IF NOT EXISTS base_role VARCHAR;
+        ALTER TABLE {schema}.org_roles
+            ADD COLUMN IF NOT EXISTS permissions JSON;
+        ALTER TABLE {schema}.org_roles
+            ADD COLUMN IF NOT EXISTS org_node_id VARCHAR;
+        ALTER TABLE {schema}.org_roles
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
 
         ALTER TABLE {schema}.org_role_members
             ADD COLUMN IF NOT EXISTS node_id VARCHAR;
