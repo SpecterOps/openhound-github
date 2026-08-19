@@ -11,6 +11,14 @@ from openhound_github.main import app
 
 # from openhound_github.helpers import _b64
 
+
+def matches_environment_branch_policy(branch_name: str, policy_name: str) -> bool:
+    return PurePosixPath(f"/{branch_name}").full_match(
+        f"/{policy_name}",
+        case_sensitive=True,
+    )
+
+
 @dataclass
 class GHEnvironmentBranchPolicyProperties(GHNodeProperties):
     environment_name: str | None = None
@@ -88,10 +96,7 @@ class EnvironmentBranchPolicy(BaseAsset):
         return required_reviewers
 
     def matches_branch(self, branch_name: str) -> bool:
-        return PurePosixPath(f"/{branch_name}").full_match(
-            f"/{self.name}",
-            case_sensitive=True,
-        )
+        return matches_environment_branch_policy(branch_name, self.name)
 
     @property
     def as_node(self) -> GHNode:
