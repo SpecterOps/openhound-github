@@ -248,6 +248,10 @@ class Environment(BaseAsset):
         branches = self._lookup.branches_for_repository(self.repository_node_id)
 
         if self.has_custom_branch_policies:
+            protected_branches_only = bool(
+                self.deployment_branch_policy
+                and self.deployment_branch_policy.protected_branches
+            )
             policy_names = {
                 policy_name
                 for (policy_name,) in self._lookup.environment_branch_policy_names(
@@ -261,13 +265,7 @@ class Environment(BaseAsset):
                     matches_environment_branch_policy(branch_name, policy_name)
                     for policy_name in policy_names
                 )
-                and (
-                    not (
-                        self.deployment_branch_policy
-                        and self.deployment_branch_policy.protected_branches
-                    )
-                    or protected
-                )
+                and (not protected_branches_only or protected)
             )
 
         if (
@@ -399,12 +397,30 @@ class Environment(BaseAsset):
         )
 
         if self.has_custom_branch_policies:
+            custom_policy_path = (
+                "MATCH p2=(branch)-[:GH_MatchesEnvironmentPolicy]->"
+                "(:GH_EnvironmentBranchPolicy)<-[:GH_Contains]-(env) "
+            )
+            if (
+                self.deployment_branch_policy
+                and self.deployment_branch_policy.protected_branches
+            ):
+                return (
+                    actor_path
+                    + custom_policy_path
+                    + "MATCH p3=(branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) "
+                    + reviewer_policy
+                    + "AND env.custom_branch_policies = true "
+                    + "AND env.protected_branches = true "
+                    + "RETURN p, p1, p2, p3"
+                )
+
             return (
                 actor_path
-                + "MATCH p2=(branch)-[:GH_MatchesEnvironmentPolicy]->"
-                "(:GH_EnvironmentBranchPolicy)<-[:GH_Contains]-(env) "
+                + custom_policy_path
                 + reviewer_policy
                 + "AND env.custom_branch_policies = true "
+                + "AND coalesce(env.protected_branches, false) = false "
                 + "RETURN p, p1, p2"
             )
 

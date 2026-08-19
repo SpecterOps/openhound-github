@@ -263,11 +263,65 @@ def test_environment_reviewer_custom_policy_uses_matching_branches() -> None:
         "GH_MatchesEnvironmentPolicy" in edge.properties.query_composition
         for edge in deploy_edges
     )
+    assert all(
+        "coalesce(env.protected_branches, false) = false"
+        in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    assert all(
+        "GH_ProtectedBy" not in edge.properties.query_composition
+        for edge in deploy_edges
+    )
     env._lookup.reviewer_deployment_path.assert_any_call(
         "MDQ6VXNlcjE=",
         "user",
         "R_123",
         ("B_release",),
+        False,
+    )
+
+
+def test_environment_reviewer_custom_policy_with_protected_branches_uses_matching_protected_branches() -> None:
+    env = _make_environment()
+    env.deployment_branch_policy = DeploymentBranchPolicy(
+        protected_branches=True,
+        custom_branch_policies=True,
+    )
+    env._lookup.branches_for_repository.return_value = [
+        ("B_main", "main", True),
+        ("B_release_unprotected", "release/v1", False),
+        ("B_release_protected", "release/v2", True),
+    ]
+    env._lookup.environment_branch_policy_names.return_value = [("release/*",)]
+    env._lookup.reviewer_deployment_path.return_value = (
+        "write_branch",
+        "B_release_protected",
+    )
+    env._lookup.reviewer_deployment_path.side_effect = None
+
+    deploy_edges = _deploy_edges(env)
+
+    assert {edge.start.value for edge in deploy_edges} == {
+        "MDQ6VXNlcjE=",
+        "MDQ6VGVhbTE=",
+    }
+    assert all(
+        "GH_MatchesEnvironmentPolicy" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    assert all(
+        "GH_ProtectedBy" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    assert all(
+        "env.protected_branches = true" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    env._lookup.reviewer_deployment_path.assert_any_call(
+        "MDQ6VXNlcjE=",
+        "user",
+        "R_123",
+        ("B_release_protected",),
         False,
     )
 
