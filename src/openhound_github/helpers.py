@@ -10,6 +10,8 @@ from dlt.sources.helpers.rest_client.paginators import (
 )
 from requests import Request
 
+from openhound_github.auth import GitHubAppInstallationAuth
+
 logger = logging.getLogger(__name__)
 
 
@@ -160,6 +162,21 @@ def github_retry_policy(auth: AuthConfigBase):
 
         headers = response.headers
         now = int(time.time())
+        message = _response_message(response).lower()
+
+        # DLT retries the same prepared request after long Retry-After sleeps.
+        if (
+            response.status_code == 401
+            and "bad credentials" in message
+            and isinstance(auth, GitHubAppInstallationAuth)
+            and response.request is not None
+        ):
+            auth.refresh_request(response.request)
+            logger.warning(
+                "GitHub App installation token rejected, retrying request with refreshed token"
+            )
+            return True
+
         if (
             response.status_code == 200
             and headers.get("x-ratelimit-resource") == "graphql"
@@ -178,7 +195,6 @@ def github_retry_policy(auth: AuthConfigBase):
                 return True
             return False
 
-        message = _response_message(response).lower()
         if response.status_code not in (403, 429):
             return False
 

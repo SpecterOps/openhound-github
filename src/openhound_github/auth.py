@@ -172,6 +172,14 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         refresh_at = self.expires_at - timedelta(seconds=self.refresh_margin_seconds)
         return datetime.now(timezone.utc) >= refresh_at
 
+    def _refresh_token(self) -> None:
+        logger.info(
+            f"Refreshing access token for {self.installation.installation_id}"
+        )
+        get_token = self.installation.token
+        self.access_token = get_token.token
+        self.expires_at = get_token.expires_at
+
     def token(self, force_refresh: bool = False) -> str | None:
         if (
             not force_refresh
@@ -182,14 +190,28 @@ class GitHubAppInstallationAuth(AuthConfigBase):
 
         with self._token_lock:
             if (force_refresh or self._should_refresh()) or self.access_token is None:
-                logger.info(
-                    f"Refreshing access token for {self.installation.installation_id}"
-                )
-                get_token = self.installation.token
-                self.access_token = get_token.token
-                self.expires_at = get_token.expires_at
+                self._refresh_token()
 
         return self.access_token
+
+    def refresh_request(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
+        """Refresh a rejected prepared request without stampeding token issuance."""
+        request_authorization = request.headers.get("Authorization")
+
+        with self._token_lock:
+            current_authorization = (
+                f"Bearer {self.access_token}" if self.access_token is not None else None
+            )
+            if (
+                self.access_token is None
+                or self._should_refresh()
+                or request_authorization == current_authorization
+            ):
+                self._refresh_token()
+
+            request.headers["Authorization"] = f"Bearer {self.access_token}"
+
+        return request
 
     def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
         request.headers["Authorization"] = f"Bearer {self.token()}"
