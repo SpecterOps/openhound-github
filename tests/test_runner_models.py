@@ -43,6 +43,7 @@ def test_inherited_org_runner_group_emits_inherited_from_edge() -> None:
     assert [edge.kind for edge in edges] == [ek.CONTAINS, ek.INHERITED_FROM]
     assert edges[1].start.value == "ORG_1_runner_group_1"
     assert edges[1].end.value == "ENT_1_runner_group_2"
+    assert edges[1].properties.traversable is True
     lookup.enterprise_runner_group_node_id_for_inherited_org_group.assert_called_once_with(
         "ORG_1", "Default"
     )
@@ -115,7 +116,7 @@ def test_runner_groups_and_runners_use_scope_owner_prefixes_with_generic_suffixe
     assert repo_runner.as_node.properties.displayname == "repo-runner-1"
 
 
-def test_enterprise_runner_group_with_all_visibility_assigns_every_enterprise_org() -> None:
+def test_enterprise_runner_group_with_all_visibility_emits_only_containment() -> None:
     group = EnterpriseRunnerGroup(
         id=2,
         name="Enterprise Default",
@@ -123,19 +124,9 @@ def test_enterprise_runner_group_with_all_visibility_assigns_every_enterprise_or
         enterprise_node_id="ENT_1",
         enterprise_slug="acme-enterprise",
     )
-    lookup = MagicMock()
-    lookup.enterprise_organization_node_ids.return_value = [("ORG_1",), ("ORG_2",)]
-    group._lookup = lookup
-
     edges = list(group.edges)
 
-    assert [edge.kind for edge in edges] == [
-        ek.CONTAINS,
-        ek.ASSIGNED_TO,
-        ek.ASSIGNED_TO,
-    ]
-    assert {edge.end.value for edge in edges[1:]} == {"ORG_1", "ORG_2"}
-    lookup.enterprise_organization_node_ids.assert_called_once_with("ENT_1")
+    assert [edge.kind for edge in edges] == [ek.CONTAINS]
 
 
 def test_enterprise_runner_group_with_selected_visibility_does_not_infer_orgs() -> None:
@@ -146,13 +137,9 @@ def test_enterprise_runner_group_with_selected_visibility_does_not_infer_orgs() 
         enterprise_node_id="ENT_1",
         enterprise_slug="acme-enterprise",
     )
-    lookup = MagicMock()
-    group._lookup = lookup
-
     edges = list(group.edges)
 
     assert [edge.kind for edge in edges] == [ek.CONTAINS]
-    lookup.enterprise_organization_node_ids.assert_not_called()
 
 
 def test_enterprise_runner_group_membership_contains_enterprise_runner() -> None:
@@ -163,14 +150,16 @@ def test_enterprise_runner_group_membership_contains_enterprise_runner() -> None
         enterprise_slug="acme-enterprise",
     )
 
-    edge = next(iter(membership.edges))
+    edges = list(membership.edges)
 
-    assert edge.kind == ek.CONTAINS
-    assert edge.start.value == "ENT_1_runner_group_2"
-    assert edge.end.value == "ENT_1_runner_9"
+    assert [edge.kind for edge in edges] == [ek.CONTAINS, ek.HAS_RUNNER]
+    assert all(edge.start.value == "ENT_1_runner_group_2" for edge in edges)
+    assert all(edge.end.value == "ENT_1_runner_9" for edge in edges)
+    assert edges[0].properties.traversable is False
+    assert edges[1].properties.traversable is True
 
 
-def test_enterprise_runner_group_organization_assignment_uses_assigned_to() -> None:
+def test_enterprise_runner_group_organization_emits_no_graph_edge() -> None:
     assignment = EnterpriseRunnerGroupOrganization(
         node_id="ORG_1",
         login="acme-org",
@@ -179,14 +168,10 @@ def test_enterprise_runner_group_organization_assignment_uses_assigned_to() -> N
         enterprise_slug="acme-enterprise",
     )
 
-    edge = next(iter(assignment.edges))
-
-    assert edge.kind == ek.ASSIGNED_TO
-    assert edge.start.value == "ENT_1_runner_group_2"
-    assert edge.end.value == "ORG_1"
+    assert list(assignment.edges) == []
 
 
-def test_org_runner_group_access_grants_repositories_and_composes_inherited_runners() -> None:
+def test_org_runner_group_access_emits_repository_access_to_inherited_group() -> None:
     access = OrgRunnerGroupAccess(
         runner_group_id=1,
         runner_group_name="Default",
@@ -197,27 +182,20 @@ def test_org_runner_group_access_grants_repositories_and_composes_inherited_runn
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.repository_node_ids_for_org.return_value = [("REPO_1",)]
-    lookup.enterprise_runner_node_ids_for_inherited_org_group.return_value = [
-        ("ENT_1_runner_9",)
-    ]
     lookup.members_can_create_repository.return_value = (False, False, False, False)
     access._lookup = lookup
 
     edges = list(access.edges)
 
     assert [edge.kind for edge in edges] == [
-        ek.GRANTS_ACCESS_TO,
         ek.CAN_USE_RUNNER,
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
     ]
-    assert edges[0].start.value == "ORG_1_runner_group_1"
-    assert edges[0].end.value == "REPO_1"
-    assert edges[1].start.value == "REPO_1"
-    assert edges[1].end.value == "ENT_1_runner_9"
-    assert edges[1].properties.composed is True
-    assert "GH_InheritedFrom" in edges[1].properties.query_composition
-    assert edges[2].start.value == "ORG_1_owners"
-    assert edges[2].end.value == "ORG_1_runner_group_1"
+    assert edges[0].start.value == "REPO_1"
+    assert edges[0].end.value == "ORG_1_runner_group_1"
+    assert edges[0].properties.traversable is False
+    assert edges[1].start.value == "ORG_1_owners"
+    assert edges[1].end.value == "ORG_1_runner_group_1"
 
 
 def test_org_runner_group_access_all_visibility_excludes_public_repositories_when_disabled() -> None:
@@ -232,21 +210,17 @@ def test_org_runner_group_access_all_visibility_excludes_public_repositories_whe
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.private_repository_node_ids_for_org.return_value = [("REPO_PRIVATE",)]
-    lookup.enterprise_runner_node_ids_for_inherited_org_group.return_value = [
-        ("ENT_1_runner_9",)
-    ]
     lookup.members_can_create_repository.return_value = (False, False, False, False)
     access._lookup = lookup
 
     edges = list(access.edges)
 
     assert [edge.kind for edge in edges] == [
-        ek.GRANTS_ACCESS_TO,
         ek.CAN_USE_RUNNER,
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
     ]
-    assert edges[0].end.value == "REPO_PRIVATE"
-    assert edges[1].start.value == "REPO_PRIVATE"
+    assert edges[0].start.value == "REPO_PRIVATE"
+    assert edges[0].end.value == "ORG_1_runner_group_1"
     lookup.private_repository_node_ids_for_org.assert_called_with("acme")
     lookup.repository_node_ids_for_org.assert_not_called()
 
@@ -267,8 +241,9 @@ def test_org_runner_group_access_selected_visibility_excludes_public_repositorie
 
     edges = list(access.edges)
 
-    assert [edge.kind for edge in edges] == [ek.GRANTS_ACCESS_TO]
-    assert edges[0].end.value == "REPO_PRIVATE"
+    assert [edge.kind for edge in edges] == [ek.CAN_USE_RUNNER]
+    assert edges[0].start.value == "REPO_PRIVATE"
+    assert edges[0].end.value == "ORG_1_runner_group_1"
 
 
 def test_org_runner_group_access_all_visibility_emits_latent_access_for_members_with_creation_capability() -> None:
@@ -373,7 +348,7 @@ def test_org_runner_group_access_selected_visibility_does_not_emit_latent_access
     assert list(access.edges) == []
 
 
-def test_native_org_runner_group_membership_composes_can_use_runner_through_access() -> None:
+def test_native_org_runner_group_membership_emits_structural_and_capability_edges() -> None:
     membership = OrgRunnerGroupMembership(
         runner_group_id=1,
         runner_group_name="Default",
@@ -381,40 +356,17 @@ def test_native_org_runner_group_membership_composes_can_use_runner_through_acce
         runner_group_visibility="all",
         org_login="acme",
     )
-    lookup = MagicMock()
-    lookup.org_id_for_login.return_value = "ORG_1"
-    lookup.repository_node_ids_for_org.return_value = [("REPO_1",)]
-    membership._lookup = lookup
+    membership._lookup = SimpleNamespace(org_id_for_login=lambda _login: "ORG_1")
 
     edges = list(membership.edges)
 
-    assert [edge.kind for edge in edges] == [ek.CAN_USE_RUNNER, ek.CONTAINS]
-    assert edges[0].properties.composed is True
-    assert "GH_GrantsAccessTo" in edges[0].properties.query_composition
+    assert [edge.kind for edge in edges] == [ek.CONTAINS, ek.HAS_RUNNER]
+    assert edges[0].start.value == "ORG_1_runner_group_1"
+    assert edges[0].end.value == "ORG_1_runner_9"
+    assert edges[0].properties.traversable is False
     assert edges[1].start.value == "ORG_1_runner_group_1"
     assert edges[1].end.value == "ORG_1_runner_9"
-
-
-def test_native_org_runner_group_membership_excludes_public_repositories_when_disabled() -> None:
-    membership = OrgRunnerGroupMembership(
-        runner_group_id=1,
-        runner_group_name="Default",
-        runner_id=9,
-        runner_group_visibility="all",
-        allows_public_repositories=False,
-        org_login="acme",
-    )
-    lookup = MagicMock()
-    lookup.org_id_for_login.return_value = "ORG_1"
-    lookup.private_repository_node_ids_for_org.return_value = [("REPO_PRIVATE",)]
-    membership._lookup = lookup
-
-    edges = list(membership.edges)
-
-    assert [edge.kind for edge in edges] == [ek.CAN_USE_RUNNER, ek.CONTAINS]
-    assert edges[0].start.value == "REPO_PRIVATE"
-    lookup.private_repository_node_ids_for_org.assert_called_with("acme")
-    lookup.repository_node_ids_for_org.assert_not_called()
+    assert edges[1].properties.traversable is True
 
 
 def test_enterprise_organization_lookup_filters_to_enterprise() -> None:
