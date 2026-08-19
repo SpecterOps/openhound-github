@@ -2,7 +2,6 @@
 CONTAINS = "GH_Contains"
 ASSIGNED_TO = "GH_AssignedTo"
 INHERITED_FROM = "GH_InheritedFrom"
-GRANTS_ACCESS_TO = "GH_GrantsAccessTo"
 
 # Administrative edges
 ADMIN_TO = "GH_AdminTo"
@@ -12,12 +11,14 @@ OWNS = "GH_Owns"
 HAS_MEMBER = "GH_HasMember"
 HAS_ROLE = "GH_HasRole"
 HAS_BASE_ROLE = "GH_HasBaseRole"
+HAS_RUNNER = "GH_HasRunner"
 ADD_MEMBER = "GH_AddMember"
 MEMBER_OF = "GH_MemberOf"
 
 # Access and capability edges
 CAN_ACCESS = "GH_CanAccess"
 CAN_USE_RUNNER = "GH_CanUseRunner"
+IS_ELIGIBLE_FOR = "GH_IsEligibleFor"
 CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS = "GH_CanCreateRepositoryWithRunnerAccess"
 CAN_CREATE_BRANCH = "GH_CanCreateBranch"
 CAN_CREATE_ENVIRONMENT = "GH_CanCreateEnvironment"

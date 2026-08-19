@@ -1215,6 +1215,7 @@ def org_runner_group_access(group: OrgRunnerGroup, ctx: SourceContext):
         "runner_group_name": group.name,
         "runner_group_visibility": group.visibility,
         "allows_public_repositories": group.allows_public_repositories,
+        "restricted_to_workflows": getattr(group, "restricted_to_workflows", None),
         "inherited": group.inherited,
         "accessible_repo_node_ids": _selected_runner_group_repo_node_ids(
             group_row, client, org_name

@@ -442,18 +442,18 @@
     },
     {
       "name": "GH_AssignedTo",
-      "description": "Enterprise-scoped team or runner group is assigned to an organization",
+      "description": "Enterprise-scoped team is assigned to an organization",
       "is_traversable": false
     },
     {
       "name": "GH_InheritedFrom",
       "description": "Organization runner group is inherited from an enterprise runner group",
-      "is_traversable": false
+      "is_traversable": true
     },
     {
-      "name": "GH_GrantsAccessTo",
-      "description": "Organization runner group grants a repository access to its available runners",
-      "is_traversable": false
+      "name": "GH_HasRunner",
+      "description": "Runner group exposes a directly assigned self-hosted runner to authorized repositories or workflows",
+      "is_traversable": true
     },
     {
       "name": "GH_Owns",
@@ -967,13 +967,18 @@
     },
     {
       "name": "GH_CanUseRunner",
-      "description": "Repository can dispatch jobs to this self-hosted runner",
+      "description": "Repository or branch can dispatch workflows to this self-hosted runner execution surface",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_IsEligibleFor",
+      "description": "Repository is within the repository-access scope of this runner group",
       "is_traversable": false
     },
     {
       "name": "GH_CanCreateRepositoryWithRunnerAccess",
-      "description": "Org role can create a repository that inherits access to this runner group",
-      "is_traversable": false
+      "description": "Org role can create a repository that can dispatch workflows to this runner group",
+      "is_traversable": true
     },
     {
       "name": "GH_CanWriteBranch",
