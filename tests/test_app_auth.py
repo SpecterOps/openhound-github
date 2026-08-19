@@ -9,6 +9,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from openhound_github import auth
 from openhound_github.auth import (
     AccountConfig,
+    GitHubAppInstallationAuth,
     GithubSession,
     InstallationResponse,
     resolve_github_app_jwt_issuer,
@@ -95,6 +96,19 @@ def test_legacy_installation_response_does_not_require_client_id() -> None:
 
     assert installation.client_id is None
     assert installation.app_id == 123456
+
+
+def test_github_app_installation_auth_rejects_mismatched_api_origins() -> None:
+    installation = SimpleNamespace(
+        installation_id="12345",
+        api_uri="https://ghe.example/api/v3/",
+    )
+
+    with pytest.raises(ValueError, match="must match installation API URI origin"):
+        GitHubAppInstallationAuth(
+            installation=installation,
+            api_uri="https://api.github.com/",
+        )
 
 
 def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(

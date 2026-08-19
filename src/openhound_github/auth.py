@@ -177,10 +177,19 @@ class GitHubAppInstallationAuth(AuthConfigBase):
     ):
         self.installation = installation
         self.refresh_margin_seconds = refresh_margin_seconds
-        self.api_uri = api_uri or getattr(
+        installation_api_uri = getattr(
             installation, "api_uri", "https://api.github.com/"
         )
-        self._api_origin = _normalized_http_origin(self.api_uri)
+        selected_api_uri = api_uri or installation_api_uri
+        installation_api_origin = _normalized_http_origin(installation_api_uri)
+        selected_api_origin = _normalized_http_origin(selected_api_uri)
+        if selected_api_origin != installation_api_origin:
+            raise ValueError(
+                "GitHub App auth API URI origin must match installation API URI origin"
+            )
+
+        self.api_uri = selected_api_uri
+        self._api_origin = selected_api_origin
         self.access_token: str | None = None
         self.expires_at: datetime | None = None
         self._response_refreshed_token: str | None = None
