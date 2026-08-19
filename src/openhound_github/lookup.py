@@ -110,6 +110,30 @@ class GithubLookup(LookupManager):
         return runner_group_node_id(enterprise_node_id, runner_group_id)
 
     @lru_cache
+    def enterprise_runner_group_restricted_to_workflows_for_inherited_org_group(
+        self, org_node_id: str, group_name: str
+    ) -> bool | None:
+        identity = self._enterprise_runner_group_identity_for_inherited_org_group(
+            org_node_id, group_name
+        )
+        if not identity:
+            return None
+
+        enterprise_node_id, runner_group_id = identity
+        row = self._find_single_row(
+            f"""
+            SELECT restricted_to_workflows
+            FROM {self.schema}.enterprise_runner_groups
+            WHERE enterprise_node_id = ?
+              AND id = ?
+            """,
+            [enterprise_node_id, runner_group_id],
+        )
+        if row is None or row[0] is None:
+            return None
+        return bool(row[0])
+
+    @lru_cache
     def enterprise_runner_node_ids_for_inherited_org_group(
         self, org_node_id: str, group_name: str
     ):
@@ -192,6 +216,33 @@ class GithubLookup(LookupManager):
     def private_repository_node_ids_for_org(self, org_login: str):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ? AND (visibility = 'private' or visibility = 'internal')""",
+            [org_login],
+        )
+
+    @lru_cache
+    def actions_enabled_repository_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ? AND actions_enabled = true""",
+            [org_login],
+        )
+
+    @lru_cache
+    def actions_enabled_repositories_for_org(self, org_login: str) -> str | None:
+        return self._find_single_object(
+            f"""SELECT actions_enabled_repositories FROM {self.schema}.organizations WHERE login = ?""",
+            [org_login],
+        )
+
+    @lru_cache
+    def branch_node_ids_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""
+            SELECT b.repository_node_id, b.id
+            FROM {self.schema}.branches b
+            JOIN {self.schema}.repositories r
+              ON r.node_id = b.repository_node_id
+            WHERE r.org_login = ?
+            """,
             [org_login],
         )
 

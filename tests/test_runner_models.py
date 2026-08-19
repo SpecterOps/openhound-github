@@ -187,15 +187,10 @@ def test_org_runner_group_access_emits_repository_access_to_inherited_group() ->
 
     edges = list(access.edges)
 
-    assert [edge.kind for edge in edges] == [
-        ek.CAN_USE_RUNNER,
-        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
-    ]
+    assert [edge.kind for edge in edges] == [ek.IS_ELIGIBLE_FOR]
     assert edges[0].start.value == "REPO_1"
     assert edges[0].end.value == "ORG_1_runner_group_1"
     assert edges[0].properties.traversable is False
-    assert edges[1].start.value == "ORG_1_owners"
-    assert edges[1].end.value == "ORG_1_runner_group_1"
 
 
 def test_org_runner_group_access_all_visibility_excludes_public_repositories_when_disabled() -> None:
@@ -215,10 +210,7 @@ def test_org_runner_group_access_all_visibility_excludes_public_repositories_whe
 
     edges = list(access.edges)
 
-    assert [edge.kind for edge in edges] == [
-        ek.CAN_USE_RUNNER,
-        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
-    ]
+    assert [edge.kind for edge in edges] == [ek.IS_ELIGIBLE_FOR]
     assert edges[0].start.value == "REPO_PRIVATE"
     assert edges[0].end.value == "ORG_1_runner_group_1"
     lookup.private_repository_node_ids_for_org.assert_called_with("acme")
@@ -241,22 +233,107 @@ def test_org_runner_group_access_selected_visibility_excludes_public_repositorie
 
     edges = list(access.edges)
 
-    assert [edge.kind for edge in edges] == [ek.CAN_USE_RUNNER]
+    assert [edge.kind for edge in edges] == [ek.IS_ELIGIBLE_FOR]
+    lookup.branch_node_ids_for_org.assert_not_called()
     assert edges[0].start.value == "REPO_PRIVATE"
     assert edges[0].end.value == "ORG_1_runner_group_1"
 
 
-def test_org_runner_group_access_all_visibility_emits_latent_access_for_members_with_creation_capability() -> None:
+def test_org_runner_group_access_emits_traversable_use_edges_for_unrestricted_group() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Selected",
+        runner_group_visibility="selected",
+        restricted_to_workflows=False,
+        accessible_repo_node_ids=["REPO_1"],
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.actions_enabled_repository_node_ids_for_org.return_value = [("REPO_1",)]
+    lookup.branch_node_ids_for_org.return_value = [
+        ("REPO_1", "BRANCH_1"),
+        ("REPO_2", "BRANCH_2"),
+    ]
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [
+        ek.IS_ELIGIBLE_FOR,
+        ek.CAN_USE_RUNNER,
+        ek.CAN_USE_RUNNER,
+    ]
+    assert [(edge.start.value, edge.end.value) for edge in edges] == [
+        ("REPO_1", "ORG_1_runner_group_1"),
+        ("REPO_1", "ORG_1_runner_group_1"),
+        ("BRANCH_1", "ORG_1_runner_group_1"),
+    ]
+    assert edges[0].properties.traversable is False
+    assert all(edge.properties.traversable is True for edge in edges[1:])
+
+
+def test_org_runner_group_access_does_not_emit_use_edges_when_actions_disabled() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Selected",
+        runner_group_visibility="selected",
+        restricted_to_workflows=False,
+        accessible_repo_node_ids=["REPO_1"],
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.actions_enabled_repository_node_ids_for_org.return_value = []
+    lookup.branch_node_ids_for_org.return_value = [("REPO_1", "BRANCH_1")]
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [ek.IS_ELIGIBLE_FOR]
+    lookup.branch_node_ids_for_org.assert_not_called()
+
+
+def test_inherited_org_runner_group_access_requires_enterprise_workflow_policy_to_be_open() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Selected",
+        runner_group_visibility="selected",
+        restricted_to_workflows=False,
+        inherited=True,
+        accessible_repo_node_ids=["REPO_1"],
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group.return_value = (
+        True
+    )
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [ek.IS_ELIGIBLE_FOR]
+    lookup.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group.assert_called_once_with(
+        "ORG_1", "Selected"
+    )
+    lookup.actions_enabled_repository_node_ids_for_org.assert_not_called()
+    lookup.branch_node_ids_for_org.assert_not_called()
+
+
+def test_org_runner_group_access_all_visibility_emits_traversable_create_access_for_members_with_creation_capability() -> None:
     access = OrgRunnerGroupAccess(
         runner_group_id=1,
         runner_group_name="Default",
         runner_group_visibility="all",
         allows_public_repositories=True,
+        restricted_to_workflows=False,
         org_login="acme",
     )
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.repository_node_ids_for_org.return_value = []
+    lookup.actions_enabled_repositories_for_org.return_value = "all"
     lookup.members_can_create_repository.return_value = (True, False, False, False)
     access._lookup = lookup
 
@@ -268,12 +345,15 @@ def test_org_runner_group_access_all_visibility_emits_latent_access_for_members_
     ]
     assert [edge.start.value for edge in edges] == ["ORG_1_owners", "ORG_1_members"]
     assert {edge.end.value for edge in edges} == {"ORG_1_runner_group_1"}
+    assert all(edge.properties.traversable is True for edge in edges)
     query = edges[1].properties.query_composition
     assert "GH_CanCreateRepositories" in query
     assert "GH_CanCreatePublicRepositories" in query
     assert "GH_CanCreateInternalRepositories" in query
     assert "GH_CanCreatePrivateRepositories" in query
     assert "GH_Contains" in query
+    assert "org.actions_enabled_repositories = 'all'" in query
+    assert "coalesce(group.restricted_to_workflows, true) = false" in query
 
 
 def test_org_runner_group_access_without_public_access_requires_private_or_internal_creation() -> None:
@@ -282,11 +362,13 @@ def test_org_runner_group_access_without_public_access_requires_private_or_inter
         runner_group_name="Default",
         runner_group_visibility="all",
         allows_public_repositories=False,
+        restricted_to_workflows=False,
         org_login="acme",
     )
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.private_repository_node_ids_for_org.return_value = []
+    lookup.actions_enabled_repositories_for_org.return_value = "all"
     lookup.members_can_create_repository.return_value = (True, True, False, False)
     access._lookup = lookup
 
@@ -296,6 +378,7 @@ def test_org_runner_group_access_without_public_access_requires_private_or_inter
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
     ]
     assert edges[0].start.value == "ORG_1_owners"
+    assert edges[0].properties.traversable is True
     query = edges[0].properties.query_composition
     assert "GH_CanCreateInternalRepositories" in query
     assert "GH_CanCreatePrivateRepositories" in query
@@ -309,11 +392,13 @@ def test_org_runner_group_access_private_visibility_requires_private_or_internal
         runner_group_name="Private",
         runner_group_visibility="private",
         allows_public_repositories=True,
+        restricted_to_workflows=False,
         org_login="acme",
     )
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.private_repository_node_ids_for_org.return_value = []
+    lookup.actions_enabled_repositories_for_org.return_value = "all"
     lookup.members_can_create_repository.return_value = (False, False, True, False)
     access._lookup = lookup
 
@@ -324,6 +409,7 @@ def test_org_runner_group_access_private_visibility_requires_private_or_internal
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
     ]
     assert [edge.start.value for edge in edges] == ["ORG_1_owners", "ORG_1_members"]
+    assert all(edge.properties.traversable is True for edge in edges)
     query = edges[1].properties.query_composition
     assert "GH_CanCreateInternalRepositories" in query
     assert "GH_CanCreatePrivateRepositories" in query
@@ -346,6 +432,56 @@ def test_org_runner_group_access_selected_visibility_does_not_emit_latent_access
     access._lookup = lookup
 
     assert list(access.edges) == []
+
+
+def test_org_runner_group_access_does_not_emit_create_access_when_new_repositories_do_not_have_actions_enabled() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Default",
+        runner_group_visibility="all",
+        allows_public_repositories=True,
+        restricted_to_workflows=False,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.repository_node_ids_for_org.return_value = []
+    lookup.actions_enabled_repositories_for_org.return_value = "selected"
+    lookup.members_can_create_repository.return_value = (True, True, True, True)
+    access._lookup = lookup
+
+    assert list(access.edges) == []
+
+
+def test_inherited_org_runner_group_create_access_requires_enterprise_workflow_policy_to_be_open() -> None:
+    access = OrgRunnerGroupAccess(
+        runner_group_id=1,
+        runner_group_name="Default",
+        runner_group_visibility="all",
+        allows_public_repositories=True,
+        restricted_to_workflows=False,
+        inherited=True,
+        org_login="acme",
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = "ORG_1"
+    lookup.repository_node_ids_for_org.return_value = []
+    lookup.actions_enabled_repositories_for_org.return_value = "all"
+    lookup.members_can_create_repository.return_value = (False, False, False, False)
+    lookup.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group.return_value = (
+        False
+    )
+    access._lookup = lookup
+
+    edges = list(access.edges)
+
+    assert [edge.kind for edge in edges] == [
+        ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
+    ]
+    assert edges[0].properties.traversable is True
+    query = edges[0].properties.query_composition
+    assert "GH_InheritedFrom" in query
+    assert "coalesce(enterprise_group.restricted_to_workflows, true) = false" in query
 
 
 def test_native_org_runner_group_membership_emits_structural_and_capability_edges() -> None:
@@ -385,6 +521,17 @@ def test_enterprise_organization_lookup_filters_to_enterprise() -> None:
     ]
 
 
+def test_actions_enabled_repositories_lookup_returns_org_policy() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    connection.execute(
+        "CREATE TABLE github.organizations (login VARCHAR, actions_enabled_repositories VARCHAR)"
+    )
+    connection.execute("INSERT INTO github.organizations VALUES ('acme', 'all')")
+
+    assert GithubLookup(connection).actions_enabled_repositories_for_org("acme") == "all"
+
+
 def test_inherited_org_runner_group_lookup_resolves_all_and_selected_assignments() -> None:
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github")
@@ -392,7 +539,7 @@ def test_inherited_org_runner_group_lookup_resolves_all_and_selected_assignments
         "CREATE TABLE github.enterprise_organizations (id VARCHAR, enterprise_node_id VARCHAR)"
     )
     connection.execute(
-        "CREATE TABLE github.enterprise_runner_groups (id BIGINT, name VARCHAR, visibility VARCHAR, enterprise_node_id VARCHAR)"
+        "CREATE TABLE github.enterprise_runner_groups (id BIGINT, name VARCHAR, visibility VARCHAR, restricted_to_workflows BOOLEAN, enterprise_node_id VARCHAR)"
     )
     connection.execute(
         "CREATE TABLE github.enterprise_runner_group_organizations (node_id VARCHAR, runner_group_id BIGINT, enterprise_node_id VARCHAR)"
@@ -404,7 +551,7 @@ def test_inherited_org_runner_group_lookup_resolves_all_and_selected_assignments
         "INSERT INTO github.enterprise_organizations VALUES ('ORG_1', 'ENT_1')"
     )
     connection.execute(
-        "INSERT INTO github.enterprise_runner_groups VALUES (1, 'Default', 'all', 'ENT_1'), (2, 'Selected', 'selected', 'ENT_1')"
+        "INSERT INTO github.enterprise_runner_groups VALUES (1, 'Default', 'all', false, 'ENT_1'), (2, 'Selected', 'selected', true, 'ENT_1')"
     )
     connection.execute(
         "INSERT INTO github.enterprise_runner_group_organizations VALUES ('ORG_1', 2, 'ENT_1')"
@@ -427,6 +574,18 @@ def test_inherited_org_runner_group_lookup_resolves_all_and_selected_assignments
         )
         == "ENT_1_runner_group_2"
     )
+    assert (
+        lookup.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group(
+            "ORG_1", "Default"
+        )
+        is False
+    )
+    assert (
+        lookup.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group(
+            "ORG_1", "Selected"
+        )
+        is True
+    )
     assert lookup.enterprise_runner_node_ids_for_inherited_org_group(
         "ORG_1", "Default"
     ) == [("ENT_1_runner_9",)]
@@ -442,7 +601,7 @@ def test_inherited_org_runner_group_lookup_skips_missing_and_ambiguous_matches()
         "CREATE TABLE github.enterprise_organizations (id VARCHAR, enterprise_node_id VARCHAR)"
     )
     connection.execute(
-        "CREATE TABLE github.enterprise_runner_groups (id BIGINT, name VARCHAR, visibility VARCHAR, enterprise_node_id VARCHAR)"
+        "CREATE TABLE github.enterprise_runner_groups (id BIGINT, name VARCHAR, visibility VARCHAR, restricted_to_workflows BOOLEAN, enterprise_node_id VARCHAR)"
     )
     connection.execute(
         "CREATE TABLE github.enterprise_runner_group_organizations (node_id VARCHAR, runner_group_id BIGINT, enterprise_node_id VARCHAR)"
@@ -451,7 +610,7 @@ def test_inherited_org_runner_group_lookup_skips_missing_and_ambiguous_matches()
         "INSERT INTO github.enterprise_organizations VALUES ('ORG_1', 'ENT_1'), ('ORG_1', 'ENT_2')"
     )
     connection.execute(
-        "INSERT INTO github.enterprise_runner_groups VALUES (1, 'Default', 'all', 'ENT_1'), (2, 'Default', 'all', 'ENT_2')"
+        "INSERT INTO github.enterprise_runner_groups VALUES (1, 'Default', 'all', false, 'ENT_1'), (2, 'Default', 'all', false, 'ENT_2')"
     )
 
     lookup = GithubLookup(connection)
