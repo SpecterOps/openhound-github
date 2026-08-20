@@ -144,6 +144,59 @@ def test_enterprise_saml_provider_logs_and_returns_on_request_failure(caplog) ->
     )
 
 
+def test_enterprise_saml_provider_logs_and_returns_when_enterprise_is_null(
+    caplog,
+) -> None:
+    client = _FakeClient(payload={"data": {"enterprise": None}})
+    ctx = SourceContext(client=client, sso_client=client, enterprise_name="acme")
+    enterprise_data = SimpleNamespace(id="E_1", name="Acme", slug="acme")
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_saml_provider.__wrapped__(enterprise_data, ctx))
+
+    assert rows == []
+    assert any(
+        "No enterprise object returned while fetching SAML provider for enterprise 'acme'"
+        in message
+        for message in caplog.messages
+    )
+
+
+def test_enterprise_saml_provider_logs_and_returns_when_enterprise_is_missing(
+    caplog,
+) -> None:
+    client = _FakeClient(payload={"data": {}})
+    ctx = SourceContext(client=client, sso_client=client, enterprise_name="acme")
+    enterprise_data = SimpleNamespace(id="E_1", name="Acme", slug="acme")
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_saml_provider.__wrapped__(enterprise_data, ctx))
+
+    assert rows == []
+    assert any(
+        "No enterprise object returned while fetching SAML provider for enterprise 'acme'"
+        in message
+        for message in caplog.messages
+    )
+
+
+def test_enterprise_saml_provider_logs_and_returns_when_provider_is_missing(
+    caplog,
+) -> None:
+    client = _FakeClient(payload={"data": {"enterprise": {"ownerInfo": {}}}})
+    ctx = SourceContext(client=client, sso_client=client, enterprise_name="acme")
+    enterprise_data = SimpleNamespace(id="E_1", name="Acme", slug="acme")
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_saml_provider.__wrapped__(enterprise_data, ctx))
+
+    assert rows == []
+    assert any(
+        "No enterprise SAML provider returned for enterprise 'acme'" in message
+        for message in caplog.messages
+    )
+
+
 def test_enterprise_external_identity_logs_and_returns_on_pagination_failure(
     caplog,
 ) -> None:
