@@ -87,6 +87,23 @@ def _make_environment() -> Environment:
     )
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "O_123"
+    lookup.branches_with_bpr.return_value = []
+    lookup.environment_branch_policy_names.return_value = []
+
+    def reviewer_deployment_path(
+        _reviewer_node_id,
+        _reviewer_type,
+        _repository_node_id,
+        eligible_branch_ids,
+        allow_create_branch,
+    ):
+        if allow_create_branch:
+            return ("create_branch", None)
+        if eligible_branch_ids:
+            return ("write_branch", eligible_branch_ids[0])
+        return None
+
+    lookup.reviewer_deployment_path.side_effect = reviewer_deployment_path
     env._lookup = lookup
     return env
 
@@ -171,6 +188,141 @@ def test_environment_with_self_review_emits_only_reviewer_deploy_edges() -> None
         "coalesce(env.prevent_self_review, false) = false"
         in edge.properties.query_composition
         for edge in deploy_edges
+    )
+    assert all(
+        "GH_CanCreateBranch" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+
+
+def test_environment_reviewer_without_deployable_path_only_emits_approval_edge() -> None:
+    env = _make_unrestricted_environment()
+    env._lookup.reviewer_deployment_path.return_value = None
+    env._lookup.reviewer_deployment_path.side_effect = None
+
+    edges = list(env.edges)
+
+    assert {
+        edge.start.value
+        for edge in edges
+        if edge.kind == ek.APPROVES_DEPLOYMENT_TO
+    } == {"MDQ6VXNlcjE=", "MDQ6VGVhbTE="}
+    assert _deploy_edges(env) == []
+
+
+def test_environment_reviewer_protected_branch_path_requires_eligible_branch() -> None:
+    env = _make_environment()
+    env.deployment_branch_policy = DeploymentBranchPolicy(
+        protected_branches=True,
+        custom_branch_policies=False,
+    )
+    env._lookup.branches_for_repository.return_value = [
+        ("B_main", "main", True),
+        ("B_release", "release/v1", False),
+    ]
+    env._lookup.branches_with_bpr.return_value = [("B_main",)]
+    env._lookup.reviewer_deployment_path.return_value = ("write_branch", "B_main")
+    env._lookup.reviewer_deployment_path.side_effect = None
+
+    deploy_edges = _deploy_edges(env)
+
+    assert {edge.start.value for edge in deploy_edges} == {
+        "MDQ6VXNlcjE=",
+        "MDQ6VGVhbTE=",
+    }
+    assert all(
+        "GH_ProtectedBy" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    env._lookup.reviewer_deployment_path.assert_any_call(
+        "MDQ6VXNlcjE=",
+        "user",
+        "R_123",
+        ("B_main",),
+        False,
+    )
+
+
+def test_environment_reviewer_custom_policy_uses_matching_branches() -> None:
+    env = _make_environment()
+    env._lookup.branches_for_repository.return_value = [
+        ("B_main", "main", False),
+        ("B_release", "release/v1", False),
+    ]
+    env._lookup.environment_branch_policy_names.return_value = [("release/*",)]
+    env._lookup.reviewer_deployment_path.return_value = ("write_branch", "B_release")
+    env._lookup.reviewer_deployment_path.side_effect = None
+
+    deploy_edges = _deploy_edges(env)
+
+    assert {edge.start.value for edge in deploy_edges} == {
+        "MDQ6VXNlcjE=",
+        "MDQ6VGVhbTE=",
+    }
+    assert all(
+        "GH_MatchesEnvironmentPolicy" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    assert all(
+        "coalesce(env.protected_branches, false) = false"
+        in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    assert all(
+        "GH_ProtectedBy" not in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    env._lookup.reviewer_deployment_path.assert_any_call(
+        "MDQ6VXNlcjE=",
+        "user",
+        "R_123",
+        ("B_release",),
+        False,
+    )
+
+
+def test_environment_reviewer_custom_policy_with_protected_branches_uses_matching_protected_branches() -> None:
+    env = _make_environment()
+    env.deployment_branch_policy = DeploymentBranchPolicy(
+        protected_branches=True,
+        custom_branch_policies=True,
+    )
+    env._lookup.branches_for_repository.return_value = [
+        ("B_main", "main", True),
+        ("B_release_unprotected", "release/v1", False),
+        ("B_release_protected", "release/v2", True),
+    ]
+    env._lookup.environment_branch_policy_names.return_value = [("release/*",)]
+    env._lookup.reviewer_deployment_path.return_value = (
+        "write_branch",
+        "B_release_protected",
+    )
+    env._lookup.reviewer_deployment_path.side_effect = None
+
+    deploy_edges = _deploy_edges(env)
+
+    assert {edge.start.value for edge in deploy_edges} == {
+        "MDQ6VXNlcjE=",
+        "MDQ6VGVhbTE=",
+    }
+    assert all(
+        "GH_MatchesEnvironmentPolicy" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    assert all(
+        "GH_ProtectedBy" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    assert all(
+        "env.protected_branches = true" in edge.properties.query_composition
+        for edge in deploy_edges
+    )
+    env._lookup.reviewer_deployment_path.assert_any_call(
+        "MDQ6VXNlcjE=",
+        "user",
+        "R_123",
+        ("B_release_protected",),
+        False,
     )
 
 
