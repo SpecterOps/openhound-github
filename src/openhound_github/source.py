@@ -50,7 +50,6 @@ class SourceContext:
     sso_client: RESTClient | None = None
     scim_client: RESTClient | None = None
     enterprise_name: str | None = None
-    collect_enterprise_scim: bool = False
     emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
@@ -122,7 +121,6 @@ def source(
         GithubEnterpriseAppCredentials, GithubOrgAppCredentials, GithubTokenCredentials
     ] = dlt.secrets.value,
     host: str = "https://api.github.com",
-    collect_enterprise_scim: bool | None = dlt.config.value,
     emit_legacy_scim_correlations: bool | None = dlt.config.value,
 ):
     """DLT source, defines GitHub collection resources and transformers.
@@ -158,7 +156,6 @@ def source(
         )
         ctx = SourceContext(
             enterprise_name=credentials.enterprise_name,
-            collect_enterprise_scim=bool(collect_enterprise_scim),
             emit_legacy_scim_correlations=bool(emit_legacy_scim_correlations),
             github_deployment_id=github_deployment_id,
             github_web_origin=github_web_origin,
@@ -250,7 +247,6 @@ def source(
                 if credentials.scim_token
                 else token_api_client,
                 enterprise_name=credentials.enterprise_name,
-                collect_enterprise_scim=bool(collect_enterprise_scim),
                 emit_legacy_scim_correlations=bool(emit_legacy_scim_correlations),
                 github_deployment_id=github_deployment_id,
                 github_web_origin=github_web_origin,

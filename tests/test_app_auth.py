@@ -194,7 +194,6 @@ def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
             enterprise_name="example-enterprise",
         ),
         host="https://api.github.com",
-        collect_enterprise_scim=False,
         emit_legacy_scim_correlations=False,
     )
 
