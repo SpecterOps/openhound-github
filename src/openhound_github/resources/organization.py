@@ -916,6 +916,8 @@ def repositories_graphql(ctx: SourceContext):
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
+        repository_cursor: str | None = None
+        emitted_repositories = 0
         try:
             paginator = GraphQLCursorPaginator(
                 page_info_path="data.organization.repositories.pageInfo",
@@ -939,15 +941,36 @@ def repositories_graphql(ctx: SourceContext):
                 for repo in repos_page["nodes"]:
                     repo_record = {**repo}
                     branch_rulesets = repo_record.pop("branchRulesets", None) or {}
+                    emitted_repositories += 1
                     yield {
                         **repo_record,
                         "branch_ruleset_count": branch_rulesets.get("totalCount"),
                         "org_login": org_name,
                     }
+
+                request_json = getattr(getattr(page_data, "request", None), "json", None)
+                if isinstance(request_json, dict):
+                    variables = request_json.get("variables")
+                    if isinstance(variables, dict):
+                        repository_cursor = variables.get("after")
         except Exception as e:
             logger.error(
-                f"Error in resource 'repositories_graphql' processing organization '{org_name}': {e}",
-                extra={"resource": "repositories_graphql", "phase": "resource_iteration"},
+                "Error in resource 'repositories_graphql' processing organization '%s' "
+                "at repository cursor %r after emitting %d repositories "
+                "(%s): %s",
+                org_name,
+                repository_cursor,
+                emitted_repositories,
+                type(e).__name__,
+                e,
+                extra={
+                    "resource": "repositories_graphql",
+                    "phase": "resource_iteration",
+                    "org_name": org_name,
+                    "repository_cursor": repository_cursor,
+                    "emitted_repositories": emitted_repositories,
+                    "error_type": type(e).__name__,
+                },
             )
             continue
 

@@ -29,6 +29,7 @@ class GHRepositoryProperties(GHNodeProperties):
         disabled: Whether the repository is disabled.
         visibility: The visibility level: `public`, `private`, or `internal`.
         default_branch: The name of the default branch (e.g., `main`).
+        size: Repository size in kilobytes as reported by GitHub.
         open_issues_count: Number of open issues.
         allow_forking: Whether forking is allowed.
         web_commit_signoff_required: Whether web-based commits require sign-off.
@@ -74,6 +75,7 @@ class GHRepositoryProperties(GHNodeProperties):
     disabled: bool | None = None
     visibility: str | None = None
     default_branch: str | None = None
+    size: int | None = None
     open_issues_count: int | None = None
     allow_forking: bool | None = None
     web_commit_signoff_required: bool | None = None
@@ -195,6 +197,7 @@ class Repository(BaseAsset):
     disabled: bool | None = None
     visibility: str | None = None
     default_branch: str | None = None
+    size: int | None = None
     open_issues_count: int | None = None
     allow_forking: bool | None = None
     web_commit_signoff_required: bool | None = None
@@ -240,6 +243,7 @@ class Repository(BaseAsset):
                 disabled=self.disabled,
                 visibility=self.visibility,
                 default_branch=self.default_branch,
+                size=self.size,
                 open_issues_count=self.open_issues_count,
                 allow_forking=self.allow_forking,
                 web_commit_signoff_required=self.web_commit_signoff_required,

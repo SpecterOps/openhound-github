@@ -1,6 +1,7 @@
 import logging
 import time
 from typing import Optional
+from urllib.parse import urlparse
 
 from dlt.common import jsonpath
 from dlt.sources.helpers import requests
@@ -153,6 +154,25 @@ def _has_graphql_errors(response: requests.Response) -> bool:
     return isinstance(response_data, dict) and bool(response_data.get("errors"))
 
 
+def _has_invalid_json_body(response: requests.Response) -> bool:
+    try:
+        response.json()
+    except ValueError:
+        return True
+    return False
+
+
+def _is_graphql_response(response: requests.Response) -> bool:
+    if response.headers.get("x-ratelimit-resource") == "graphql":
+        return True
+
+    request = response.request
+    if request is None or not request.url:
+        return False
+
+    return urlparse(request.url).path.rstrip("/").endswith("/graphql")
+
+
 def github_retry_policy(auth: AuthConfigBase):
     def retry_policy(
         response: Optional[requests.Response], exception: Optional[BaseException]
@@ -162,12 +182,11 @@ def github_retry_policy(auth: AuthConfigBase):
 
         headers = response.headers
         now = int(time.time())
-        message = _response_message(response).lower()
 
         # DLT retries the same prepared request after long Retry-After sleeps.
         if (
             response.status_code == 401
-            and "bad credentials" in message
+            and "bad credentials" in _response_message(response).lower()
             and isinstance(auth, GitHubAppInstallationAuth)
             and response.request is not None
         ):
@@ -180,7 +199,15 @@ def github_retry_policy(auth: AuthConfigBase):
 
         if (
             response.status_code == 200
-            and headers.get("x-ratelimit-resource") == "graphql"
+            and _is_graphql_response(response)
+            and _has_invalid_json_body(response)
+        ):
+            logger.warning("GraphQL response body was not valid JSON, retrying request")
+            return True
+
+        if (
+            response.status_code == 200
+            and _is_graphql_response(response)
             and _has_graphql_errors(response)
         ):
             if headers.get("Retry-After"):
@@ -199,6 +226,7 @@ def github_retry_policy(auth: AuthConfigBase):
         if response.status_code not in (403, 429):
             return False
 
+        message = _response_message(response).lower()
         if (
             headers.get("x-ratelimit-remaining") == "0"
             or "api rate limit exceeded" in message
