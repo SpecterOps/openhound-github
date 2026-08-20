@@ -39,7 +39,6 @@ RESTRICTIONS_CAN_PUSH = "GH_RestrictionsCanPush"
 HAS_EXTERNAL_IDENTITY = "GH_HasExternalIdentity"
 HAS_SAML_IDENTITY_PROVIDER = "GH_HasSamlIdentityProvider"
 MAPS_TO_USER = "GH_MapsToUser"
-SYNCED_TO_GH_USER = "GH_SyncedTo"
 
 # Normalized OpenGraph-SCIM edges
 SCIM_CONTAINS = "SCIM_Contains"
