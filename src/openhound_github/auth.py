@@ -19,11 +19,22 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 
-def _normalized_http_origin(url: str) -> tuple[str, str, int | None]:
+def _normalized_http_origin(
+    url: str, *, allow_query: bool = False
+) -> tuple[str, str, int | None]:
     parsed = urlparse(url)
     scheme = parsed.scheme.lower()
     if scheme != "https" or not parsed.hostname:
         raise ValueError("GitHub API URI must be an absolute HTTPS URL")
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or (parsed.query and not allow_query)
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "GitHub API URI must not contain user-info, query strings, or fragments"
+        )
 
     port = parsed.port
     if scheme == "https" and port == 443:
@@ -230,7 +241,9 @@ class GitHubAppInstallationAuth(AuthConfigBase):
     def refresh_request(self, request: requests.PreparedRequest) -> bool:
         """Repair a rejected same-origin request without stampeding token issuance."""
         try:
-            request_origin = _normalized_http_origin(request.url or "")
+            request_origin = _normalized_http_origin(
+                request.url or "", allow_query=True
+            )
         except ValueError:
             return False
 

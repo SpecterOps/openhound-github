@@ -948,11 +948,9 @@ def repositories_graphql(ctx: SourceContext):
                         "org_login": org_name,
                     }
 
-                request_json = getattr(getattr(page_data, "request", None), "json", None)
-                if isinstance(request_json, dict):
-                    variables = request_json.get("variables")
-                    if isinstance(variables, dict):
-                        repository_cursor = variables.get("after")
+                page_info = repos_page.get("pageInfo") or {}
+                if isinstance(page_info, dict):
+                    repository_cursor = page_info.get("endCursor")
         except Exception as e:
             logger.error(
                 "Error in resource 'repositories_graphql' processing organization '%s' "

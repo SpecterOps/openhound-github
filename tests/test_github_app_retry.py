@@ -99,6 +99,23 @@ def test_refresh_request_refreshes_rejected_current_token() -> None:
     assert installation.token_calls == 1
 
 
+def test_refresh_request_allows_same_origin_request_query_string() -> None:
+    installation = FakeInstallation("new-token")
+    auth = GitHubAppInstallationAuth(installation=installation)
+    auth.access_token = "old-token"
+    auth.expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    request = prepared_request(
+        "old-token",
+        url="https://api.github.com/repos/example/repo?page=2",
+    )
+
+    repaired = auth.refresh_request(request)
+
+    assert repaired is True
+    assert request.headers["Authorization"] == "Bearer new-token"
+    assert installation.token_calls == 1
+
+
 def test_refresh_request_reuses_token_refreshed_by_another_request() -> None:
     installation = BlockingFakeInstallation("new-token")
     auth = GitHubAppInstallationAuth(installation=installation)

@@ -120,6 +120,26 @@ def test_github_session_rejects_plaintext_api_uri() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "api_uri",
+    (
+        "https://user:password@ghe.example/api/v3/",
+        "https://ghe.example/api/v3/?token=secret",
+        "https://ghe.example/api/v3/#fragment",
+    ),
+)
+def test_github_session_rejects_api_uri_with_unsafe_components(api_uri: str) -> None:
+    with pytest.raises(
+        ValueError,
+        match="must not contain user-info, query strings, or fragments",
+    ):
+        GithubSession(
+            jwt_issuer="123456",
+            private_key_path="/tmp/github-app.pem",
+            api_uri=api_uri,
+        )
+
+
 def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
