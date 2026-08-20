@@ -9,6 +9,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from openhound_github import auth
 from openhound_github.auth import (
     AccountConfig,
+    GitHubAppInstallationAuth,
     GithubSession,
     InstallationResponse,
     resolve_github_app_jwt_issuer,
@@ -97,6 +98,28 @@ def test_legacy_installation_response_does_not_require_client_id() -> None:
     assert installation.app_id == 123456
 
 
+def test_github_app_installation_auth_rejects_mismatched_api_origins() -> None:
+    installation = SimpleNamespace(
+        installation_id="12345",
+        api_uri="https://ghe.example/api/v3/",
+    )
+
+    with pytest.raises(ValueError, match="must match installation API URI origin"):
+        GitHubAppInstallationAuth(
+            installation=installation,
+            api_uri="https://api.github.com/",
+        )
+
+
+def test_github_session_rejects_plaintext_api_uri() -> None:
+    with pytest.raises(ValueError, match="absolute HTTPS URL"):
+        GithubSession(
+            jwt_issuer="123456",
+            private_key_path="/tmp/github-app.pem",
+            api_uri="http://ghe.example/api/v3/",
+        )
+
+
 def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -104,7 +127,9 @@ def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
     captured_issuers: list[str] = []
 
     class FakeGithubApp:
-        def __init__(self, jwt_issuer: str, private_key_path: str) -> None:
+        def __init__(
+            self, jwt_issuer: str, private_key_path: str, api_uri: str
+        ) -> None:
             captured_issuers.append(jwt_issuer)
             self.installations = (
                 SimpleNamespace(
@@ -125,6 +150,7 @@ def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
             installation_id: int,
             jwt_issuer: str,
             private_key_path: str,
+            api_uri: str,
         ) -> None:
             captured_issuers.append(jwt_issuer)
 

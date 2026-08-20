@@ -2,6 +2,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Iterator
+from urllib.parse import urlparse
+from weakref import WeakKeyDictionary
 
 import requests
 from dlt.common.configuration import configspec
@@ -15,6 +17,19 @@ from joserfc.jwk import RSAKey
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+def _normalized_http_origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme != "https" or not parsed.hostname:
+        raise ValueError("GitHub API URI must be an absolute HTTPS URL")
+
+    port = parsed.port
+    if scheme == "https" and port == 443:
+        port = None
+
+    return scheme, parsed.hostname.lower(), port
 
 
 class AccountConfig(BaseModel):
@@ -63,7 +78,8 @@ class GithubSession:
         private_key_path: str,
         api_uri: str = "https://api.github.com/",
     ):
-        self.api_uri = api_uri
+        _normalized_http_origin(api_uri)
+        self.api_uri = f"{api_uri.rstrip('/')}/"
         self.jwt_issuer = jwt_issuer
         self.private_key_path = private_key_path
         self.client = RESTClient(
@@ -158,11 +174,28 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         self,
         installation: GithubInstallation,
         refresh_margin_seconds: int = 300,
+        api_uri: str | None = None,
     ):
         self.installation = installation
         self.refresh_margin_seconds = refresh_margin_seconds
+        installation_api_uri = getattr(
+            installation, "api_uri", "https://api.github.com/"
+        )
+        selected_api_uri = api_uri or installation_api_uri
+        installation_api_origin = _normalized_http_origin(installation_api_uri)
+        selected_api_origin = _normalized_http_origin(selected_api_uri)
+        if selected_api_origin != installation_api_origin:
+            raise ValueError(
+                "GitHub App auth API URI origin must match installation API URI origin"
+            )
+
+        self.api_uri = selected_api_uri
+        self._api_origin = selected_api_origin
         self.access_token: str | None = None
         self.expires_at: datetime | None = None
+        self._response_refreshed_requests: WeakKeyDictionary[
+            requests.PreparedRequest, str
+        ] = WeakKeyDictionary()
         self._token_lock = Lock()
 
     def _should_refresh(self) -> bool:
@@ -171,6 +204,14 @@ class GitHubAppInstallationAuth(AuthConfigBase):
 
         refresh_at = self.expires_at - timedelta(seconds=self.refresh_margin_seconds)
         return datetime.now(timezone.utc) >= refresh_at
+
+    def _refresh_token(self) -> None:
+        logger.info(
+            f"Refreshing access token for {self.installation.installation_id}"
+        )
+        get_token = self.installation.token
+        self.access_token = get_token.token
+        self.expires_at = get_token.expires_at
 
     def token(self, force_refresh: bool = False) -> str | None:
         if (
@@ -182,14 +223,61 @@ class GitHubAppInstallationAuth(AuthConfigBase):
 
         with self._token_lock:
             if (force_refresh or self._should_refresh()) or self.access_token is None:
-                logger.info(
-                    f"Refreshing access token for {self.installation.installation_id}"
-                )
-                get_token = self.installation.token
-                self.access_token = get_token.token
-                self.expires_at = get_token.expires_at
+                self._refresh_token()
 
         return self.access_token
+
+    def refresh_request(self, request: requests.PreparedRequest) -> bool:
+        """Repair a rejected same-origin request without stampeding token issuance."""
+        try:
+            request_origin = _normalized_http_origin(request.url or "")
+        except ValueError:
+            return False
+
+        if request_origin != self._api_origin:
+            return False
+
+        request_authorization = request.headers.get("Authorization")
+        if (
+            not request_authorization
+            or not request_authorization.startswith("Bearer ")
+            or not request_authorization.removeprefix("Bearer ").strip()
+        ):
+            return False
+
+        with self._token_lock:
+            current_authorization = (
+                f"Bearer {self.access_token}" if self.access_token is not None else None
+            )
+            should_refresh = self._should_refresh()
+            repaired_authorization = self._response_refreshed_requests.get(request)
+            if (
+                not should_refresh
+                and request_authorization == current_authorization
+                and request_authorization == repaired_authorization
+            ):
+                return False
+
+            if (
+                self.access_token is None
+                or should_refresh
+                or request_authorization == current_authorization
+            ):
+                try:
+                    self._refresh_token()
+                except Exception:
+                    logger.warning(
+                        "Failed to refresh GitHub App installation token for "
+                        "installation %s during request retry",
+                        self.installation.installation_id,
+                    )
+                    return False
+
+            replacement_authorization = f"Bearer {self.access_token}"
+            request.headers["Authorization"] = replacement_authorization
+            self._response_refreshed_requests[request] = replacement_authorization
+
+        return True
 
     def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
         request.headers["Authorization"] = f"Bearer {self.token()}"
