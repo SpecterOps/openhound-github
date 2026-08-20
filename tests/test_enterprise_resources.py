@@ -157,8 +157,9 @@ def test_enterprise_saml_provider_logs_and_returns_when_enterprise_is_null(
     assert rows == []
     assert any(
         "No enterprise object returned while fetching SAML provider for enterprise 'acme'"
-        in message
-        for message in caplog.messages
+        in record.getMessage()
+        and record.levelno == logging.WARNING
+        for record in caplog.records
     )
 
 
@@ -175,8 +176,9 @@ def test_enterprise_saml_provider_logs_and_returns_when_enterprise_is_missing(
     assert rows == []
     assert any(
         "No enterprise object returned while fetching SAML provider for enterprise 'acme'"
-        in message
-        for message in caplog.messages
+        in record.getMessage()
+        and record.levelno == logging.WARNING
+        for record in caplog.records
     )
 
 
@@ -192,8 +194,10 @@ def test_enterprise_saml_provider_logs_and_returns_when_provider_is_missing(
 
     assert rows == []
     assert any(
-        "No enterprise SAML provider returned for enterprise 'acme'" in message
-        for message in caplog.messages
+        "No enterprise SAML provider returned for enterprise 'acme'"
+        in record.getMessage()
+        and record.levelno == logging.WARNING
+        for record in caplog.records
     )
 
 
