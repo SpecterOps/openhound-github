@@ -638,7 +638,14 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         )
         return
 
-    enterprise_object = (response.get("data") or {}).get("enterprise", {})
+    enterprise_object = (response.get("data") or {}).get("enterprise")
+    if not enterprise_object:
+        logger.warning(
+            "No enterprise object returned while fetching SAML provider for enterprise '%s'",
+            ctx.enterprise_name,
+        )
+        return
+
     saml_provider = (enterprise_object.get("ownerInfo") or {}).get("samlIdentityProvider")
     if not saml_provider:
         logger.warning(
