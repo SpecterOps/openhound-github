@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Iterator
 from urllib.parse import urlparse
+from weakref import WeakKeyDictionary
 
 import requests
 from dlt.common.configuration import configspec
@@ -21,11 +22,11 @@ logger = logging.getLogger(__name__)
 def _normalized_http_origin(url: str) -> tuple[str, str, int | None]:
     parsed = urlparse(url)
     scheme = parsed.scheme.lower()
-    if scheme not in {"http", "https"} or not parsed.hostname:
-        raise ValueError("GitHub API URI must be an absolute HTTP(S) URL")
+    if scheme != "https" or not parsed.hostname:
+        raise ValueError("GitHub API URI must be an absolute HTTPS URL")
 
     port = parsed.port
-    if (scheme == "http" and port == 80) or (scheme == "https" and port == 443):
+    if scheme == "https" and port == 443:
         port = None
 
     return scheme, parsed.hostname.lower(), port
@@ -192,7 +193,9 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         self._api_origin = selected_api_origin
         self.access_token: str | None = None
         self.expires_at: datetime | None = None
-        self._response_refreshed_token: str | None = None
+        self._response_refreshed_requests: WeakKeyDictionary[
+            requests.PreparedRequest, str
+        ] = WeakKeyDictionary()
         self._token_lock = Lock()
 
     def _should_refresh(self) -> bool:
@@ -202,16 +205,13 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         refresh_at = self.expires_at - timedelta(seconds=self.refresh_margin_seconds)
         return datetime.now(timezone.utc) >= refresh_at
 
-    def _refresh_token(self, *, response_triggered: bool = False) -> None:
+    def _refresh_token(self) -> None:
         logger.info(
             f"Refreshing access token for {self.installation.installation_id}"
         )
         get_token = self.installation.token
         self.access_token = get_token.token
         self.expires_at = get_token.expires_at
-        self._response_refreshed_token = (
-            get_token.token if response_triggered else None
-        )
 
     def token(self, force_refresh: bool = False) -> str | None:
         if (
@@ -250,10 +250,11 @@ class GitHubAppInstallationAuth(AuthConfigBase):
                 f"Bearer {self.access_token}" if self.access_token is not None else None
             )
             should_refresh = self._should_refresh()
+            repaired_authorization = self._response_refreshed_requests.get(request)
             if (
                 not should_refresh
                 and request_authorization == current_authorization
-                and self.access_token == self._response_refreshed_token
+                and request_authorization == repaired_authorization
             ):
                 return False
 
@@ -263,7 +264,7 @@ class GitHubAppInstallationAuth(AuthConfigBase):
                 or request_authorization == current_authorization
             ):
                 try:
-                    self._refresh_token(response_triggered=True)
+                    self._refresh_token()
                 except Exception:
                     logger.warning(
                         "Failed to refresh GitHub App installation token for "
@@ -272,7 +273,9 @@ class GitHubAppInstallationAuth(AuthConfigBase):
                     )
                     return False
 
-            request.headers["Authorization"] = f"Bearer {self.access_token}"
+            replacement_authorization = f"Bearer {self.access_token}"
+            request.headers["Authorization"] = replacement_authorization
+            self._response_refreshed_requests[request] = replacement_authorization
 
         return True
 

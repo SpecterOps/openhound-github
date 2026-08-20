@@ -169,6 +169,24 @@ def test_retry_policy_does_not_retry_replacement_token_bad_credentials() -> None
     assert installation.token_calls == 1
 
 
+def test_retry_policy_allows_fresh_request_to_refresh_replacement_token() -> None:
+    installation = FakeInstallation("new-token", "newer-token")
+    auth = GitHubAppInstallationAuth(installation=installation)
+    auth.access_token = "old-token"
+    auth.expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    retry_policy = github_retry_policy(auth)
+    recovery_request = prepared_request("old-token")
+
+    assert retry_policy(bad_credentials_response(recovery_request), None) is True
+    assert recovery_request.headers["Authorization"] == "Bearer new-token"
+
+    independent_request = prepared_request("new-token")
+
+    assert retry_policy(bad_credentials_response(independent_request), None) is True
+    assert independent_request.headers["Authorization"] == "Bearer newer-token"
+    assert installation.token_calls == 2
+
+
 def test_retry_policy_does_not_retry_when_token_refresh_fails(caplog) -> None:
     installation = FailingFakeInstallation()
     auth = GitHubAppInstallationAuth(installation=installation)

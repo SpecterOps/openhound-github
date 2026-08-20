@@ -111,6 +111,15 @@ def test_github_app_installation_auth_rejects_mismatched_api_origins() -> None:
         )
 
 
+def test_github_session_rejects_plaintext_api_uri() -> None:
+    with pytest.raises(ValueError, match="absolute HTTPS URL"):
+        GithubSession(
+            jwt_issuer="123456",
+            private_key_path="/tmp/github-app.pem",
+            api_uri="http://ghe.example/api/v3/",
+        )
+
+
 def test_enterprise_source_reuses_selected_issuer_for_installation_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
