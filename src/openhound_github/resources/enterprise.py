@@ -54,7 +54,6 @@ class SourceContext:
 
     client: RESTClient
     sso_client: RESTClient | None = None
-    scim_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
     emit_legacy_scim_correlations: bool = False
@@ -171,14 +170,13 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
     parallelized=True,
 )
 def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
-    scim_client = ctx.scim_client or ctx.client
-    if not scim_client or not ctx.enterprise_name:
+    if not ctx.client or not ctx.enterprise_name:
         raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
 
     try:
         next(
             iter_enterprise_scim_resources(
-                scim_client,
+                ctx.client,
                 ctx.enterprise_name,
                 "Users",
                 count=1,
@@ -205,12 +203,11 @@ def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContex
     parallelized=True,
 )
 def enterprise_scim_users(scim_organization: ScimOrganization, ctx: SourceContext):
-    scim_client = ctx.scim_client or ctx.client
-    if not scim_client or not ctx.enterprise_name:
+    if not ctx.client or not ctx.enterprise_name:
         raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
     try:
         for user in iter_enterprise_scim_resources(
-            scim_client,
+            ctx.client,
             ctx.enterprise_name,
             "Users",
         ):
@@ -231,12 +228,11 @@ def enterprise_scim_users(scim_organization: ScimOrganization, ctx: SourceContex
     parallelized=True,
 )
 def enterprise_scim_groups(scim_organization: ScimOrganization, ctx: SourceContext):
-    scim_client = ctx.scim_client or ctx.client
-    if not scim_client or not ctx.enterprise_name:
+    if not ctx.client or not ctx.enterprise_name:
         raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
     try:
         for group in iter_enterprise_scim_resources(
-            scim_client,
+            ctx.client,
             ctx.enterprise_name,
             "Groups",
         ):

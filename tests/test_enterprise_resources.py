@@ -274,6 +274,23 @@ def test_enterprise_scim_organization_skips_unavailable_scope(caplog) -> None:
     )
 
 
+def test_enterprise_scim_uses_enterprise_client_when_sso_client_is_present() -> None:
+    enterprise_client = _FakeClient(payload={}, pages=[[]])
+    sso_client = _FailingPaginateClient(payload={})
+    ctx = SourceContext(
+        client=enterprise_client,
+        sso_client=sso_client,
+        enterprise_name="acme",
+    )
+    enterprise_data = SimpleNamespace(id="E_1")
+
+    rows = list(enterprise_scim_organizations.__wrapped__(enterprise_data, ctx))
+
+    assert rows == [{"enterprise_node_id": "E_1", "enterprise_slug": "acme"}]
+    assert enterprise_client.paginate_calls[0][0] == "/scim/v2/enterprises/acme/Users"
+    assert sso_client.paginate_calls == []
+
+
 def test_enterprise_scim_users_logs_unexpected_failure_as_error(caplog) -> None:
     client = _FailingPaginateClient(payload={})
     ctx = SourceContext(client=client, enterprise_name="acme")

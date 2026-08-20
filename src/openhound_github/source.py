@@ -48,7 +48,6 @@ class SourceContext:
     organizations: list[OrgContext] | None = field(default_factory=list)
     client: RESTClient | None = None
     sso_client: RESTClient | None = None
-    scim_client: RESTClient | None = None
     enterprise_name: str | None = None
     emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
@@ -80,7 +79,6 @@ class GithubEnterpriseAppCredentials(CredentialsConfiguration):
     key_path: str = None
     enterprise_name: str = None
     pat_token: str | None = None
-    scim_token: str | None = None
     api_uri: str = "https://api.github.com"
 
     @property
@@ -104,7 +102,6 @@ class GithubOrgAppCredentials(CredentialsConfiguration):
 @configspec
 class GithubTokenCredentials(GithubCredentials):
     token: str = None
-    scim_token: str | None = None
 
     @property
     def auth(self) -> str:
@@ -162,10 +159,6 @@ def source(
         )
         if credentials.pat_token:
             ctx.sso_client = token_client(credentials.pat_token)
-        if credentials.scim_token:
-            ctx.scim_client = token_client(credentials.scim_token)
-        elif credentials.pat_token:
-            ctx.scim_client = ctx.sso_client
         github_app_session = GithubApp(
             jwt_issuer=jwt_issuer,
             private_key_path=credentials.key_path,
@@ -243,9 +236,6 @@ def source(
             ctx = SourceContext(
                 client=token_api_client,
                 sso_client=token_api_client,
-                scim_client=token_client(credentials.scim_token)
-                if credentials.scim_token
-                else token_api_client,
                 enterprise_name=credentials.enterprise_name,
                 emit_legacy_scim_correlations=bool(emit_legacy_scim_correlations),
                 github_deployment_id=github_deployment_id,
