@@ -195,6 +195,15 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def external_identity_id_for_guid(
+        self, guid: str, environment_slug: str
+    ) -> str | None:
+        return self._find_single_object(
+            f"""SELECT id FROM {self.schema}.external_identities WHERE guid = ? AND environment_slug = ?""",
+            [guid, environment_slug],
+        )
+
+    @lru_cache
     def repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories""",

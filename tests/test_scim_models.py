@@ -11,7 +11,7 @@ from openhound_github.resources.enterprise import iter_enterprise_scim_resources
 
 
 def _scim_user(*, legacy: bool = False) -> ScimUser:
-    return ScimUser(
+    user = ScimUser(
         id="scim-user-1",
         externalId="00u-okta-1",
         userName="alice@example.test",
@@ -23,6 +23,10 @@ def _scim_user(*, legacy: bool = False) -> ScimUser:
         enterprise_slug="example-enterprise",
         emit_legacy_correlation=legacy,
     )
+    lookup = MagicMock()
+    lookup.external_identity_id_for_guid.return_value = "external-identity-1"
+    user._lookup = lookup
+    return user
 
 
 def test_enterprise_scim_uses_enterprise_endpoint_and_scim_pagination() -> None:
@@ -58,10 +62,11 @@ def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default(
         ek.SCIM_CONTAINS,
         ek.SCIM_PROVISIONED,
     ]
-    assert isinstance(edges[1].end, ConditionalEdgePath)
-    assert edges[1].end.kind == nk.EXTERNAL_IDENTITY
-    assert edges[1].end.property_matchers[0].key == "guid"
-    assert edges[1].end.property_matchers[0].value == "scim-user-1"
+    assert edges[1].end.value == "external-identity-1"
+    assert edges[1].end.match_by == "id"
+    user._lookup.external_identity_id_for_guid.assert_called_once_with(
+        "scim-user-1", "example-enterprise"
+    )
 
 
 def test_scim_user_legacy_idp_correlation_is_explicitly_gated() -> None:
