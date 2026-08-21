@@ -32,7 +32,7 @@ def scim_organization_id(scope_node_id: str) -> str:
 class ScimNodeProperties(NodeProperties):
     collected: bool = True
     external_id: str | None = None
-    user_name: str | None = None
+    username: str | None = None
     enabled: bool | None = None
     given_name: str | None = None
     family_name: str | None = None
@@ -181,7 +181,7 @@ class EnterpriseScimOrganization(ScimOrganization):
 class ScimUser(ScimScopeAsset):
     id: str
     external_id: str | None = Field(default=None, alias="externalId")
-    user_name: str | None = Field(default=None, alias="userName")
+    username: str | None = Field(default=None, alias="userName")
     display_name: str | None = Field(default=None, alias="displayName")
     name: Name | None = None
     emails: list[dict[str, Any]] = Field(default_factory=list)
@@ -193,16 +193,16 @@ class ScimUser(ScimScopeAsset):
 
     @property
     def as_node(self) -> ScimNode:
-        display_name = self.display_name or self.user_name or self.id
+        display_name = self.display_name or self.username or self.id
         return ScimNode(
             id=self.id,
             kinds=[nk.SCIM_USER],
             properties=ScimNodeProperties(
-                name=self.id,
+                name=self.username or self.id,
                 displayname=display_name,
                 environmentid=self.scope_node_id,
                 external_id=self.external_id,
-                user_name=self.user_name,
+                username=self.username,
                 enabled=self.active,
                 given_name=self.name.given_name if self.name else None,
                 family_name=self.name.family_name if self.name else None,

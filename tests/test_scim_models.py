@@ -52,6 +52,8 @@ def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default(
     assert node.kinds == [nk.SCIM_USER]
     assert node.properties.environmentid == "ENT_NODE_1"
     assert node.properties.external_id == "00u-okta-1"
+    assert node.properties.name == "alice@example.test"
+    assert node.properties.username == "alice@example.test"
     assert [edge.kind for edge in edges] == [
         ek.SCIM_CONTAINS,
         ek.SCIM_PROVISIONED,
