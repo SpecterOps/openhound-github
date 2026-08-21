@@ -1,16 +1,17 @@
 from openhound.core.asset import BaseAsset, EdgeDef
 from openhound.core.models.entries_dataclass import (
-    ConditionalEdgePath,
     Edge,
     EdgePath,
     EdgeProperties,
-    PropertyMatch,
 )
 
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.enterprise_helpers import enterprise_team_node_id
+from openhound_github.models.enterprise_helpers import (
+    enterprise_team_node_id,
+    projected_enterprise_team_node_id,
+)
 
 
 @app.asset(
@@ -59,18 +60,20 @@ class EnterpriseTeamOrganization(BaseAsset):
     @property
     def member_of_team_edges(self):
         org_login = self.login or self._lookup.org_login_for_id(self.node_id)
-        if org_login and self._lookup.projected_enterprise_team_exists(
-            org_login, self.projected_slug
-        ):
+        projected_team_id = (
+            self._lookup.projected_enterprise_team_id(org_login, self.projected_slug)
+            if org_login
+            else None
+        )
+        if projected_team_id:
             yield Edge(
                 kind=ek.MEMBER_OF,
                 start=EdgePath(value=self.enterprise_team_node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=nk.TEAM,
-                    property_matchers=[
-                        PropertyMatch(key="environmentid", value=self.node_id),
-                        PropertyMatch(key="slug", value=self.projected_slug),
-                    ],
+                end=EdgePath(
+                    value=projected_enterprise_team_node_id(
+                        self.node_id, projected_team_id
+                    ),
+                    match_by="id",
                 ),
                 properties=EdgeProperties(traversable=True),
             )

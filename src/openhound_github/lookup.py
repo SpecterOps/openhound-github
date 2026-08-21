@@ -188,9 +188,9 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
-    def projected_enterprise_team_exists(self, org_login: str, slug: str):
+    def projected_enterprise_team_id(self, org_login: str, slug: str) -> str | None:
         return self._find_single_object(
-            f"""SELECT slug FROM {self.schema}.projected_enterprise_teams WHERE org_login = ? AND slug = ?""",
+            f"""SELECT node_id FROM {self.schema}.projected_enterprise_teams WHERE org_login = ? AND slug = ?""",
             [org_login, slug],
         )
 

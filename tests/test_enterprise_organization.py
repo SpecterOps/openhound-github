@@ -69,7 +69,7 @@ def test_collected_resolved_per_node_id_in_multi_org_enterprise() -> None:
     assert stub_org.as_node.properties.collected is False
 
 
-def test_enterprise_team_organization_matcher_preserves_org_node_id_case() -> None:
+def test_enterprise_team_organization_uses_projected_team_node_id() -> None:
     org_node_id = "MDEyOk9yZ2FuaXphdGlvbjE="
     assignment = EnterpriseTeamOrganization(
         node_id=org_node_id,
@@ -80,15 +80,10 @@ def test_enterprise_team_organization_matcher_preserves_org_node_id_case() -> No
         enterprise_slug="example-enterprise",
     )
     lookup = MagicMock()
-    lookup.projected_enterprise_team_exists.return_value = True
+    lookup.projected_enterprise_team_id.return_value = "TEAM_NODE_1"
     assignment._lookup = lookup
 
     edge = next(assignment.member_of_team_edges)
-    matcher_values = {
-        matcher.key: matcher.value for matcher in edge.end.property_matchers
-    }
 
-    assert matcher_values == {
-        "environmentid": org_node_id,
-        "slug": "ent:engineering",
-    }
+    assert edge.end.value == f"GH_Team_{org_node_id}_TEAM_NODE_1"
+    assert edge.end.match_by == "id"
