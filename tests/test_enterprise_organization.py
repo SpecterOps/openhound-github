@@ -85,5 +85,8 @@ def test_enterprise_team_organization_uses_projected_team_node_id() -> None:
 
     edge = next(assignment.member_of_team_edges)
 
+    lookup.projected_enterprise_team_id.assert_called_once_with(
+        "github", "ent:engineering"
+    )
     assert edge.end.value == f"GH_Team_{org_node_id}_TEAM_NODE_1"
     assert edge.end.match_by == "id"

@@ -1,11 +1,13 @@
 import logging
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import requests
 
 from openhound_github.resources.organization import (
     OrgContext,
     SourceContext,
+    iter_organization_scim_users,
     organization_resources,
     org_scim_organizations,
     scim_users,
@@ -35,6 +37,22 @@ def _ctx(client) -> SourceContext:
         client=client,
         organizations=[OrgContext(client=client, org_name="acme")],
     )
+
+
+def test_org_scim_uses_scim_count_pagination() -> None:
+    client = MagicMock()
+    client.paginate.return_value = [[{"id": "u1"}], [{"id": "u2"}]]
+
+    rows = list(iter_organization_scim_users(client, "acme"))
+
+    assert rows == [{"id": "u1"}, {"id": "u2"}]
+    args, kwargs = client.paginate.call_args
+    assert args[0] == "/scim/v2/organizations/acme/Users"
+    assert kwargs["params"] == {"startIndex": 1, "count": 100}
+    assert kwargs["data_selector"] == "Resources"
+    assert kwargs["paginator"].param_name == "startIndex"
+    assert kwargs["paginator"].initial_value == 1
+    assert kwargs["paginator"].limit_param == "count"
 
 
 def test_org_scim_organization_skips_unavailable_scope(caplog) -> None:

@@ -1,4 +1,5 @@
 import json
+import re
 from functools import lru_cache
 
 import duckdb
@@ -8,10 +9,20 @@ from openhound.core.lookup import LookupManager, logger
 from openhound_github.runner_ids import runner_group_node_id, runner_node_id
 
 
+_SCHEMA_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_schema_identifier(schema: str) -> str:
+    if not _SCHEMA_IDENTIFIER_RE.fullmatch(schema):
+        raise ValueError(f"Invalid DuckDB schema identifier: {schema!r}")
+    return schema
+
+
 class GithubLookup(LookupManager):
     def __init__(self, client: DuckDBPyConnection, schema: str = "github"):
-        super().__init__(client, schema)
-        self.schema = schema
+        validated_schema = _validate_schema_identifier(schema)
+        super().__init__(client, validated_schema)
+        self.schema = validated_schema
         self.client = client
 
     def _find_single_row(self, *args):

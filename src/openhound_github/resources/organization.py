@@ -1921,17 +1921,18 @@ def iter_organization_scim_users(
     client: RESTClient,
     org_name: str,
     *,
-    items_per_page: int = 100,
+    count: int = 100,
 ):
     scim_paginator = OffsetPaginator(
         offset_param="startIndex",
-        limit_param="itemsPerPage",
-        limit=items_per_page,
+        limit_param="count",
+        limit=count,
+        offset=1,
         total_path="totalResults",
     )
     for page in client.paginate(
         f"/scim/v2/organizations/{org_name}/Users",
-        params={"startIndex": 1, "itemsPerPage": items_per_page},
+        params={"startIndex": 1, "count": count},
         paginator=scim_paginator,
         data_selector="Resources",
     ):
@@ -2007,7 +2008,7 @@ def org_scim_organizations(org: Organization, ctx: SourceContext):
             iter_organization_scim_users(
                 org_context.client,
                 org.login,
-                items_per_page=1,
+                count=1,
             ),
             None,
         )

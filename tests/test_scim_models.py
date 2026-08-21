@@ -1,18 +1,23 @@
+import gzip
+import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import duckdb
 from openhound.core.models.entries_dataclass import ConditionalEdgePath
+from openhound.core.progress import Progress
 
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.lookup import GithubLookup
+from openhound_github.main import preproc
 from openhound_github.models import EnterpriseTeam, ScimGroup, ScimOrganization, ScimUser
 from openhound_github.resources.enterprise import iter_enterprise_scim_resources
 
 
-def _scim_user(*, legacy: bool = False) -> ScimUser:
-    user = ScimUser(
-        id="scim-user-1",
+def _scim_user(*, legacy: bool = False, user_id: str = "scim-user-1") -> ScimUser:
+    return ScimUser(
+        id=user_id,
         externalId="00u-okta-1",
         userName="alice@example.test",
         displayName="Alice Example",
@@ -23,10 +28,35 @@ def _scim_user(*, legacy: bool = False) -> ScimUser:
         enterprise_slug="example-enterprise",
         emit_legacy_correlation=legacy,
     )
-    lookup = MagicMock()
-    lookup.external_identity_id_for_guid.return_value = "external-identity-1"
-    user._lookup = lookup
-    return user
+
+
+def _external_identity_lookup(tmp_path: Path) -> GithubLookup:
+    resource_dir = tmp_path / "external_identities"
+    resource_dir.mkdir()
+    with gzip.open(resource_dir / "rows.jsonl.gz", "wt", encoding="utf-8") as f:
+        for row in [
+            {
+                "id": "external-identity-wrong-guid",
+                "guid": "scim-user-2",
+                "environment_slug": "example-enterprise",
+            },
+            {
+                "id": "external-identity-wrong-scope",
+                "guid": "scim-user-1",
+                "environment_slug": "other-enterprise",
+            },
+            {
+                "id": "external-identity-1",
+                "guid": "scim-user-1",
+                "environment_slug": "example-enterprise",
+            },
+        ]:
+            f.write(json.dumps(row))
+            f.write("\n")
+
+    lookup_file = tmp_path / "lookup.duckdb"
+    preproc(tmp_path, lookup_file, progress=Progress.log)
+    return GithubLookup(duckdb.connect(str(lookup_file)))
 
 
 def test_enterprise_scim_uses_enterprise_endpoint_and_scim_pagination() -> None:
@@ -47,11 +77,18 @@ def test_enterprise_scim_uses_enterprise_endpoint_and_scim_pagination() -> None:
     assert kwargs["paginator"].limit_param == "count"
 
 
-def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default() -> None:
+def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default(
+    tmp_path: Path,
+) -> None:
+    lookup = _external_identity_lookup(tmp_path)
     user = _scim_user()
+    user._lookup = lookup
+    unmatched_user = _scim_user(user_id="scim-user-missing")
+    unmatched_user._lookup = lookup
 
     node = user.as_node
     edges = list(user.edges)
+    unmatched_edges = list(unmatched_user.edges)
 
     assert node.kinds == [nk.SCIM_USER]
     assert node.properties.environmentid == "ENT_NODE_1"
@@ -64,13 +101,14 @@ def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default(
     ]
     assert edges[1].end.value == "external-identity-1"
     assert edges[1].end.match_by == "id"
-    user._lookup.external_identity_id_for_guid.assert_called_once_with(
-        "scim-user-1", "example-enterprise"
-    )
+    assert [edge.kind for edge in unmatched_edges] == [ek.SCIM_CONTAINS]
 
 
-def test_scim_user_legacy_idp_correlation_is_explicitly_gated() -> None:
-    edges = list(_scim_user(legacy=True).edges)
+def test_scim_user_legacy_idp_correlation_is_explicitly_gated(tmp_path: Path) -> None:
+    user = _scim_user(legacy=True)
+    user._lookup = _external_identity_lookup(tmp_path)
+
+    edges = list(user.edges)
 
     legacy_edge = edges[-1]
     assert legacy_edge.kind == ek.SCIM_PROVISIONED
