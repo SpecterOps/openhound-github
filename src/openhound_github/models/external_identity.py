@@ -2,14 +2,13 @@ from dataclasses import dataclass, field
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import (
-    ConditionalEdgePath,
     Edge,
     EdgePath,
     EdgeProperties,
 )
 from pydantic import BaseModel, ConfigDict, Field
 
-from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
+from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
@@ -18,9 +17,6 @@ from .saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     ENTRA_OBJECT_ID_CLAIM,
     SAML_CONTRACT_VERSION,
-    detect_foreign_idp,
-    foreign_user_kind,
-    foreign_user_matchers,
     github_saml_service_provider_id,
     saml_account_match_values,
     saml_attribute_match_values,
@@ -114,13 +110,6 @@ class User(BaseModel):
             traversable=False,
         ),
         EdgeDef(
-            start=nk.EXTERNAL_IDENTITY,
-            end=nk.USER,
-            kind=ek.SYNCED_TO_GH_USER,
-            description="Foreign IdP user is synced to a GitHub user",
-            traversable=True,
-        ),
-        EdgeDef(
             start=nk.SAML_SERVICE_PROVIDER,
             end=nk.USER,
             kind=ek.SAML_HAS_ACCOUNT,
@@ -150,12 +139,19 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        display_name = (
+            self.saml_identity.username
+            if self.saml_identity and self.saml_identity.username
+            else self.scim_identity.username
+            if self.scim_identity and self.scim_identity.username
+            else self.guid or self.node_id
+        )
 
         return GHNode(
             kinds=[nk.EXTERNAL_IDENTITY],
             properties=GHExternalIdentityProperties(
-                name=self.guid or self.node_id,
-                displayname=self.guid or self.node_id,
+                name=display_name,
+                displayname=display_name,
                 node_id=self.node_id,
                 guid=self.guid,
                 saml_identity_username=self.saml_identity.username
@@ -208,66 +204,6 @@ class ExternalIdentity(BaseAsset):
             "environment_name": environment_name,
             "environment_type": environment_type,
         }
-
-    @property
-    def _maps_to_user_edges(self):
-        foreign_idp_type, foreign_env_id = detect_foreign_idp(
-            issuer=self.idp["issuer"],
-            sso_url=self.idp["sso_url"],
-        )
-        foreign_kind = foreign_user_kind(foreign_idp_type)
-
-        foreign_username = None
-        if self.saml_identity and self.saml_identity.username:
-            foreign_username = self.saml_identity.username
-        elif self.scim_identity and self.scim_identity.username:
-            foreign_username = self.scim_identity.username
-
-        matchers = foreign_user_matchers(
-            foreign_kind,
-            foreign_env_id,
-            foreign_username,
-            self.saml_identity.attributes if self.saml_identity else [],
-        )
-        if foreign_kind and matchers:
-            yield Edge(
-                kind=ek.MAPS_TO_USER,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=ConditionalEdgePath(
-                    kind=foreign_kind,
-                    property_matchers=matchers,
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
-
-        # SyncedToGHUser: foreign IdP user → GitHub user (traversable, with composition)
-        if matchers and self.user and self.user.id:
-            composition_matchers = [
-                matcher for matcher in matchers if matcher.key in {"name", "objectid"}
-            ]
-            composition_predicates = " OR ".join(
-                f"n.{matcher.key} = '{matcher.value}'"
-                for matcher in composition_matchers
-            )
-            q = (
-                f"MATCH p=()<-[:GH_SyncedToEnvironment]-(:GH_SamlIdentityProvider)"
-                f"-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)"
-                f"-[:GH_MapsToUser]->(n) "
-                f"WHERE {composition_predicates} RETURN p"
-            )
-            yield Edge(
-                kind=ek.SYNCED_TO_GH_USER,
-                start=ConditionalEdgePath(
-                    kind=foreign_kind,
-                    property_matchers=matchers,
-                ),
-                end=EdgePath(value=self.user.id, match_by="id"),
-                properties=GHEdgeProperties(
-                    traversable=True,
-                    composed=True,
-                    query_composition=q,
-                ),
-            )
 
     @property
     def service_provider_node_id(self) -> str | None:
@@ -363,5 +299,3 @@ class ExternalIdentity(BaseAsset):
                 end=EdgePath(value=self.user.id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
             )
-
-        yield from self._maps_to_user_edges

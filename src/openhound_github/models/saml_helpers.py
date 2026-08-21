@@ -3,26 +3,13 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urlparse
 
-from openhound.core.models.entries_dataclass import EdgeProperties, PropertyMatch
-
-from openhound_github.kinds import nodes as nk
+from openhound.core.models.entries_dataclass import EdgeProperties
 
 
 SAML_CONTRACT_VERSION = "opengraph-saml-v0.3.0"
 ENTRA_OBJECT_ID_CLAIM = "http://schemas.microsoft.com/identity/claims/objectidentifier"
-ENTRA_TENANT_ID_CLAIM = "http://schemas.microsoft.com/identity/claims/tenantid"
 DEFAULT_GITHUB_DEPLOYMENT_ID = "github.com"
 DEFAULT_GITHUB_WEB_ORIGIN = "https://github.com"
-
-_FOREIGN_USER_KIND = {
-    "entra": nk.AZ_USER,
-    "okta": nk.OKTA_USER,
-    "pingone": nk.PINGONE_USER,
-}
-_FOREIGN_USER_ENVIRONMENT_PROPERTY = {
-    nk.OKTA_USER: "tenant_domain",
-    nk.PINGONE_USER: "environmentid",
-}
 
 
 @dataclass
@@ -66,47 +53,6 @@ def detect_foreign_idp(
         return "okta", domain
 
     return None, None
-
-def foreign_user_kind(foreign_idp_type: str | None) -> str:
-    return _FOREIGN_USER_KIND.get(foreign_idp_type or "", "")
-
-
-def foreign_user_matchers(
-    foreign_kind: str | None,
-    foreign_environment_id: str | None,
-    foreign_username: str | None,
-    saml_attributes: list[Any] | None = None,
-) -> list[PropertyMatch]:
-    """Return tenant-scoped matchers for foreign IdP user correlation."""
-    if foreign_kind == nk.AZ_USER:
-        tenant_ids = saml_attribute_match_values(
-            saml_attributes or [],
-            ENTRA_TENANT_ID_CLAIM,
-        )
-        object_ids = saml_attribute_match_values(
-            saml_attributes or [],
-            ENTRA_OBJECT_ID_CLAIM,
-        )
-        if (
-            not foreign_environment_id
-            or len(tenant_ids) != 1
-            or len(object_ids) != 1
-            or tenant_ids[0].casefold() != foreign_environment_id.casefold()
-        ):
-            return []
-        return [
-            PropertyMatch(key="tenantid", value=tenant_ids[0].upper()),
-            PropertyMatch(key="objectid", value=object_ids[0].upper()),
-        ]
-
-    environment_property = _FOREIGN_USER_ENVIRONMENT_PROPERTY.get(foreign_kind or "")
-    if not environment_property or not foreign_environment_id or not foreign_username:
-        return []
-    return [
-        PropertyMatch(key=environment_property, value=foreign_environment_id),
-        PropertyMatch(key="name", value=foreign_username.upper()),
-    ]
-
 
 def github_deployment_context(host: str) -> tuple[str, str]:
     """Return a stable deployment ID and browser origin for a GitHub API host."""

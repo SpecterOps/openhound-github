@@ -55,6 +55,27 @@ def _saml_account_edge(identity: ExternalIdentity):
     return next(edge for edge in identity.edges if edge.kind == ek.SAML_HAS_ACCOUNT)
 
 
+def test_external_identity_prefers_saml_username_for_display_name() -> None:
+    identity = _identity_with_lookup()
+
+    assert identity.as_node.properties.name == "Alice@example.com"
+    assert identity.as_node.properties.displayname == "Alice@example.com"
+
+
+def test_external_identity_uses_scim_username_without_saml_identity() -> None:
+    identity = _identity_with_lookup(samlIdentity=None)
+
+    assert identity.as_node.properties.name == "scim-only@example.com"
+    assert identity.as_node.properties.displayname == "scim-only@example.com"
+
+
+def test_external_identity_falls_back_to_guid_without_foreign_username() -> None:
+    identity = _identity_with_lookup(samlIdentity=None, scimIdentity=None)
+
+    assert identity.as_node.properties.name == "guid-1"
+    assert identity.as_node.properties.displayname == "guid-1"
+
+
 def test_normalized_saml_nodes_expose_contract_metadata() -> None:
     service_provider = SamlServiceProvider(
         id="IDP_1",
@@ -211,11 +232,12 @@ def test_saml_provider_replays_snake_case_fields_and_deployment_metadata() -> No
     assert provider.as_node.properties.github_web_origin == "https://github.example.com"
 
 
-def test_saml_account_edge_emits_contract_evidence_without_changing_legacy_edges() -> None:
+def test_saml_account_edge_emits_contract_evidence_and_direct_user_mapping() -> None:
     identity = _identity_with_lookup()
 
     edges = list(identity.edges)
     account_edge = next(edge for edge in edges if edge.kind == ek.SAML_HAS_ACCOUNT)
+    maps_to_edges = [edge for edge in edges if edge.kind == ek.MAPS_TO_USER]
 
     assert account_edge.properties.schema_contract_version == SAML_CONTRACT_VERSION
     assert account_edge.properties.match_values == [
@@ -236,7 +258,48 @@ def test_saml_account_edge_emits_contract_evidence_without_changing_legacy_edges
     assert account_edge.start.value == "github:saml:sp:org:acme"
 
     assert ek.HAS_EXTERNAL_IDENTITY in {edge.kind for edge in edges}
-    assert ek.MAPS_TO_USER in {edge.kind for edge in edges}
+    assert len(maps_to_edges) == 1
+    assert maps_to_edges[0].start.value == "external-identity-1"
+    assert maps_to_edges[0].end.value == "USER_1"
+    assert maps_to_edges[0].end.match_by == "id"
+
+
+def test_external_identity_does_not_emit_legacy_foreign_user_correlations() -> None:
+    identity = _identity_with_lookup()
+    identity._lookup = SimpleNamespace(
+        idp_for_environment=lambda _slug: [
+            (
+                "IDP_1",
+                "http://www.okta.com/example",
+                "https://example.okta.com/app/github/sso/saml",
+                "ORG_1",
+                "Acme",
+                "org",
+            )
+        ]
+    )
+
+    edges = list(identity.edges)
+    maps_to_edges = [edge for edge in edges if edge.kind == ek.MAPS_TO_USER]
+
+    assert "GH_SyncedTo" not in {edge.kind for edge in edges}
+    assert len(maps_to_edges) == 1
+    assert maps_to_edges[0].end.value == "USER_1"
+    assert not getattr(maps_to_edges[0].end, "property_matchers", None)
+
+
+def test_external_identity_missing_idp_fallback_includes_environment_type() -> None:
+    identity = _identity_with_lookup()
+    identity._lookup = SimpleNamespace(idp_for_environment=lambda _slug: [])
+
+    assert identity.idp == {
+        "id": None,
+        "issuer": None,
+        "sso_url": None,
+        "environment_node_id": None,
+        "environment_name": None,
+        "environment_type": None,
+    }
 
 
 def test_org_scim_only_identity_does_not_emit_saml_account_edge() -> None:

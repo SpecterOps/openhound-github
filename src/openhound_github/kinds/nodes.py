@@ -81,6 +81,4 @@ SCIM_GROUP = "SCIM_Group"
 SCIM_ROLE = "SCIM_Role"
 
 # External node kinds used only as correlation endpoints
-AZ_USER = "AZUser"
 OKTA_USER = "Okta_User"
-PINGONE_USER = "PingOne_User"
