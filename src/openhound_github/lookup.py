@@ -1,4 +1,5 @@
 import json
+import re
 from functools import lru_cache
 
 import duckdb
@@ -8,10 +9,20 @@ from openhound.core.lookup import LookupManager, logger
 from openhound_github.runner_ids import runner_group_node_id, runner_node_id
 
 
+_SCHEMA_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_schema_identifier(schema: str) -> str:
+    if not _SCHEMA_IDENTIFIER_RE.fullmatch(schema):
+        raise ValueError(f"Invalid DuckDB schema identifier: {schema!r}")
+    return schema
+
+
 class GithubLookup(LookupManager):
     def __init__(self, client: DuckDBPyConnection, schema: str = "github"):
-        super().__init__(client, schema)
-        self.schema = schema
+        validated_schema = _validate_schema_identifier(schema)
+        super().__init__(client, validated_schema)
+        self.schema = validated_schema
         self.client = client
 
     def _find_single_row(self, *args):
@@ -188,10 +199,19 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
-    def projected_enterprise_team_exists(self, org_login: str, slug: str):
+    def projected_enterprise_team_id(self, org_login: str, slug: str) -> str | None:
         return self._find_single_object(
-            f"""SELECT slug FROM {self.schema}.projected_enterprise_teams WHERE org_login = ? AND slug = ?""",
+            f"""SELECT node_id FROM {self.schema}.projected_enterprise_teams WHERE org_login = ? AND slug = ?""",
             [org_login, slug],
+        )
+
+    @lru_cache
+    def external_identity_id_for_guid(
+        self, guid: str, environment_slug: str
+    ) -> str | None:
+        return self._find_single_object(
+            f"""SELECT id FROM {self.schema}.external_identities WHERE guid = ? AND environment_slug = ?""",
+            [guid, environment_slug],
         )
 
     @lru_cache

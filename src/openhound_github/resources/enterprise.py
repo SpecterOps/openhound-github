@@ -11,7 +11,7 @@ from openhound_github.graphql import (
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
 )
-from openhound_github.helpers import GraphQLCursorPaginator
+from openhound_github.helpers import GraphQLCursorPaginator, scim_skip_reason
 from openhound_github.main import app
 from openhound_github.models import (
     BaseUser,
@@ -31,14 +31,14 @@ from openhound_github.models import (
     EnterpriseTeamOrganization,
     EnterpriseTeamRole,
     EnterpriseUser,
+    EnterpriseScimOrganization,
+    EnterpriseScimUser,
     SamlProvider,
     SamlServiceProvider,
     SamlAssertionConsumerService,
     SamlIssuer,
     ExternalIdentity,
     ScimGroup,
-    ScimOrganization,
-    ScimUser,
 )
 from openhound_github.models.saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
@@ -54,10 +54,8 @@ class SourceContext:
 
     client: RESTClient
     sso_client: RESTClient | None = None
-    scim_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
-    collect_enterprise_scim: bool = False
     emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
@@ -67,23 +65,43 @@ def iter_enterprise_scim_resources(
     client: RESTClient,
     enterprise_slug: str,
     resource_kind: str,
+    *,
+    count: int = 100,
 ):
     if resource_kind not in {"Users", "Groups"}:
         raise ValueError(f"Unsupported enterprise SCIM resource: {resource_kind}")
     paginator = OffsetPaginator(
         offset_param="startIndex",
         limit_param="count",
-        limit=100,
+        limit=count,
         offset=1,
         total_path="totalResults",
     )
     for page in client.paginate(
         f"/scim/v2/enterprises/{enterprise_slug}/{resource_kind}",
-        params={"startIndex": 1, "count": 100},
+        params={"startIndex": 1, "count": count},
         paginator=paginator,
         data_selector="Resources",
     ):
         yield from page
+
+
+def _log_enterprise_scim_failure(resource: str, enterprise_name: str, exception: BaseException):
+    skip_reason = scim_skip_reason(exception)
+    if skip_reason:
+        logger.warning(
+            "Skipping %s for enterprise '%s': %s",
+            resource,
+            enterprise_name,
+            skip_reason,
+            extra={"resource": resource, "phase": "resource_iteration"},
+        )
+        return
+
+    logger.error(
+        f"Error in resource '{resource}' processing enterprise '{enterprise_name}': {exception}",
+        extra={"resource": resource, "phase": "resource_iteration"},
+    )
 
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
@@ -148,10 +166,31 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
 
 @app.transformer(
     name="enterprise_scim_organizations",
-    columns=ScimOrganization,
+    columns=EnterpriseScimOrganization,
     parallelized=True,
 )
 def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    if not ctx.client or not ctx.enterprise_name:
+        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+
+    try:
+        next(
+            iter_enterprise_scim_resources(
+                ctx.client,
+                ctx.enterprise_name,
+                "Users",
+                count=1,
+            ),
+            None,
+        )
+    except Exception as e:
+        _log_enterprise_scim_failure(
+            "enterprise_scim_organizations",
+            ctx.enterprise_name,
+            e,
+        )
+        return
+
     yield {
         "enterprise_node_id": enterprise_data.id,
         "enterprise_slug": ctx.enterprise_name,
@@ -160,24 +199,29 @@ def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContex
 
 @app.transformer(
     name="enterprise_scim_users",
-    columns=ScimUser,
+    columns=EnterpriseScimUser,
     parallelized=True,
 )
-def enterprise_scim_users(enterprise_data: Enterprise, ctx: SourceContext):
-    scim_client = ctx.scim_client or ctx.client
-    if not scim_client or not ctx.enterprise_name:
+def enterprise_scim_users(
+    scim_organization: EnterpriseScimOrganization, ctx: SourceContext
+):
+    if not ctx.client or not ctx.enterprise_name:
         raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
-    for user in iter_enterprise_scim_resources(
-        scim_client,
-        ctx.enterprise_name,
-        "Users",
-    ):
-        yield {
-            **user,
-            "enterprise_node_id": enterprise_data.id,
-            "enterprise_slug": ctx.enterprise_name,
-            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
-        }
+    try:
+        for user in iter_enterprise_scim_resources(
+            ctx.client,
+            ctx.enterprise_name,
+            "Users",
+        ):
+            yield {
+                **user,
+                "enterprise_node_id": scim_organization.enterprise_node_id,
+                "enterprise_slug": ctx.enterprise_name,
+                "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
+            }
+    except Exception as e:
+        _log_enterprise_scim_failure("enterprise_scim_users", ctx.enterprise_name, e)
+        return
 
 
 @app.transformer(
@@ -185,21 +229,26 @@ def enterprise_scim_users(enterprise_data: Enterprise, ctx: SourceContext):
     columns=ScimGroup,
     parallelized=True,
 )
-def enterprise_scim_groups(enterprise_data: Enterprise, ctx: SourceContext):
-    scim_client = ctx.scim_client or ctx.client
-    if not scim_client or not ctx.enterprise_name:
+def enterprise_scim_groups(
+    scim_organization: EnterpriseScimOrganization, ctx: SourceContext
+):
+    if not ctx.client or not ctx.enterprise_name:
         raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
-    for group in iter_enterprise_scim_resources(
-        scim_client,
-        ctx.enterprise_name,
-        "Groups",
-    ):
-        yield {
-            **group,
-            "enterprise_node_id": enterprise_data.id,
-            "enterprise_slug": ctx.enterprise_name,
-            "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
-        }
+    try:
+        for group in iter_enterprise_scim_resources(
+            ctx.client,
+            ctx.enterprise_name,
+            "Groups",
+        ):
+            yield {
+                **group,
+                "enterprise_node_id": scim_organization.enterprise_node_id,
+                "enterprise_slug": ctx.enterprise_name,
+                "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
+            }
+    except Exception as e:
+        _log_enterprise_scim_failure("enterprise_scim_groups", ctx.enterprise_name, e)
+        return
 
 
 @app.transformer(name="enterprise_members", columns=BaseUser, parallelized=True)
@@ -794,6 +843,7 @@ def enterprise_resources(ctx: SourceContext):
     teams_resource = enterprise_teams(ctx)
     roles_resource = enterprise_roles(ctx)
     runner_groups_resource = enterprise_runner_groups(ctx)
+    scim_organizations_resource = enterprise_resource | enterprise_scim_organizations(ctx)
     resources = [
         enterprise_resource,
         enterprise_resource | organizations_resource,
@@ -830,13 +880,12 @@ def enterprise_resources(ctx: SourceContext):
             ]
         )
 
-    if ctx.collect_enterprise_scim:
-        resources.extend(
-            [
-                enterprise_resource | enterprise_scim_organizations(ctx),
-                enterprise_resource | enterprise_scim_users(ctx),
-                enterprise_resource | enterprise_scim_groups(ctx),
-            ]
-        )
+    resources.extend(
+        [
+            scim_organizations_resource,
+            scim_organizations_resource | enterprise_scim_users(ctx),
+            scim_organizations_resource | enterprise_scim_groups(ctx),
+        ]
+    )
 
     return tuple(resources)

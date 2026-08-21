@@ -22,7 +22,7 @@ from openhound_github.graphql import (
     TEAM_MEMBERS_OVERFLOW_QUERY,
     TEAMS_QUERY,
 )
-from openhound_github.helpers import GraphQLCursorPaginator
+from openhound_github.helpers import GraphQLCursorPaginator, scim_skip_reason
 from openhound_github.main import app
 from openhound_github.models import (
     ActionPermission,
@@ -1917,43 +1917,78 @@ def saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
         "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
-@app.resource(name="scim_users", columns=ScimResource, parallelized=True)
-def scim_users(ctx: SourceContext):
+def iter_organization_scim_users(
+    client: RESTClient,
+    org_name: str,
+    *,
+    count: int = 100,
+):
+    scim_paginator = OffsetPaginator(
+        offset_param="startIndex",
+        limit_param="count",
+        limit=count,
+        offset=1,
+        total_path="totalResults",
+    )
+    for page in client.paginate(
+        f"/scim/v2/organizations/{org_name}/Users",
+        params={"startIndex": 1, "count": count},
+        paginator=scim_paginator,
+        data_selector="Resources",
+    ):
+        yield from page
+
+
+def _org_context_for_login(ctx: SourceContext, org_login: str) -> OrgContext | None:
+    for org in ctx.organizations:
+        if org.org_name == org_login:
+            return org
+    return None
+
+
+def _log_org_scim_failure(resource: str, org_name: str, exception: BaseException):
+    skip_reason = scim_skip_reason(exception)
+    if skip_reason:
+        logger.warning(
+            "Skipping %s for organization '%s': %s",
+            resource,
+            org_name,
+            skip_reason,
+            extra={"resource": resource, "phase": "resource_iteration"},
+        )
+        return
+
+    logger.error(
+        f"Error in resource '{resource}' processing organization '{org_name}': {exception}",
+        extra={"resource": resource, "phase": "resource_iteration"},
+    )
+
+
+@app.transformer(name="scim_users", columns=ScimResource, parallelized=True)
+def scim_users(scim_organization: ScimOrganization, ctx: SourceContext):
     """Fetch SCIM users for the organization.
 
     Args:
+        scim_organization (ScimOrganization): The SCIM scope whose users should be fetched.
         ctx (SourceContext): The shared context containing the REST client and organization name.
 
     Yields:
         ScimResource (ScimResource): SCIM user record.
     """
-    for org in ctx.organizations:
-        org_name = org.org_name
-        client = org.client
-        try:
-            scim_paginator = OffsetPaginator(
-                offset_param="startIndex",
-                limit_param="itemsPerPage",
-                limit=100,
-                total_path="totalResults",
-            )
-            for page in client.paginate(
-                f"/scim/v2/organizations/{org_name}/Users",
-                params={"startIndex": 1, "itemsPerPage": 100},
-                paginator=scim_paginator,
-                data_selector="Resources",
-            ):
-                for user in page:
-                    yield {
-                        **user,
-                        "org_login": org_name,
-                    }
-        except Exception as e:
-            logger.error(
-                f"Error in resource 'scim_users' processing organization '{org_name}': {e}",
-                extra={"resource": "scim_users", "phase": "resource_iteration"},
-            )
-            continue
+    org_name = scim_organization.org_login
+    org = _org_context_for_login(ctx, org_name)
+    if not org:
+        raise ValueError(f"SCIM collection requires a configured client for organization '{org_name}'")
+
+    try:
+        for user in iter_organization_scim_users(org.client, org_name):
+            yield {
+                **user,
+                "org_login": org_name,
+            }
+    except Exception as e:
+        _log_org_scim_failure("scim_users", org_name, e)
+        return
 
 
 @app.transformer(
@@ -1961,7 +1996,26 @@ def scim_users(ctx: SourceContext):
     columns=ScimOrganization,
     parallelized=True,
 )
-def org_scim_organizations(org: Organization):
+def org_scim_organizations(org: Organization, ctx: SourceContext):
+    org_context = _org_context_for_login(ctx, org.login)
+    if not org_context:
+        raise ValueError(
+            f"SCIM collection requires a configured client for organization '{org.login}'"
+        )
+
+    try:
+        next(
+            iter_organization_scim_users(
+                org_context.client,
+                org.login,
+                count=1,
+            ),
+            None,
+        )
+    except Exception as e:
+        _log_org_scim_failure("org_scim_organizations", org.login, e)
+        return
+
     yield {
         "org_login": org.login,
         "org_node_id": org.node_id,
@@ -1989,6 +2043,7 @@ def organization_resources(ctx: SourceContext):
     organization_vars_resource = organization_variables(ctx)
     projected_enterprise_teams_resource = projected_enterprise_teams(ctx)
     saml_resource = saml_provider(ctx)
+    org_scim_organizations_resource = org_resource | org_scim_organizations(ctx)
 
     return (
         org_resource,
@@ -2007,11 +2062,11 @@ def organization_resources(ctx: SourceContext):
         repos_resource | repository_variables(ctx),
         teams_resource,
         projected_enterprise_teams_resource,
-        org_resource | org_scim_organizations(),
+        org_scim_organizations_resource,
         teams_resource | team_members(ctx),
         teams_resource | team_roles(),
         teams_resource | team_repo_role_assignments(ctx, repo_roles_base),
-        scim_users(ctx),
+        org_scim_organizations_resource | scim_users(ctx),
         repositories_graphql_resource,
         repositories_graphql_resource | branches(ctx),
         branch_prot_rules_resource,

@@ -62,6 +62,11 @@ def ensure_optional_input_tables(
             team_id VARCHAR,
             id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.external_identities (
+            id VARCHAR,
+            guid VARCHAR,
+            environment_slug VARCHAR
+        );
         CREATE TABLE IF NOT EXISTS {schema}.org_roles (
             id BIGINT,
             name VARCHAR,

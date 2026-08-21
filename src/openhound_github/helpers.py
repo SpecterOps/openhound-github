@@ -20,6 +20,19 @@ class GraphQLPaginationError(RuntimeError):
     pass
 
 
+def scim_skip_reason(exception: BaseException) -> str | None:
+    """Return a user-facing reason for expected SCIM API unavailability."""
+    if not isinstance(exception, requests.HTTPError) or exception.response is None:
+        return None
+
+    status_code = exception.response.status_code
+    if status_code in (401, 403):
+        return "the configured credentials do not have SCIM access"
+    if status_code == 404:
+        return "the GitHub scope does not expose SCIM endpoints"
+    return None
+
+
 class GraphQLCursorPaginator(JSONResponseCursorPaginator):
     def __init__(
         self,

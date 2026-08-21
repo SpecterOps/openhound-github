@@ -1,6 +1,9 @@
 import logging
 from types import SimpleNamespace
 
+import requests
+
+from openhound_github.models import EnterpriseScimOrganization, EnterpriseScimUser
 from openhound_github.resources.enterprise import (
     SourceContext,
     enterprise,
@@ -10,6 +13,9 @@ from openhound_github.resources.enterprise import (
     enterprise_runner_group_organizations,
     enterprise_runner_groups,
     enterprise_runners,
+    enterprise_resources,
+    enterprise_scim_organizations,
+    enterprise_scim_users,
     enterprise_saml_provider,
 )
 
@@ -48,6 +54,19 @@ class _FailingPostClient(_FakeClient):
     def post(self, path: str, json: dict):
         self.post_calls.append((path, json))
         raise ConnectionError("GraphQL endpoint unreachable")
+
+
+class _HTTPErrorPaginateClient(_FakeClient):
+    def __init__(self, status_code: int):
+        super().__init__(payload={})
+        self.status_code = status_code
+
+    def paginate(self, path: str, **kwargs):
+        self.paginate_calls.append((path, kwargs))
+        response = requests.Response()
+        response.status_code = self.status_code
+        response.url = f"https://api.github.com{path}"
+        raise requests.HTTPError(response=response)
 
 
 def test_enterprise_resource_yields_single_record() -> None:
@@ -219,6 +238,104 @@ def test_enterprise_external_identity_logs_and_returns_on_pagination_failure(
         "Error in resource 'enterprise_external_identity' processing enterprise 'acme'"
         in message
         for message in caplog.messages
+    )
+
+
+def test_enterprise_scim_organization_skips_missing_permission(caplog) -> None:
+    client = _HTTPErrorPaginateClient(status_code=403)
+    ctx = SourceContext(client=client, enterprise_name="acme")
+    enterprise_data = SimpleNamespace(id="E_1")
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_scim_organizations.__wrapped__(enterprise_data, ctx))
+
+    assert rows == []
+    assert any(
+        "Skipping enterprise_scim_organizations for enterprise 'acme': "
+        "the configured credentials do not have SCIM access"
+        in message
+        for message in caplog.messages
+    )
+
+
+def test_enterprise_scim_organization_skips_unavailable_scope(caplog) -> None:
+    client = _HTTPErrorPaginateClient(status_code=404)
+    ctx = SourceContext(client=client, enterprise_name="acme")
+    enterprise_data = SimpleNamespace(id="E_1")
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_scim_organizations.__wrapped__(enterprise_data, ctx))
+
+    assert rows == []
+    assert any(
+        "Skipping enterprise_scim_organizations for enterprise 'acme': "
+        "the GitHub scope does not expose SCIM endpoints"
+        in message
+        for message in caplog.messages
+    )
+
+
+def test_enterprise_scim_uses_enterprise_client_when_sso_client_is_present() -> None:
+    enterprise_client = _FakeClient(payload={}, pages=[[]])
+    sso_client = _FailingPaginateClient(payload={})
+    ctx = SourceContext(
+        client=enterprise_client,
+        sso_client=sso_client,
+        enterprise_name="acme",
+    )
+    enterprise_data = SimpleNamespace(id="E_1")
+
+    rows = list(enterprise_scim_organizations.__wrapped__(enterprise_data, ctx))
+
+    assert rows == [{"enterprise_node_id": "E_1", "enterprise_slug": "acme"}]
+    assert enterprise_client.paginate_calls[0][0] == "/scim/v2/enterprises/acme/Users"
+    assert sso_client.paginate_calls == []
+
+
+def test_enterprise_scim_users_logs_unexpected_failure_as_error(caplog) -> None:
+    client = _FailingPaginateClient(payload={})
+    ctx = SourceContext(client=client, enterprise_name="acme")
+    scim_organization = SimpleNamespace(enterprise_node_id="E_1")
+
+    with caplog.at_level(logging.ERROR, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_scim_users.__wrapped__(scim_organization, ctx))
+
+    assert rows == []
+    assert any(
+        "Error in resource 'enterprise_scim_users' processing enterprise 'acme'"
+        in message
+        for message in caplog.messages
+    )
+
+
+def test_enterprise_resources_register_scim_by_default() -> None:
+    ctx = SourceContext(client=_FakeClient(payload={}), enterprise_name="acme")
+
+    resources = {resource.name: resource for resource in enterprise_resources(ctx)}
+
+    assert "enterprise_scim_organizations" in resources
+    assert "enterprise_scim_users" in resources
+    assert "enterprise_scim_groups" in resources
+    assert (
+        resources["enterprise_scim_organizations"].validator.model
+        is EnterpriseScimOrganization
+    )
+    assert resources["enterprise_scim_users"].validator.model is EnterpriseScimUser
+
+
+def test_enterprise_scim_children_are_bound_to_successful_scim_scope() -> None:
+    ctx = SourceContext(client=_FakeClient(payload={}), enterprise_name="acme")
+
+    resources = {resource.name: resource for resource in enterprise_resources(ctx)}
+
+    assert resources["enterprise_scim_organizations"]._pipe.parent.name == "enterprise"
+    assert (
+        resources["enterprise_scim_users"]._pipe.parent.name
+        == "enterprise_scim_organizations"
+    )
+    assert (
+        resources["enterprise_scim_groups"]._pipe.parent.name
+        == "enterprise_scim_organizations"
     )
 
 

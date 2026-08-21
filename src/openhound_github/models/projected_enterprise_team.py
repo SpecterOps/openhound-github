@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field
 from openhound_github.graph import GHNode
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.enterprise_helpers import projected_enterprise_team_node_id
 from openhound_github.models.team import GHTeamProperties
 
 
@@ -43,7 +44,7 @@ class ProjectedEnterpriseTeam(BaseAsset):
             properties=GHTeamProperties(
                 name=self.name,
                 displayname=self.name,
-                node_id=f"GH_Team_{self.org_node_id}_{self.node_id}",
+                node_id=projected_enterprise_team_node_id(self.org_node_id, self.node_id),
                 github_team_id=self.node_id,
                 collected=False,
                 slug=self.slug,

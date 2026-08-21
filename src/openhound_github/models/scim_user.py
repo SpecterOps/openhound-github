@@ -137,6 +137,15 @@ class ScimOrganization(ScimScopeAsset):
         return []
 
 
+@app.asset()
+class EnterpriseScimOrganization(ScimOrganization):
+    """Enterprise-scoped SCIM organization input model.
+
+    This remains a distinct asset class so the converter can map enterprise and
+    organization SCIM tables independently while emitting the same graph kind.
+    """
+
+
 @app.asset(
     node=NodeDef(
         kind=nk.SCIM_USER,
@@ -189,7 +198,7 @@ class ScimUser(ScimScopeAsset):
             id=self.id,
             kinds=[nk.SCIM_USER],
             properties=ScimNodeProperties(
-                name=self.id,
+                name=self.user_name or self.id,
                 displayname=display_name,
                 environmentid=self.scope_node_id,
                 external_id=self.external_id,
@@ -213,15 +222,16 @@ class ScimUser(ScimScopeAsset):
             end=EdgePath(value=self.id, match_by="id"),
             properties=EdgeProperties(traversable=True),
         )
-        yield Edge(
-            kind=ek.SCIM_PROVISIONED,
-            start=EdgePath(value=self.id, match_by="id"),
-            end=ConditionalEdgePath(
-                kind=nk.EXTERNAL_IDENTITY,
-                property_matchers=[PropertyMatch(key="guid", value=self.id)],
-            ),
-            properties=EdgeProperties(traversable=True),
+        external_identity_id = self._lookup.external_identity_id_for_guid(
+            self.id, self.scope_name
         )
+        if external_identity_id:
+            yield Edge(
+                kind=ek.SCIM_PROVISIONED,
+                start=EdgePath(value=self.id, match_by="id"),
+                end=EdgePath(value=external_identity_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
         if self.emit_legacy_correlation and self.external_id:
             yield Edge(
                 kind=ek.SCIM_PROVISIONED,
@@ -229,6 +239,11 @@ class ScimUser(ScimScopeAsset):
                 end=EdgePath(value=self.id, match_by="id"),
                 properties=EdgeProperties(traversable=True),
             )
+
+
+@app.asset()
+class EnterpriseScimUser(ScimUser):
+    """Enterprise-scoped SCIM user input model."""
 
 
 @app.asset(
