@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import requests
 
+from openhound_github.models import EnterpriseScimOrganization, EnterpriseScimUser
 from openhound_github.resources.enterprise import (
     SourceContext,
     enterprise,
@@ -315,6 +316,11 @@ def test_enterprise_resources_register_scim_by_default() -> None:
     assert "enterprise_scim_organizations" in resources
     assert "enterprise_scim_users" in resources
     assert "enterprise_scim_groups" in resources
+    assert (
+        resources["enterprise_scim_organizations"].validator.model
+        is EnterpriseScimOrganization
+    )
+    assert resources["enterprise_scim_users"].validator.model is EnterpriseScimUser
 
 
 def test_enterprise_scim_children_are_bound_to_successful_scim_scope() -> None:

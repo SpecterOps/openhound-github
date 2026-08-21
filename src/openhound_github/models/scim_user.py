@@ -137,6 +137,15 @@ class ScimOrganization(ScimScopeAsset):
         return []
 
 
+@app.asset()
+class EnterpriseScimOrganization(ScimOrganization):
+    """Enterprise-scoped SCIM organization input model.
+
+    This remains a distinct asset class so the converter can map enterprise and
+    organization SCIM tables independently while emitting the same graph kind.
+    """
+
+
 @app.asset(
     node=NodeDef(
         kind=nk.SCIM_USER,
@@ -229,6 +238,11 @@ class ScimUser(ScimScopeAsset):
                 end=EdgePath(value=self.id, match_by="id"),
                 properties=EdgeProperties(traversable=True),
             )
+
+
+@app.asset()
+class EnterpriseScimUser(ScimUser):
+    """Enterprise-scoped SCIM user input model."""
 
 
 @app.asset(

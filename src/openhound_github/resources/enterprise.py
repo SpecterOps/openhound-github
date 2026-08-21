@@ -31,14 +31,14 @@ from openhound_github.models import (
     EnterpriseTeamOrganization,
     EnterpriseTeamRole,
     EnterpriseUser,
+    EnterpriseScimOrganization,
+    EnterpriseScimUser,
     SamlProvider,
     SamlServiceProvider,
     SamlAssertionConsumerService,
     SamlIssuer,
     ExternalIdentity,
     ScimGroup,
-    ScimOrganization,
-    ScimUser,
 )
 from openhound_github.models.saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
@@ -166,7 +166,7 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
 
 @app.transformer(
     name="enterprise_scim_organizations",
-    columns=ScimOrganization,
+    columns=EnterpriseScimOrganization,
     parallelized=True,
 )
 def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
@@ -199,10 +199,12 @@ def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContex
 
 @app.transformer(
     name="enterprise_scim_users",
-    columns=ScimUser,
+    columns=EnterpriseScimUser,
     parallelized=True,
 )
-def enterprise_scim_users(scim_organization: ScimOrganization, ctx: SourceContext):
+def enterprise_scim_users(
+    scim_organization: EnterpriseScimOrganization, ctx: SourceContext
+):
     if not ctx.client or not ctx.enterprise_name:
         raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
     try:
@@ -227,7 +229,9 @@ def enterprise_scim_users(scim_organization: ScimOrganization, ctx: SourceContex
     columns=ScimGroup,
     parallelized=True,
 )
-def enterprise_scim_groups(scim_organization: ScimOrganization, ctx: SourceContext):
+def enterprise_scim_groups(
+    scim_organization: EnterpriseScimOrganization, ctx: SourceContext
+):
     if not ctx.client or not ctx.enterprise_name:
         raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
     try:
