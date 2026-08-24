@@ -67,6 +67,7 @@ from openhound_github.models import (
     SelectedOrgSecret,
     SelectedOrgVariable,
     Team,
+    TeamExternalGroup,
     TeamMember,
     TeamRole,
     User,
@@ -102,6 +103,7 @@ class SourceContext:
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
     cache_lock: Lock = field(default_factory=Lock)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    team_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -197,6 +199,167 @@ def _workflow_permissions(
         org_name,
         f"/orgs/{org_name}/actions/permissions/workflow",
     )
+
+
+def _rest_teams_for_org(
+    ctx: SourceContext, client: RESTClient, org_name: str
+) -> list[dict[str, Any]]:
+    if org_name not in ctx.team_rest_cache:
+        with ctx.cache_lock:
+            if org_name not in ctx.team_rest_cache:
+                ctx.team_rest_cache[org_name] = [
+                    team
+                    for page in client.paginate(
+                        f"/orgs/{org_name}/teams", params={"per_page": 100}
+                    )
+                    for team in page
+                ]
+    return ctx.team_rest_cache[org_name]
+
+
+def _external_group_skip_reason(exception: BaseException) -> str | None:
+    if not isinstance(exception, requests.HTTPError) or exception.response is None:
+        return None
+
+    status_code = exception.response.status_code
+    if status_code in (401, 403):
+        return "the configured credentials do not have Members organization permission at write level"
+    if status_code == 404:
+        return "the GitHub scope does not expose external groups"
+    return None
+
+
+def _external_group_failure_is_terminal(exception: BaseException) -> bool:
+    if not isinstance(exception, requests.HTTPError) or exception.response is None:
+        return False
+    return exception.response.status_code in (401, 403)
+
+
+def _team_cannot_be_externally_managed(exception: BaseException) -> bool:
+    if not isinstance(exception, requests.HTTPError) or exception.response is None:
+        return False
+    if exception.response.status_code != 400:
+        return False
+
+    try:
+        message = str(exception.response.json().get("message", "")).casefold()
+    except ValueError:
+        return False
+    return "cannot be externally managed" in message and "explicit members" in message
+
+
+def _log_org_external_group_failure(
+    resource: str,
+    org_name: str,
+    exception: BaseException,
+    *,
+    group_id: int | str | None = None,
+) -> None:
+    skip_reason = _external_group_skip_reason(exception)
+    if skip_reason:
+        logger.warning(
+            "Skipping %s for organization '%s': %s",
+            resource,
+            org_name,
+            skip_reason,
+            extra={"resource": resource, "phase": "resource_iteration"},
+        )
+        return
+
+    group_context = f" external group '{group_id}'" if group_id is not None else ""
+    logger.error(
+        "Error in resource '%s' processing organization '%s'%s: %s",
+        resource,
+        org_name,
+        group_context,
+        exception,
+        extra={"resource": resource, "phase": "resource_iteration"},
+    )
+
+
+def _team_external_group_row(
+    org_name: str,
+    team_id: Any,
+    group_id: Any,
+    group_name: Any,
+    updated_at: Any,
+) -> dict[str, Any] | None:
+    if team_id is None or group_id is None or not group_name:
+        return None
+    try:
+        return {
+            "org_login": org_name,
+            "team_database_id": int(team_id),
+            "external_group_id": int(group_id),
+            "external_group_name": str(group_name),
+            "external_group_updated_at": updated_at,
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def _team_external_groups_by_group(
+    client: RESTClient, org_name: str, groups: list[dict[str, Any]]
+) -> Iterator[dict[str, Any]]:
+    for group in groups:
+        group_id = group.get("group_id")
+        try:
+            response = client.get(f"/orgs/{org_name}/external-group/{group_id}")
+            response.raise_for_status()
+            group_details = response.json()
+        except Exception as e:
+            _log_org_external_group_failure(
+                "team_external_groups",
+                org_name,
+                e,
+                group_id=group_id,
+            )
+            if _external_group_failure_is_terminal(e):
+                return
+            continue
+
+        group_name = group_details.get("group_name") or group.get("group_name")
+        updated_at = group_details.get("updated_at") or group.get("updated_at")
+        for team in group_details.get("teams") or []:
+            row = _team_external_group_row(
+                org_name,
+                team.get("team_id"),
+                group_id,
+                group_name,
+                updated_at,
+            )
+            if row:
+                yield row
+
+
+def _team_external_groups_by_team(
+    client: RESTClient, org_name: str, teams: list[dict[str, Any]]
+) -> Iterator[dict[str, Any]]:
+    for team in teams:
+        try:
+            response = client.get(
+                f"/orgs/{org_name}/teams/{_encode_path_segment(str(team['slug']))}/external-groups"
+            )
+            response.raise_for_status()
+            group_details = response.json()
+        except Exception as e:
+            if _team_cannot_be_externally_managed(e):
+                continue
+            _log_org_external_group_failure("team_external_groups", org_name, e)
+            if _external_group_failure_is_terminal(e):
+                return
+            continue
+
+        for group in group_details.get("groups") or []:
+            row = _team_external_group_row(
+                org_name,
+                team.get("id"),
+                group.get("group_id"),
+                group.get("group_name"),
+                group.get("updated_at"),
+            )
+            if row:
+                yield row
 
 
 def _repo_permission_role(repo: dict[str, Any]) -> str:
@@ -545,17 +708,56 @@ def projected_enterprise_teams(ctx: SourceContext):
         org_name = org.org_name
         client = org.client
         try:
-            for page in client.paginate(
-                f"/orgs/{org_name}/teams", params={"per_page": 100}
-            ):
-                for team in page:
-                    if str(team.get("slug", "")).startswith("ent:") and team.get("node_id"):
-                        yield {**team, "org_login": org_name}
+            for team in _rest_teams_for_org(ctx, client, org_name):
+                if str(team.get("slug", "")).startswith("ent:") and team.get("node_id"):
+                    yield {**team, "org_login": org_name}
         except Exception as e:
             logger.error(
                 f"Error in resource 'projected_enterprise_teams' processing organization '{org_name}': {e}",
                 extra={"resource": "projected_enterprise_teams", "phase": "resource_iteration"},
             )
+            continue
+
+
+@app.resource(
+    name="team_external_groups",
+    columns=TeamExternalGroup,
+    parallelized=True,
+)
+def team_external_groups(ctx: SourceContext):
+    """Collect external IdP group mappings for normal organization teams."""
+
+    for org in ctx.organizations:
+        org_name = org.org_name
+        client = org.client
+        try:
+            groups = [
+                group
+                for page in client.paginate(
+                    f"/orgs/{org_name}/external-groups",
+                    params={"per_page": 100},
+                    data_selector="groups",
+                )
+                for group in page
+                if group.get("group_id") is not None
+            ]
+            if not groups:
+                continue
+
+            teams = [
+                team
+                for team in _rest_teams_for_org(ctx, client, org_name)
+                if team.get("id") is not None
+                and team.get("slug")
+                and not str(team["slug"]).startswith("ent:")
+            ]
+
+            if len(groups) <= len(teams):
+                yield from _team_external_groups_by_group(client, org_name, groups)
+            else:
+                yield from _team_external_groups_by_team(client, org_name, teams)
+        except Exception as e:
+            _log_org_external_group_failure("team_external_groups", org_name, e)
             continue
 
 
@@ -2032,6 +2234,7 @@ def organization_resources(ctx: SourceContext):
     personal_access_tokens_resource = personal_access_tokens(ctx)
 
     teams_resource = teams(ctx)
+    team_external_groups_resource = team_external_groups(ctx)
     repositories_graphql_resource = repositories_graphql(ctx)
     app_installs_resource = app_installations(ctx)
     runner_groups_resource = runner_groups(ctx)
@@ -2061,6 +2264,7 @@ def organization_resources(ctx: SourceContext):
         repos_resource | repository_secrets(ctx),
         repos_resource | repository_variables(ctx),
         teams_resource,
+        team_external_groups_resource,
         projected_enterprise_teams_resource,
         org_scim_organizations_resource,
         teams_resource | team_members(ctx),

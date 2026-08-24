@@ -467,7 +467,7 @@
     },
     {
       "name": "GH_MemberOf",
-      "description": "Team role is a member of a team, or team is a nested member of a parent team",
+      "description": "Team role is a member of a team, team is nested under a parent team, or enterprise team maps to its projected organization team",
       "is_traversable": true
     },
     {

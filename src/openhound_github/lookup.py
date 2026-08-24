@@ -206,6 +206,42 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def external_group_for_team(
+        self, org_login: str, team_database_id: int
+    ) -> tuple[int, str] | None:
+        row = self._find_single_row(
+            f"""
+            SELECT external_group_id, external_group_name
+            FROM {self.schema}.team_external_groups
+            WHERE org_login = ?
+              AND team_database_id = ?
+            """,
+            [org_login, team_database_id],
+        )
+        if row is None:
+            return None
+        return int(row[0]), str(row[1])
+
+    @lru_cache
+    def scim_group_id_for_team_external_group(
+        self, org_login: str, external_group_name: str
+    ) -> str | None:
+        rows = self._find_all_objects(
+            f"""
+            SELECT DISTINCT esg.id
+            FROM {self.schema}.enterprise_scim_groups esg
+            JOIN {self.schema}.enterprise_organizations eo
+              ON eo.enterprise_node_id = esg.enterprise_node_id
+            WHERE eo.login = ?
+              AND esg.display_name = ?
+            """,
+            [org_login, external_group_name],
+        )
+        if not rows or len(rows) != 1:
+            return None
+        return str(rows[0][0])
+
+    @lru_cache
     def external_identity_id_for_guid(
         self, guid: str, environment_slug: str
     ) -> str | None:

@@ -12,6 +12,10 @@ from dlt.sources.helpers.rest_client.paginators import (
 from requests import Request
 
 from openhound_github.auth import GitHubAppInstallationAuth
+from openhound_github.github_retry import (
+    is_primary_rate_limit_response,
+    is_secondary_rate_limit_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -239,18 +243,14 @@ def github_retry_policy(auth: AuthConfigBase):
         if response.status_code not in (403, 429):
             return False
 
-        message = _response_message(response).lower()
-        if (
-            headers.get("x-ratelimit-remaining") == "0"
-            or "api rate limit exceeded" in message
-        ):
+        if is_primary_rate_limit_response(response):
             reset_at = headers.get("x-ratelimit-reset")
             delay = int(reset_at) - now if reset_at else 0
             headers["Retry-After"] = str(delay)
             logger.warning("Primary rate limit reached, retrying in %s seconds", delay)
             return True
 
-        if "secondary rate limit" in message or "abuse detection" in message:
+        if is_secondary_rate_limit_response(response):
             logger.warning("Secondary rate limit reached, retrying in 60 seconds")
             headers["Retry-After"] = "60"
             return True

@@ -83,7 +83,7 @@ def test_rest_resource_continues_after_org_failure(caplog) -> None:
     )
 
     with caplog.at_level(logging.ERROR, logger="openhound_github.resources.organization"):
-        results = list(organizations.bind(ctx))
+        results = list(organizations(ctx))
 
     yielded_logins = {r.login for r in results}
 
