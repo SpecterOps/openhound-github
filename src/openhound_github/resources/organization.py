@@ -277,6 +277,13 @@ def _log_org_external_group_failure(
     )
 
 
+def _team_database_id(team_id: Any) -> int | None:
+    try:
+        return int(team_id)
+    except (TypeError, ValueError):
+        return None
+
+
 def _team_external_group_row(
     org_name: str,
     team_id: Any,
@@ -284,12 +291,15 @@ def _team_external_group_row(
     group_name: Any,
     updated_at: Any,
 ) -> dict[str, Any] | None:
-    if team_id is None or group_id is None or not group_name:
+    team_database_id = _team_database_id(team_id)
+    if group_id is None or not group_name:
+        return None
+    if team_database_id is None:
         return None
     try:
         return {
             "org_login": org_name,
-            "team_database_id": int(team_id),
+            "team_database_id": team_database_id,
             "external_group_id": int(group_id),
             "external_group_name": str(group_name),
             "external_group_updated_at": updated_at,
@@ -299,7 +309,10 @@ def _team_external_group_row(
 
 
 def _team_external_groups_by_group(
-    client: RESTClient, org_name: str, groups: list[dict[str, Any]]
+    client: RESTClient,
+    org_name: str,
+    groups: list[dict[str, Any]],
+    allowed_team_database_ids: set[int],
 ) -> Iterator[dict[str, Any]]:
     for group in groups:
         group_id = group.get("group_id")
@@ -321,9 +334,12 @@ def _team_external_groups_by_group(
         group_name = group_details.get("group_name") or group.get("group_name")
         updated_at = group_details.get("updated_at") or group.get("updated_at")
         for team in group_details.get("teams") or []:
+            team_database_id = _team_database_id(team.get("team_id"))
+            if team_database_id not in allowed_team_database_ids:
+                continue
             row = _team_external_group_row(
                 org_name,
-                team.get("team_id"),
+                team_database_id,
                 group_id,
                 group_name,
                 updated_at,
@@ -751,9 +767,19 @@ def team_external_groups(ctx: SourceContext):
                 and team.get("slug")
                 and not str(team["slug"]).startswith("ent:")
             ]
+            team_database_ids = {
+                team_database_id
+                for team in teams
+                if (team_database_id := _team_database_id(team["id"])) is not None
+            }
 
             if len(groups) <= len(teams):
-                yield from _team_external_groups_by_group(client, org_name, groups)
+                yield from _team_external_groups_by_group(
+                    client,
+                    org_name,
+                    groups,
+                    team_database_ids,
+                )
             else:
                 yield from _team_external_groups_by_team(client, org_name, teams)
         except Exception as e:

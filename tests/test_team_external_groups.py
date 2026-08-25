@@ -106,6 +106,7 @@ def test_team_external_groups_collects_group_first_team_mappings() -> None:
                     "teams": [
                         {"team_id": 7, "team_name": "engineering"},
                         {"team_id": 8, "team_name": "platform"},
+                        {"team_id": 10, "team_name": "ent:enterprise-team"},
                     ],
                 }
             ),
