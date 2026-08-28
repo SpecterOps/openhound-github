@@ -99,6 +99,38 @@ def test_resolve_github_endpoints_rejects_invalid_urls(
         resolve_github_endpoints(**kwargs)
 
 
+@pytest.mark.parametrize(
+    "credentials",
+    (
+        GithubOrgAppCredentials(
+            client_id="Iv1.example",
+            install_id="123",
+            key_path="/tmp/github-app.pem",
+            org_name="acme",
+            api_uri="https://api.github.com",
+        ),
+        GithubEnterpriseAppCredentials(
+            app_id="123456",
+            key_path="/tmp/github-app.pem",
+            enterprise_name="acme-enterprise",
+            api_uri="https://api.github.com",
+        ),
+    ),
+)
+def test_app_source_rejects_auth_api_uri_on_different_rest_origin(credentials) -> None:
+    with pytest.raises(
+        ValueError,
+        match="credentials.api_uri origin must match rest_api_url origin",
+    ):
+        source_module = importlib.import_module("openhound_github.source")
+        source_module.source.__wrapped__(
+            credentials=credentials,
+            emit_legacy_scim_correlations=False,
+            rest_api_url="https://ghe.example/api/v3",
+            graphql_url="https://ghe.example/api/graphql",
+        )
+
+
 def test_org_source_context_carries_rest_and_graphql_clients(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

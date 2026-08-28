@@ -65,6 +65,29 @@ def _normalize_endpoint_url(url: str, setting_name: str) -> str:
     return normalized_url
 
 
+def _endpoint_origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlparse(url)
+    port = parsed.port
+    if (parsed.scheme.lower(), port) in {("http", 80), ("https", 443)}:
+        port = None
+    return parsed.scheme.lower(), parsed.hostname.lower(), port
+
+
+def _resolve_app_auth_api_uri(
+    credentials_api_uri: str | None,
+    rest_api_url: str,
+) -> str:
+    if credentials_api_uri is None:
+        return rest_api_url
+
+    auth_api_uri = _normalize_endpoint_url(credentials_api_uri, "credentials.api_uri")
+    if _endpoint_origin(auth_api_uri) != _endpoint_origin(rest_api_url):
+        raise ValueError(
+            "credentials.api_uri origin must match rest_api_url origin for GitHub App authentication"
+        )
+    return auth_api_uri
+
+
 def resolve_github_endpoints(
     *,
     host: str = DEFAULT_GITHUB_REST_API_URL,
@@ -256,10 +279,9 @@ def source(
         return clients(BearerTokenAuth(token=token))
 
     if credentials.auth == "enterprise_app":
-        auth_api_uri = (
-            credentials.api_uri
-            if credentials.api_uri is not None
-            else endpoints.rest_api_url
+        auth_api_uri = _resolve_app_auth_api_uri(
+            credentials.api_uri,
+            endpoints.rest_api_url,
         )
         jwt_issuer = resolve_github_app_jwt_issuer(
             client_id=credentials.client_id,
@@ -321,10 +343,9 @@ def source(
         return (*enterprise_resources(ctx), *organization_resources(ctx))
 
     elif credentials.auth == "org_app":
-        auth_api_uri = (
-            credentials.api_uri
-            if credentials.api_uri is not None
-            else endpoints.rest_api_url
+        auth_api_uri = _resolve_app_auth_api_uri(
+            credentials.api_uri,
+            endpoints.rest_api_url,
         )
         ctx = SourceContext(
             enterprise_name=None,
