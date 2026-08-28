@@ -105,13 +105,13 @@ def test_resolve_github_endpoints_rejects_invalid_urls(
         GithubOrgAppCredentials(
             client_id="Iv1.example",
             install_id="123",
-            key_path="/tmp/github-app.pem",
+            key_path="unused-github-app.pem",
             org_name="acme",
             api_uri="https://api.github.com",
         ),
         GithubEnterpriseAppCredentials(
             app_id="123456",
-            key_path="/tmp/github-app.pem",
+            key_path="unused-github-app.pem",
             enterprise_name="acme-enterprise",
             api_uri="https://api.github.com",
         ),
@@ -120,7 +120,7 @@ def test_resolve_github_endpoints_rejects_invalid_urls(
 def test_app_source_rejects_auth_api_uri_on_different_rest_origin(credentials) -> None:
     with pytest.raises(
         ValueError,
-        match="credentials.api_uri origin must match rest_api_url origin",
+        match=r"credentials\.api_uri origin must match rest_api_url origin",
     ):
         source_module = importlib.import_module("openhound_github.source")
         source_module.source.__wrapped__(
