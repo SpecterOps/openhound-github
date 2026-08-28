@@ -53,6 +53,7 @@ class SourceContext:
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
     cache_lock: Lock = field(default_factory=Lock)
+    organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -61,6 +62,31 @@ class SourceContext:
     @property
     def org_names(self) -> list[str]:
         return [org.org_name for org in self.organizations or []]
+
+
+def _canonicalize_org_names(ctx: SourceContext) -> None:
+    for org in ctx.organizations or []:
+        configured_name = org.org_name
+        try:
+            org_data = org.client.get(f"/orgs/{configured_name}").json()
+        except Exception as exc:
+            logger.warning(
+                "Unable to resolve canonical GitHub login for organization '%s': %s",
+                configured_name,
+                exc,
+            )
+            continue
+
+        canonical_name = org_data.get("login")
+        if not isinstance(canonical_name, str) or not canonical_name:
+            logger.warning(
+                "GitHub organization response for '%s' did not include a canonical login",
+                configured_name,
+            )
+            continue
+
+        org.org_name = canonical_name
+        ctx.organizations_cache[canonical_name] = org_data
 
 
 @configspec
@@ -228,6 +254,7 @@ def source(
             )
         )
 
+        _canonicalize_org_names(ctx)
         return organization_resources(ctx)
 
     else:
@@ -255,4 +282,5 @@ def source(
                 github_web_origin=github_web_origin,
             )
         )
+        _canonicalize_org_names(ctx)
         return organization_resources(ctx)
