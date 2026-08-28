@@ -83,11 +83,14 @@ from openhound_github.models.saml_helpers import (
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_GITHUB_REST_API_URL = "https://api.github.com"
+
 
 @dataclass
 class OrgContext:
     client: RESTClient
     org_name: str
+    graphql_client: RESTClient | None = None
     enterprise_name: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
@@ -97,6 +100,7 @@ class OrgContext:
 class SourceContext:
     client: RESTClient
     organizations: list[OrgContext] = field(default_factory=list)
+    graphql_client: RESTClient | None = None
     enterprise_name: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
@@ -130,6 +134,24 @@ def _client_for_org(ctx: SourceContext, org_login: str) -> RESTClient:
         if org.org_name == org_login:
             return org.client
     return ctx.client
+
+
+def _graphql_client_for_org(
+    ctx: SourceContext, org_login: str
+) -> tuple[RESTClient, str]:
+    for org in ctx.organizations:
+        if org.org_name == org_login:
+            if org.graphql_client:
+                return org.graphql_client, ""
+            return org.client, "/graphql"
+    if ctx.graphql_client:
+        return ctx.graphql_client, ""
+    return ctx.client, "/graphql"
+
+
+def _rest_api_url(client: RESTClient) -> str:
+    base_url = getattr(client, "base_url", DEFAULT_GITHUB_REST_API_URL)
+    return str(base_url).strip().rstrip("/") or DEFAULT_GITHUB_REST_API_URL
 
 
 def _encode_path_segment(value: str) -> str:
@@ -452,7 +474,7 @@ def users(ctx: SourceContext) -> Iterator[dict[str, Any]]:
 
     for org in ctx.organizations:
         org_name = org.org_name
-        client = org.client
+        client, graphql_path = _graphql_client_for_org(ctx, org_name)
         try:
             paginator = GraphQLCursorPaginator(
                 page_info_path="data.organization.membersWithRole.pageInfo",
@@ -466,7 +488,7 @@ def users(ctx: SourceContext) -> Iterator[dict[str, Any]]:
             }
 
             for page_data in client.paginate(
-                "/graphql",
+                graphql_path,
                 method="POST",
                 json=data,
                 paginator=paginator,
@@ -503,7 +525,7 @@ def teams(ctx: SourceContext):
 
     for org in ctx.organizations:
         org_name = org.org_name
-        client = org.client
+        client, graphql_path = _graphql_client_for_org(ctx, org_name)
         try:
             paginator = GraphQLCursorPaginator(
                 page_info_path="data.organization.teams.pageInfo",
@@ -516,7 +538,7 @@ def teams(ctx: SourceContext):
                 "variables": {"login": org_name, "count": 100, "after": None},
             }
             for page_data in client.paginate(
-                "/graphql",
+                graphql_path,
                 method="POST",
                 json=data,
                 paginator=paginator,
@@ -614,7 +636,7 @@ def team_members(team: Team, ctx: SourceContext):
             raise RuntimeError(
                 f"GitHub team {team.org_login}/{team.slug} has more members but no endCursor"
             )
-        client = _client_for_org(ctx, team.org_login)
+        client, graphql_path = _graphql_client_for_org(ctx, team.org_login)
         data = {
             "query": TEAM_MEMBERS_OVERFLOW_QUERY,
             "variables": {
@@ -625,7 +647,7 @@ def team_members(team: Team, ctx: SourceContext):
             },
         }
         for page_data in client.paginate(
-            "/graphql",
+            graphql_path,
             method="POST",
             json=data,
             paginator=paginator,
@@ -915,7 +937,7 @@ def repositories_graphql(ctx: SourceContext):
     """
     for org in ctx.organizations:
         org_name = org.org_name
-        client = org.client
+        client, graphql_path = _graphql_client_for_org(ctx, org_name)
         repository_cursor: str | None = None
         emitted_repositories = 0
         try:
@@ -931,7 +953,7 @@ def repositories_graphql(ctx: SourceContext):
             }
 
             for page_data in client.paginate(
-                "/graphql",
+                graphql_path,
                 method="POST",
                 json=data,
                 paginator=paginator,
@@ -1003,7 +1025,7 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
         }
 
     if repository.refs.page_info.has_next_page:
-        client = _client_for_org(ctx, repository.org_login)
+        client, graphql_path = _graphql_client_for_org(ctx, repository.org_login)
         data = {
             "query": REF_OVERFLOW_QUERY,
             "variables": {
@@ -1015,7 +1037,7 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
         }
 
         for page_data in client.paginate(
-            "/graphql",
+            graphql_path,
             method="POST",
             json=data,
             paginator=paginator,
@@ -1057,12 +1079,12 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
                 rule_ids_seen.add(rule_id)
 
     rule_ids_list = list(rule_ids_seen)
-    client = _client_for_org(ctx, repository.org_login)
+    client, graphql_path = _graphql_client_for_org(ctx, repository.org_login)
     for i in range(0, len(rule_ids_list), 100):
         rules_chunk = rule_ids_list[i : i + 100]
         if rules_chunk:
             data = {"query": PROTECTION_RULES_QUERY, "variables": {"ids": rules_chunk}}
-            response = client.post("/graphql", json=data).json()
+            response = client.post(graphql_path, json=data).json()
             for rule in response["data"].get("nodes", []):
                 # GitHub can return null actors for deleted or inaccessible allowance actors.
                 for allowance_key in ("bypassPullRequestAllowances", "pushAllowances"):
@@ -1646,7 +1668,7 @@ def secret_scanning_alerts(ctx: SourceContext):
                     ):
                         try:
                             resp = requests.get(
-                                "https://api.github.com/user",
+                                f"{_rest_api_url(client)}/user",
                                 headers={"Authorization": f"Bearer {secret}"},
                                 timeout=10,
                             )
@@ -1782,14 +1804,14 @@ def saml_provider(ctx: SourceContext):
     """
     for org in ctx.organizations:
         org_name = org.org_name
-        client = org.client
+        client, graphql_path = _graphql_client_for_org(ctx, org_name)
         try:
             data = {
                 "query": SAML_QUERY,
                 "variables": {"login": org_name, "count": 100, "after": None},
             }
 
-            response = client.post("/graphql", json=data).json()
+            response = client.post(graphql_path, json=data).json()
             response_data = response.get("data", {})
             org_data = response_data.get("organization", {})
             if response_data and org_data:
@@ -1826,7 +1848,7 @@ def external_identities(ctx: SourceContext):
     """
     for org in ctx.organizations:
         org_name = org.org_name
-        client = org.client
+        client, graphql_path = _graphql_client_for_org(ctx, org_name)
         github_deployment_id = org.github_deployment_id
         try:
             paginator = GraphQLCursorPaginator(
@@ -1842,7 +1864,7 @@ def external_identities(ctx: SourceContext):
             }
 
             for page_data in client.paginate(
-                "/graphql",
+                graphql_path,
                 method="POST",
                 json=data,
                 paginator=paginator,
