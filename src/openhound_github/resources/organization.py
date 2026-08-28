@@ -101,6 +101,7 @@ class SourceContext:
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
     cache_lock: Lock = field(default_factory=Lock)
+    organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -252,7 +253,13 @@ def organizations(ctx: SourceContext):
         org_name = org.org_name
         client = org.client
         try:
-            org_data = client.get(f"/orgs/{org_name}").json()
+            org_data = _cached_org_response(
+                ctx,
+                ctx.organizations_cache,
+                client,
+                org_name,
+                f"/orgs/{org_name}",
+            )
 
             actions = _actions_permissions(ctx, client, org_name)
             self_hosted_runners = _runner_permissions(ctx, client, org_name)
