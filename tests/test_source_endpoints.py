@@ -249,8 +249,17 @@ def test_secret_scanning_pat_validation_uses_configured_rest_endpoint(
     )
 
 
-def test_org_app_source_uses_rest_endpoint_for_auth_and_both_api_clients(
+@pytest.mark.parametrize(
+    ("credential_api_uri", "expected_auth_api_uri"),
+    (
+        (None, "https://ghe.example/api/v3"),
+        ("https://ghe.example/custom/api/v3", "https://ghe.example/custom/api/v3"),
+    ),
+)
+def test_org_app_source_uses_selected_auth_endpoint_and_both_api_clients(
     monkeypatch: pytest.MonkeyPatch,
+    credential_api_uri: str | None,
+    expected_auth_api_uri: str,
 ) -> None:
     source_module = importlib.import_module("openhound_github.source")
     captured_api_uris: list[str] = []
@@ -290,6 +299,7 @@ def test_org_app_source_uses_rest_endpoint_for_auth_and_both_api_clients(
             install_id="123",
             key_path="/tmp/github-app.pem",
             org_name="acme",
+            api_uri=credential_api_uri,
         ),
         emit_legacy_scim_correlations=False,
         rest_api_url="https://ghe.example/api/v3",
@@ -298,8 +308,8 @@ def test_org_app_source_uses_rest_endpoint_for_auth_and_both_api_clients(
 
     assert resources == ()
     assert captured_api_uris == [
-        "https://ghe.example/api/v3",
-        "https://ghe.example/api/v3",
+        expected_auth_api_uri,
+        expected_auth_api_uri,
     ]
     assert captured_ctx.organizations[0].client.base_url == "https://ghe.example/api/v3"
     assert (
@@ -308,8 +318,17 @@ def test_org_app_source_uses_rest_endpoint_for_auth_and_both_api_clients(
     )
 
 
-def test_enterprise_app_source_uses_rest_endpoint_for_auth_and_both_api_clients(
+@pytest.mark.parametrize(
+    ("credential_api_uri", "expected_auth_api_uri"),
+    (
+        (None, "https://ghe.example/api/v3"),
+        ("https://ghe.example/custom/api/v3", "https://ghe.example/custom/api/v3"),
+    ),
+)
+def test_enterprise_app_source_uses_selected_auth_endpoint_and_both_api_clients(
     monkeypatch: pytest.MonkeyPatch,
+    credential_api_uri: str | None,
+    expected_auth_api_uri: str,
 ) -> None:
     source_module = importlib.import_module("openhound_github.source")
     captured_api_uris: list[str] = []
@@ -367,6 +386,7 @@ def test_enterprise_app_source_uses_rest_endpoint_for_auth_and_both_api_clients(
             app_id="123456",
             key_path="/tmp/github-app.pem",
             enterprise_name="acme-enterprise",
+            api_uri=credential_api_uri,
         ),
         emit_legacy_scim_correlations=False,
         rest_api_url="https://ghe.example/api/v3",
@@ -375,11 +395,11 @@ def test_enterprise_app_source_uses_rest_endpoint_for_auth_and_both_api_clients(
 
     assert resources == ()
     assert captured_api_uris == [
-        "https://ghe.example/api/v3",
-        "https://ghe.example/api/v3",
-        "https://ghe.example/api/v3",
-        "https://ghe.example/api/v3",
-        "https://ghe.example/api/v3",
+        expected_auth_api_uri,
+        expected_auth_api_uri,
+        expected_auth_api_uri,
+        expected_auth_api_uri,
+        expected_auth_api_uri,
     ]
     assert len(captured_ctxs) == 2
     ctx = captured_ctxs[0]

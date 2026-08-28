@@ -144,7 +144,7 @@ class GithubEnterpriseAppCredentials(CredentialsConfiguration):
     key_path: str = None
     enterprise_name: str = None
     pat_token: str | None = None
-    api_uri: str = DEFAULT_GITHUB_REST_API_URL
+    api_uri: str | None = None
 
     @property
     def auth(self) -> str:
@@ -157,7 +157,7 @@ class GithubOrgAppCredentials(CredentialsConfiguration):
     install_id: str = None
     key_path: str = None
     org_name: str = None
-    api_uri: str = DEFAULT_GITHUB_REST_API_URL
+    api_uri: str | None = None
 
     @property
     def auth(self) -> str:
@@ -230,6 +230,11 @@ def source(
         return clients(BearerTokenAuth(token=token))
 
     if credentials.auth == "enterprise_app":
+        auth_api_uri = (
+            credentials.api_uri
+            if credentials.api_uri is not None
+            else endpoints.rest_api_url
+        )
         jwt_issuer = resolve_github_app_jwt_issuer(
             client_id=credentials.client_id,
             app_id=credentials.app_id,
@@ -247,7 +252,7 @@ def source(
         github_app_session = GithubApp(
             jwt_issuer=jwt_issuer,
             private_key_path=credentials.key_path,
-            api_uri=endpoints.rest_api_url,
+            api_uri=auth_api_uri,
         )
         for installation in github_app_session.installations:
             if installation.target_type == "Organization":
@@ -255,12 +260,12 @@ def source(
                     installation_id=installation.id,
                     jwt_issuer=jwt_issuer,
                     private_key_path=credentials.key_path,
-                    api_uri=endpoints.rest_api_url,
+                    api_uri=auth_api_uri,
                 )
                 org_client, org_graphql_client = clients(
                     GitHubAppInstallationAuth(
                         installation=org_installation,
-                        api_uri=endpoints.rest_api_url,
+                        api_uri=auth_api_uri,
                     )
                 )
                 ctx.organizations.append(
@@ -278,18 +283,23 @@ def source(
                     installation_id=installation.id,
                     jwt_issuer=jwt_issuer,
                     private_key_path=credentials.key_path,
-                    api_uri=endpoints.rest_api_url,
+                    api_uri=auth_api_uri,
                 )
                 ctx.client, ctx.graphql_client = clients(
                     GitHubAppInstallationAuth(
                         installation=es_installation,
-                        api_uri=endpoints.rest_api_url,
+                        api_uri=auth_api_uri,
                     )
                 )
 
         return (*enterprise_resources(ctx), *organization_resources(ctx))
 
     elif credentials.auth == "org_app":
+        auth_api_uri = (
+            credentials.api_uri
+            if credentials.api_uri is not None
+            else endpoints.rest_api_url
+        )
         ctx = SourceContext(
             enterprise_name=None,
             github_deployment_id=github_deployment_id,
@@ -299,12 +309,12 @@ def source(
             installation_id=credentials.install_id,
             jwt_issuer=credentials.client_id,
             private_key_path=credentials.key_path,
-            api_uri=endpoints.rest_api_url,
+            api_uri=auth_api_uri,
         )
         org_client, org_graphql_client = clients(
             GitHubAppInstallationAuth(
                 installation=org_installation,
-                api_uri=endpoints.rest_api_url,
+                api_uri=auth_api_uri,
             )
         )
         ctx.organizations.append(
