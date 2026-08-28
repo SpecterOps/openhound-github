@@ -1,11 +1,12 @@
 import logging
 import time
-from typing import Optional
+from typing import Optional, overload
 from urllib.parse import urlparse
 
 from dlt.common import jsonpath
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
+from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
     JSONResponseCursorPaginator,
 )
@@ -15,9 +16,36 @@ from openhound_github.auth import GitHubAppInstallationAuth
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_GITHUB_REST_API_URL = "https://api.github.com"
+DEFAULT_GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
+
 
 class GraphQLPaginationError(RuntimeError):
     pass
+
+
+@overload
+def graphql_client_and_path(
+    rest_client: RESTClient,
+    graphql_client: RESTClient | None,
+) -> tuple[RESTClient, str]: ...
+
+
+@overload
+def graphql_client_and_path(
+    rest_client: RESTClient | None,
+    graphql_client: RESTClient | None,
+) -> tuple[RESTClient | None, str]: ...
+
+
+def graphql_client_and_path(
+    rest_client: RESTClient | None,
+    graphql_client: RESTClient | None,
+) -> tuple[RESTClient | None, str]:
+    """Return the configured GraphQL client and its request path."""
+    if graphql_client:
+        return graphql_client, ""
+    return rest_client, "/graphql"
 
 
 def scim_skip_reason(exception: BaseException) -> str | None:

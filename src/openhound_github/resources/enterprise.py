@@ -11,7 +11,11 @@ from openhound_github.graphql import (
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
 )
-from openhound_github.helpers import GraphQLCursorPaginator, scim_skip_reason
+from openhound_github.helpers import (
+    GraphQLCursorPaginator,
+    graphql_client_and_path,
+    scim_skip_reason,
+)
 from openhound_github.main import app
 from openhound_github.models import (
     BaseUser,
@@ -64,15 +68,11 @@ class SourceContext:
 
 
 def _graphql_client(ctx: SourceContext) -> tuple[RESTClient, str]:
-    if ctx.graphql_client:
-        return ctx.graphql_client, ""
-    return ctx.client, "/graphql"
+    return graphql_client_and_path(ctx.client, ctx.graphql_client)
 
 
 def _sso_graphql_client(ctx: SourceContext) -> tuple[RESTClient | None, str]:
-    if ctx.sso_graphql_client:
-        return ctx.sso_graphql_client, ""
-    return ctx.sso_client, "/graphql"
+    return graphql_client_and_path(ctx.sso_client, ctx.sso_graphql_client)
 
 
 def iter_enterprise_scim_resources(

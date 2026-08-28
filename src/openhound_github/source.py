@@ -21,7 +21,11 @@ from openhound_github.auth import (
     GithubInstallation,
     resolve_github_app_jwt_issuer,
 )
-from openhound_github.helpers import github_retry_policy
+from openhound_github.helpers import (
+    DEFAULT_GITHUB_GRAPHQL_URL,
+    DEFAULT_GITHUB_REST_API_URL,
+    github_retry_policy,
+)
 from openhound_github.main import app
 from openhound_github.models.saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
@@ -33,10 +37,6 @@ from .resources.enterprise import enterprise_resources
 from .resources.organization import organization_resources
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_GITHUB_REST_API_URL = "https://api.github.com"
-DEFAULT_GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
-
 
 @dataclass(frozen=True)
 class GithubEndpoints:

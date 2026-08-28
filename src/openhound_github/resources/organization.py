@@ -22,7 +22,12 @@ from openhound_github.graphql import (
     TEAM_MEMBERS_OVERFLOW_QUERY,
     TEAMS_QUERY,
 )
-from openhound_github.helpers import GraphQLCursorPaginator, scim_skip_reason
+from openhound_github.helpers import (
+    DEFAULT_GITHUB_REST_API_URL,
+    GraphQLCursorPaginator,
+    graphql_client_and_path,
+    scim_skip_reason,
+)
 from openhound_github.main import app
 from openhound_github.models import (
     ActionPermission,
@@ -83,9 +88,6 @@ from openhound_github.models.saml_helpers import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_GITHUB_REST_API_URL = "https://api.github.com"
-
-
 @dataclass
 class OrgContext:
     client: RESTClient
@@ -141,12 +143,8 @@ def _graphql_client_for_org(
 ) -> tuple[RESTClient, str]:
     for org in ctx.organizations:
         if org.org_name == org_login:
-            if org.graphql_client:
-                return org.graphql_client, ""
-            return org.client, "/graphql"
-    if ctx.graphql_client:
-        return ctx.graphql_client, ""
-    return ctx.client, "/graphql"
+            return graphql_client_and_path(org.client, org.graphql_client)
+    return graphql_client_and_path(ctx.client, ctx.graphql_client)
 
 
 def _rest_api_url(client: RESTClient) -> str:
