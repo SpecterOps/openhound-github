@@ -22,7 +22,12 @@ from openhound_github.graphql import (
     TEAM_MEMBERS_OVERFLOW_QUERY,
     TEAMS_QUERY,
 )
-from openhound_github.helpers import GraphQLCursorPaginator, scim_skip_reason
+from openhound_github.helpers import (
+    AdaptiveGraphQLPageError,
+    GraphQLCursorPaginator,
+    adaptive_graphql_paginate,
+    scim_skip_reason,
+)
 from openhound_github.main import app
 from openhound_github.models import (
     ActionPermission,
@@ -926,25 +931,17 @@ def repositories_graphql(ctx: SourceContext):
         repository_cursor: str | None = None
         emitted_repositories = 0
         try:
-            paginator = GraphQLCursorPaginator(
+            for page_data in adaptive_graphql_paginate(
+                client,
+                query=REPO_REFS_QUERY,
+                variables={"login": org_name, "after": None},
                 page_info_path="data.organization.repositories.pageInfo",
-                cursor_variable="after",
-                cursor_field="endCursor",
-                has_next_field="hasNextPage",
-            )
-            data = {
-                "query": REPO_REFS_QUERY,
-                "variables": {"login": org_name, "count": 100, "after": None},
-            }
-
-            for page_data in client.paginate(
-                "/graphql",
-                method="POST",
-                json=data,
-                paginator=paginator,
-                data_selector="data",
+                resource_name="repositories_graphql",
+                scope_name="organization",
+                scope_value=org_name,
+                log=logger,
             ):
-                repos_page = page_data[0]["organization"]["repositories"]
+                repos_page = page_data["organization"]["repositories"]
                 for repo in repos_page["nodes"]:
                     repo_record = {**repo}
                     branch_rulesets = repo_record.pop("branchRulesets", None) or {}
@@ -959,22 +956,29 @@ def repositories_graphql(ctx: SourceContext):
                 if isinstance(page_info, dict):
                     repository_cursor = page_info.get("endCursor")
         except Exception as e:
+            failure = e.error if isinstance(e, AdaptiveGraphQLPageError) else e
+            failure_cursor = (
+                e.cursor if isinstance(e, AdaptiveGraphQLPageError) else repository_cursor
+            )
+            page_size = e.page_size if isinstance(e, AdaptiveGraphQLPageError) else None
             logger.error(
                 "Error in resource 'repositories_graphql' processing organization '%s' "
-                "at repository cursor %r after emitting %d repositories "
+                "at repository cursor %r with page size %r after emitting %d repositories "
                 "(%s): %s",
                 org_name,
-                repository_cursor,
+                failure_cursor,
+                page_size,
                 emitted_repositories,
-                type(e).__name__,
-                e,
+                type(failure).__name__,
+                failure,
                 extra={
                     "resource": "repositories_graphql",
                     "phase": "resource_iteration",
                     "org_name": org_name,
-                    "repository_cursor": repository_cursor,
+                    "repository_cursor": failure_cursor,
+                    "page_size": page_size,
                     "emitted_repositories": emitted_repositories,
-                    "error_type": type(e).__name__,
+                    "error_type": type(failure).__name__,
                 },
             )
             continue
