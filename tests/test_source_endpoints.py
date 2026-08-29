@@ -64,10 +64,28 @@ def test_resolve_github_endpoints_requires_explicit_pair(
         )
 
 
+@pytest.mark.parametrize(
+    "graphql_url",
+    (
+        "https://graphql.ghe.example/api/graphql",
+        "https://ghe.example:8443/api/graphql",
+    ),
+)
+def test_resolve_github_endpoints_requires_matching_origins(graphql_url: str) -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"rest_api_url origin must match graphql_url origin",
+    ):
+        resolve_github_endpoints(
+            rest_api_url="https://ghe.example/api/v3",
+            graphql_url=graphql_url,
+        )
+
+
 def test_resolve_github_endpoints_preserves_legacy_host_behavior() -> None:
     assert resolve_github_endpoints(host="https://ghe.example/api/v3/") == GithubEndpoints(
         rest_api_url="https://ghe.example/api/v3",
-        graphql_url="https://ghe.example/api/v3/graphql",
+        graphql_url="https://ghe.example/api/graphql",
     )
 
 
@@ -75,6 +93,7 @@ def test_resolve_github_endpoints_preserves_legacy_host_behavior() -> None:
     ("setting_name", "kwargs"),
     (
         ("host", {"host": "ghe.example/api/v3"}),
+        ("host", {"host": "http://ghe.example/api/v3"}),
         (
             "rest_api_url",
             {
@@ -83,10 +102,24 @@ def test_resolve_github_endpoints_preserves_legacy_host_behavior() -> None:
             },
         ),
         (
+            "rest_api_url",
+            {
+                "rest_api_url": "http://ghe.example/api/v3",
+                "graphql_url": "https://ghe.example/api/graphql",
+            },
+        ),
+        (
             "graphql_url",
             {
                 "rest_api_url": "https://ghe.example/api/v3",
                 "graphql_url": "https://ghe.example/api/graphql#fragment",
+            },
+        ),
+        (
+            "graphql_url",
+            {
+                "rest_api_url": "https://ghe.example/api/v3",
+                "graphql_url": "http://ghe.example/api/graphql",
             },
         ),
     ),

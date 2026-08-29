@@ -52,6 +52,8 @@ graphql_url = "https://ghe.example/api/graphql"
 ```
 
 Both values must be provided together when overriding the GitHub.com defaults.
+Endpoint URLs must use HTTPS and share the same origin. GitHub App
+`credentials.api_uri` may override only the path on that same origin.
 
 ### Enterprise SCIM and hybrid correlations
 

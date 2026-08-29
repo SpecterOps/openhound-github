@@ -293,6 +293,16 @@ class GitHubAppInstallationAuth(AuthConfigBase):
         return True
 
     def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
+        try:
+            request_origin = _normalized_http_origin(
+                request.url or "", allow_query=True
+            )
+        except ValueError:
+            return request
+
+        if request_origin != self._api_origin:
+            return request
+
         request.headers["Authorization"] = f"Bearer {self.token()}"
         return request
 

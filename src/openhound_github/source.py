@@ -49,10 +49,10 @@ def _normalize_endpoint_url(url: str, setting_name: str) -> str:
     parsed = urlparse(normalized_url)
     if (
         not normalized_url
-        or parsed.scheme not in {"http", "https"}
+        or parsed.scheme != "https"
         or not parsed.hostname
     ):
-        raise ValueError(f"{setting_name} must be an absolute HTTP(S) URL")
+        raise ValueError(f"{setting_name} must be an absolute HTTPS URL")
     if (
         parsed.username is not None
         or parsed.password is not None
@@ -88,6 +88,12 @@ def _resolve_app_auth_api_uri(
     return auth_api_uri
 
 
+def _legacy_graphql_url(rest_api_url: str) -> str:
+    if rest_api_url.endswith("/api/v3"):
+        return f"{rest_api_url.removesuffix('/v3')}/graphql"
+    return f"{rest_api_url}/graphql"
+
+
 def resolve_github_endpoints(
     *,
     host: str = DEFAULT_GITHUB_REST_API_URL,
@@ -101,10 +107,17 @@ def resolve_github_endpoints(
         )
 
     if rest_api_url is not None and graphql_url is not None:
-        return GithubEndpoints(
+        resolved_endpoints = GithubEndpoints(
             rest_api_url=_normalize_endpoint_url(rest_api_url, "rest_api_url"),
             graphql_url=_normalize_endpoint_url(graphql_url, "graphql_url"),
         )
+        if _endpoint_origin(resolved_endpoints.rest_api_url) != _endpoint_origin(
+            resolved_endpoints.graphql_url
+        ):
+            raise ValueError(
+                "rest_api_url origin must match graphql_url origin"
+            )
+        return resolved_endpoints
 
     legacy_rest_api_url = _normalize_endpoint_url(host, "host")
     if legacy_rest_api_url == DEFAULT_GITHUB_REST_API_URL:
@@ -115,7 +128,7 @@ def resolve_github_endpoints(
 
     return GithubEndpoints(
         rest_api_url=legacy_rest_api_url,
-        graphql_url=f"{legacy_rest_api_url}/graphql",
+        graphql_url=_legacy_graphql_url(legacy_rest_api_url),
     )
 
 
