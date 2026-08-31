@@ -156,6 +156,18 @@ def test_refresh_request_does_not_restore_authorization_on_cross_origin_request(
     assert installation.token_calls == 0
 
 
+def test_auth_does_not_attach_token_to_cross_origin_request() -> None:
+    installation = FakeInstallation("new-token")
+    auth = GitHubAppInstallationAuth(installation=installation)
+    request = prepared_request(None, url="https://attacker.example/redirected")
+
+    authenticated_request = auth(request)
+
+    assert authenticated_request is request
+    assert "Authorization" not in request.headers
+    assert installation.token_calls == 0
+
+
 def test_retry_policy_repairs_bad_credentials_for_github_app_auth() -> None:
     installation = FakeInstallation("new-token")
     auth = GitHubAppInstallationAuth(installation=installation)

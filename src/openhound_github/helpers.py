@@ -1,7 +1,7 @@
 import logging
 import time
 from collections.abc import Iterator
-from typing import Any, Optional
+from typing import Any, Optional, overload
 from urllib.parse import urlparse
 
 from dlt.common import jsonpath
@@ -17,9 +17,36 @@ from openhound_github.auth import GitHubAppInstallationAuth
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_GITHUB_REST_API_URL = "https://api.github.com"
+DEFAULT_GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
+
 
 class GraphQLPaginationError(RuntimeError):
     pass
+
+
+@overload
+def graphql_client_and_path(
+    rest_client: RESTClient,
+    graphql_client: RESTClient | None,
+) -> tuple[RESTClient, str]: ...
+
+
+@overload
+def graphql_client_and_path(
+    rest_client: RESTClient | None,
+    graphql_client: RESTClient | None,
+) -> tuple[RESTClient | None, str]: ...
+
+
+def graphql_client_and_path(
+    rest_client: RESTClient | None,
+    graphql_client: RESTClient | None,
+) -> tuple[RESTClient | None, str]:
+    """Return the configured GraphQL client and its request path."""
+    if graphql_client:
+        return graphql_client, ""
+    return rest_client, "/graphql"
 
 
 class AdaptiveGraphQLPageError(RuntimeError):
@@ -184,6 +211,7 @@ def _graphql_gateway_status(exception: BaseException) -> int | None:
 def adaptive_graphql_paginate(
     client: RESTClient,
     *,
+    graphql_path: str = "/graphql",
     query: str,
     variables: dict[str, Any],
     page_info_path: str,
@@ -247,7 +275,7 @@ def adaptive_graphql_paginate(
             }
             try:
                 response = client.post(
-                    "/graphql",
+                    graphql_path,
                     json={"query": query, "variables": request_variables},
                 )
                 response.raise_for_status()

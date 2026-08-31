@@ -40,6 +40,21 @@ Enterprise GitHub App credentials accept either `client_id` or `app_id` as the
 JWT issuer. When both are configured, `client_id` is preferred. At least one
 identifier must be supplied together with `key_path` and `enterprise_name`.
 
+### GitHub Enterprise Server endpoints
+
+GitHub.com is the default deployment and does not require endpoint configuration.
+To collect from GitHub Enterprise Server, set both API endpoints in `config.toml`:
+
+```toml
+[sources.github]
+rest_api_url = "https://ghe.example/api/v3"
+graphql_url = "https://ghe.example/api/graphql"
+```
+
+Both values must be provided together when overriding the GitHub.com defaults.
+Endpoint URLs must use HTTPS and share the same origin. GitHub App
+`credentials.api_uri` may override only the path on that same origin.
+
 ### Enterprise SCIM and hybrid correlations
 
 A token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.

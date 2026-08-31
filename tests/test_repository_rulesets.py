@@ -19,9 +19,11 @@ class _FakeClient:
         self.responses = list(responses) or [
             _graphql_response(_repository_page_data("R_1", "repo", branch_ruleset_count=2))
         ]
+        self.request_paths: list[str] = []
         self.request_variables: list[dict[str, object]] = []
 
-    def post(self, _path: str, *, json: dict[str, object]):
+    def post(self, path: str, *, json: dict[str, object]):
+        self.request_paths.append(path)
         variables = json["variables"]
         assert isinstance(variables, dict)
         self.request_variables.append({**variables})
@@ -141,6 +143,27 @@ def test_repositories_graphql_flattens_branch_ruleset_count() -> None:
             "org_login": "org",
         }
     ]
+
+
+def test_repositories_graphql_uses_dedicated_graphql_client_path() -> None:
+    rest_client = _FakeClient()
+    graphql_client = _FakeClient()
+    ctx = SourceContext(
+        client=rest_client,
+        organizations=[
+            OrgContext(
+                client=rest_client,
+                graphql_client=graphql_client,
+                org_name="org",
+            )
+        ],
+    )
+
+    rows = list(repositories_graphql.__wrapped__(ctx))
+
+    assert [row["id"] for row in rows] == ["R_1"]
+    assert graphql_client.request_paths == [""]
+    assert rest_client.request_paths == []
 
 
 def test_repositories_graphql_logs_cursor_and_emitted_count_on_page_failure(

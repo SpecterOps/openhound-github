@@ -11,7 +11,11 @@ from openhound_github.graphql import (
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
 )
-from openhound_github.helpers import GraphQLCursorPaginator, scim_skip_reason
+from openhound_github.helpers import (
+    GraphQLCursorPaginator,
+    graphql_client_and_path,
+    scim_skip_reason,
+)
 from openhound_github.main import app
 from openhound_github.models import (
     BaseUser,
@@ -53,12 +57,22 @@ class SourceContext:
     """Shared context for GitHub API access."""
 
     client: RESTClient
+    graphql_client: RESTClient | None = None
     sso_client: RESTClient | None = None
+    sso_graphql_client: RESTClient | None = None
     org_name: str | None = None
     enterprise_name: str | None = None
     emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+
+
+def _graphql_client(ctx: SourceContext) -> tuple[RESTClient, str]:
+    return graphql_client_and_path(ctx.client, ctx.graphql_client)
+
+
+def _sso_graphql_client(ctx: SourceContext) -> tuple[RESTClient | None, str]:
+    return graphql_client_and_path(ctx.sso_client, ctx.sso_graphql_client)
 
 
 def iter_enterprise_scim_resources(
@@ -111,8 +125,9 @@ def enterprise(ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name, "after": None},
     }
 
+    client, graphql_path = _graphql_client(ctx)
     try:
-        response = ctx.client.post("/graphql", json=data).json()
+        response = client.post(graphql_path, json=data).json()
         page_enterprise = (response.get("data") or {}).get("enterprise")
         if page_enterprise:
             yield page_enterprise
@@ -139,9 +154,10 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
         "variables": {"slug": ctx.enterprise_name, "after": None},
     }
 
+    client, graphql_path = _graphql_client(ctx)
     try:
-        for page_data in ctx.client.paginate(
-            "/graphql",
+        for page_data in client.paginate(
+            graphql_path,
             method="POST",
             json=data,
             paginator=paginator,
@@ -263,8 +279,9 @@ def enterprise_members(enterprise_data: Enterprise, ctx: SourceContext):
         "query": ENTERPRISE_MEMBERS_QUERY,
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
-    for page_data in ctx.client.paginate(
-        "/graphql",
+    client, graphql_path = _graphql_client(ctx)
+    for page_data in client.paginate(
+        graphql_path,
         method="POST",
         json=data,
         paginator=paginator,
@@ -635,8 +652,9 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
         "query": ENTERPRISE_ADMINS_QUERY,
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
-    for page_data in ctx.client.paginate(
-        "/graphql",
+    client, graphql_path = _graphql_client(ctx)
+    for page_data in client.paginate(
+        graphql_path,
         method="POST",
         json=data,
         paginator=paginator,
@@ -665,7 +683,7 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
     parallelized=True
 )
 def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
-    client = ctx.sso_client
+    client, graphql_path = _sso_graphql_client(ctx)
     if not client:
         logger.info(
             "Skipping enterprise_saml_provider for enterprise '%s': no SSO client configured",
@@ -679,7 +697,7 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
     }
 
     try:
-        response = client.post("/graphql", json=data).json()
+        response = client.post(graphql_path, json=data).json()
     except Exception as e:
         logger.error(
             f"Error in resource 'enterprise_saml_provider' processing enterprise '{ctx.enterprise_name}': {e}",
@@ -779,7 +797,7 @@ def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
 def enterprise_external_identity(
     saml_provider: SamlProvider, ctx: SourceContext
 ):
-    client = ctx.sso_client
+    client, graphql_path = _sso_graphql_client(ctx)
     if not client:
         logger.info(
             "Skipping enterprise_external_identity for enterprise '%s': no SSO client configured",
@@ -801,7 +819,7 @@ def enterprise_external_identity(
 
     try:
         for page_data in client.paginate(
-            "/graphql",
+            graphql_path,
             method="POST",
             json=data,
             paginator=paginator,
