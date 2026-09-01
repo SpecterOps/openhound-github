@@ -62,7 +62,7 @@ from .scim_user import (
     ScimUser,
 )
 from .secret_scanning_alert import SecretScanningAlert
-from .team import Team
+from .team import Team, TeamExternalGroup
 from .team_member import TeamMember
 from .team_role import TeamRole
 from .user import User
@@ -78,6 +78,7 @@ __all__ = [
     "ActionPermission",
     "User",
     "Team",
+    "TeamExternalGroup",
     "TeamRole",
     "TeamMember",
     "Repository",

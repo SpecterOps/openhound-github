@@ -62,6 +62,13 @@ def ensure_optional_input_tables(
             team_id VARCHAR,
             id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.team_external_groups (
+            org_login VARCHAR,
+            team_database_id BIGINT,
+            external_group_id BIGINT,
+            external_group_name VARCHAR,
+            external_group_updated_at VARCHAR
+        );
         CREATE TABLE IF NOT EXISTS {schema}.external_identities (
             id VARCHAR,
             guid VARCHAR,
@@ -106,6 +113,12 @@ def ensure_optional_input_tables(
         );
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_organizations (
             id VARCHAR,
+            login VARCHAR,
+            enterprise_node_id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_scim_groups (
+            id VARCHAR,
+            display_name VARCHAR,
             enterprise_node_id VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_runner_groups (
@@ -194,6 +207,17 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.team_members
             ADD COLUMN IF NOT EXISTS id VARCHAR;
 
+        ALTER TABLE {schema}.team_external_groups
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+        ALTER TABLE {schema}.team_external_groups
+            ADD COLUMN IF NOT EXISTS team_database_id BIGINT;
+        ALTER TABLE {schema}.team_external_groups
+            ADD COLUMN IF NOT EXISTS external_group_id BIGINT;
+        ALTER TABLE {schema}.team_external_groups
+            ADD COLUMN IF NOT EXISTS external_group_name VARCHAR;
+        ALTER TABLE {schema}.team_external_groups
+            ADD COLUMN IF NOT EXISTS external_group_updated_at VARCHAR;
+
         ALTER TABLE {schema}.org_roles
             ADD COLUMN IF NOT EXISTS id BIGINT;
         ALTER TABLE {schema}.org_roles
@@ -243,6 +267,15 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.enterprise_organizations
             ADD COLUMN IF NOT EXISTS id VARCHAR;
         ALTER TABLE {schema}.enterprise_organizations
+            ADD COLUMN IF NOT EXISTS login VARCHAR;
+        ALTER TABLE {schema}.enterprise_organizations
+            ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+
+        ALTER TABLE {schema}.enterprise_scim_groups
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.enterprise_scim_groups
+            ADD COLUMN IF NOT EXISTS display_name VARCHAR;
+        ALTER TABLE {schema}.enterprise_scim_groups
             ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
 
         ALTER TABLE {schema}.enterprise_runner_groups

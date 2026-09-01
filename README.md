@@ -63,10 +63,23 @@ A token with enterprise SCIM access is used to collect both `/scim/v2/enterprise
 
 Enterprise roles, including the built-in `members` role, are emitted through `GH_HasRole` and granular enterprise capability relationships. Only capability relationships with a confirmed privilege path are traversable; descriptive permissions such as `GH_WriteEnterpriseSso` remain non-traversable.
 
+### Optional privileged collection
+
+The collector runs successfully with the documented read-only permission set. Some higher-fidelity relationships require optional non-read-only permissions because GitHub exposes the supporting read APIs behind privileged permission names:
+
+- Organization `Members: write` enables external group mapping collection for IdP-synced teams, which allows the converter to emit `SCIM_Provisioned` edges from `SCIM_Group` to `GH_Team`. This is useful when the organization uses team synchronization with an external identity provider; if no GitHub teams are linked to external groups, this permission does not add graph data.
+- Classic PAT scope `manage_runners:enterprise` enables enterprise self-hosted runner group and runner collection. This is useful when the enterprise has enterprise-scoped runner groups or runners, especially runner groups shared into organizations; if all runners are organization- or repository-scoped, this scope does not add graph data.
+
+If these optional permissions are not granted, OpenHound skips the affected resources and continues collecting the rest of the GitHub environment.
+
 [![Python Version](https://img.shields.io/badge/Python-3.13-brightgreen.svg)](#about)
 
 ## Getting Started
 
-Follow the OpenHound docs to get started:
+Follow the OpenHound GitHub collector docs to get started:
 
-- [OpenHound Documentation](https://bloodhound.specterops.io/openhound/overview)
+- [GitHub collector overview](https://bloodhound.specterops.io/openhound/collectors/github/overview)
+- [Configure the collector](https://bloodhound.specterops.io/openhound/collectors/github/collect-data)
+- [Configure an organization GitHub App](https://bloodhound.specterops.io/openhound/collectors/github/configure-app)
+- [Configure an enterprise GitHub App](https://bloodhound.specterops.io/openhound/collectors/github/configure-enterprise-app)
+- [Configure a personal access token](https://bloodhound.specterops.io/openhound/collectors/github/configure-pat)

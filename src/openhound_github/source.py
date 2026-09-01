@@ -156,6 +156,7 @@ class SourceContext:
     cache_lock: Lock = field(default_factory=Lock)
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    team_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
