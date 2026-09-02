@@ -1,5 +1,6 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
@@ -7,6 +8,7 @@ from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
 from openhound_github.graphql import (
     ENTERPRISE_ADMINS_QUERY,
     ENTERPRISE_MEMBERS_QUERY,
+    ORGANIZATION_ENTERPRISE_OWNERS_QUERY,
     ENTERPRISE_SAML_PROVIDER_QUERY,
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
@@ -65,6 +67,7 @@ class SourceContext:
     emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    organizations: list[Any] = field(default_factory=list)
 
 
 def _graphql_client(ctx: SourceContext) -> tuple[RESTClient, str]:
@@ -641,6 +644,60 @@ def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
 
 @app.transformer(name="enterprise_admins", columns=EnterpriseAdmin, parallelized=True)
 def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
+    seen_node_ids: set[str] = set()
+    owner_info_completed = False
+    client, graphql_path = _sso_graphql_client(ctx)
+    if not client:
+        client, graphql_path = _graphql_client(ctx)
+
+    try:
+        for row in _enterprise_admins_from_owner_info(
+            enterprise_data, ctx, client, graphql_path
+        ):
+            seen_node_ids.add(row["node_id"])
+            yield row
+        owner_info_completed = True
+    except Exception as e:
+        logger.warning(
+            "Unable to collect enterprise owners from ownerInfo.admins for "
+            "enterprise '%s'; trying organization.enterpriseOwners fallback: %s",
+            ctx.enterprise_name,
+            e,
+            extra={"resource": "enterprise_admins", "phase": "resource_iteration"},
+        )
+
+    if owner_info_completed and seen_node_ids:
+        return
+
+    for row in _enterprise_admins_from_organizations(enterprise_data, ctx):
+        if row["node_id"] in seen_node_ids:
+            continue
+        seen_node_ids.add(row["node_id"])
+        yield row
+
+
+def _enterprise_admin_row(
+    node: dict[str, Any], enterprise_data: Enterprise, ctx: SourceContext
+) -> dict[str, Any] | None:
+    node_id = node.get("id")
+    if not node_id:
+        return None
+    return {
+        "node_id": node_id,
+        "login": node.get("login"),
+        "assignment": "direct",
+        "role_id": "owners",
+        "enterprise_node_id": enterprise_data.id,
+        "enterprise_slug": ctx.enterprise_name,
+    }
+
+
+def _enterprise_admins_from_owner_info(
+    enterprise_data: Enterprise,
+    ctx: SourceContext,
+    client: RESTClient,
+    graphql_path: str,
+):
     paginator = GraphQLCursorPaginator(
         page_info_path="data.enterprise.ownerInfo.admins.pageInfo",
         cursor_variable="after",
@@ -652,7 +709,6 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
         "query": ENTERPRISE_ADMINS_QUERY,
         "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
     }
-    client, graphql_path = _graphql_client(ctx)
     for page_data in client.paginate(
         graphql_path,
         method="POST",
@@ -664,16 +720,60 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
             es_data = enterprise_object.get("enterprise", {})
             owner_info = es_data.get("ownerInfo") or {}
             for edge in (owner_info.get("admins") or {}).get("edges") or []:
-                node = edge.get("node")
-                if node and node.get("id"):
-                    yield {
-                        "node_id": node["id"],
-                        "login": node.get("login"),
-                        "assignment": "direct",
-                        "role_id": "owners",
-                        "enterprise_node_id": enterprise_data.id,
-                        "enterprise_slug": ctx.enterprise_name,
-                    }
+                row = _enterprise_admin_row(edge.get("node") or {}, enterprise_data, ctx)
+                if row:
+                    yield row
+
+
+def _enterprise_admins_from_organizations(
+    enterprise_data: Enterprise, ctx: SourceContext
+):
+    for org in getattr(ctx, "organizations", None) or []:
+        paginator = GraphQLCursorPaginator(
+            page_info_path="data.organization.enterpriseOwners.pageInfo",
+            cursor_variable="after",
+            cursor_field="endCursor",
+            has_next_field="hasNextPage",
+            allow_missing_page_info=True,
+        )
+        data = {
+            "query": ORGANIZATION_ENTERPRISE_OWNERS_QUERY,
+            "variables": {"login": org.org_name, "count": 100, "after": None},
+        }
+        client, graphql_path = graphql_client_and_path(
+            org.client, getattr(org, "graphql_client", None)
+        )
+        found_owner = False
+        try:
+            for page_data in client.paginate(
+                graphql_path,
+                method="POST",
+                json=data,
+                paginator=paginator,
+                data_selector="data",
+            ):
+                for organization_object in page_data:
+                    organization = organization_object.get("organization", {})
+                    for node in (organization.get("enterpriseOwners") or {}).get(
+                        "nodes"
+                    ) or []:
+                        row = _enterprise_admin_row(node, enterprise_data, ctx)
+                        if row:
+                            found_owner = True
+                            yield row
+        except Exception as e:
+            logger.warning(
+                "Unable to collect enterprise owners through organization '%s' "
+                "for enterprise '%s': %s",
+                org.org_name,
+                ctx.enterprise_name,
+                e,
+                extra={"resource": "enterprise_admins", "phase": "resource_iteration"},
+            )
+            continue
+
+        if found_owner:
+            return
 
 
 @app.transformer(
