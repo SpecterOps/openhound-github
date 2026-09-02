@@ -98,7 +98,7 @@ ENTERPRISE_ADMINS_QUERY = """
 query EnterpriseAdmins($slug: String!, $count: Int = 100, $after: String = null) {
     enterprise(slug: $slug) {
         ownerInfo {
-            admins(first: $count, after: $after) {
+            admins(first: $count, after: $after, role: OWNER) {
                 edges {
                     node {
                         id
@@ -109,6 +109,23 @@ query EnterpriseAdmins($slug: String!, $count: Int = 100, $after: String = null)
                     endCursor
                     hasNextPage
                 }
+            }
+        }
+    }
+}
+"""
+
+ORGANIZATION_ENTERPRISE_OWNERS_QUERY = """
+query OrganizationEnterpriseOwners($login: String!, $count: Int = 100, $after: String = null) {
+    organization(login: $login) {
+        enterpriseOwners(first: $count, after: $after) {
+            nodes {
+                id
+                login
+            }
+            pageInfo {
+                endCursor
+                hasNextPage
             }
         }
     }
