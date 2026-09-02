@@ -18,4 +18,4 @@ from openhound_github.models.enterprise_role_user import EnterpriseRoleUser
     ],
 )
 class EnterpriseAdmin(EnterpriseRoleUser):
-    pass
+    role_id: str

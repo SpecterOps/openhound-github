@@ -7,6 +7,7 @@ from openhound_github.models import EnterpriseScimOrganization, EnterpriseScimUs
 from openhound_github.resources.enterprise import (
     SourceContext,
     enterprise,
+    enterprise_admins,
     enterprise_external_identity,
     enterprise_organizations,
     enterprise_runner_group_memberships,
@@ -217,6 +218,158 @@ def test_enterprise_saml_provider_logs_and_returns_when_provider_is_missing(
         in record.getMessage()
         and record.levelno == logging.WARNING
         for record in caplog.records
+    )
+
+
+def test_enterprise_admins_use_pat_backed_owner_info_graphql_client() -> None:
+    assert enterprise_admins._hints["columns"]["role_id"]["data_type"] == "text"
+
+    app_client = _FakeClient(payload={}, pages=[])
+    app_graphql_client = _FakeClient(payload={}, pages=[])
+    pat_client = _FakeClient(payload={}, pages=[])
+    pat_graphql_client = _FakeClient(
+        payload={},
+        pages=[
+            [
+                {
+                    "enterprise": {
+                        "ownerInfo": {
+                            "admins": {
+                                "edges": [
+                                    {"node": {"id": "U_1", "login": "alice"}},
+                                    {"node": {"id": "U_2", "login": "bob"}},
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]
+        ],
+    )
+    ctx = SourceContext(
+        client=app_client,
+        graphql_client=app_graphql_client,
+        sso_client=pat_client,
+        sso_graphql_client=pat_graphql_client,
+        enterprise_name="acme",
+    )
+
+    rows = list(enterprise_admins.__wrapped__(SimpleNamespace(id="E_1"), ctx))
+
+    assert rows == [
+        {
+            "node_id": "U_1",
+            "login": "alice",
+            "assignment": "direct",
+            "role_id": "owners",
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+        },
+        {
+            "node_id": "U_2",
+            "login": "bob",
+            "assignment": "direct",
+            "role_id": "owners",
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+        },
+    ]
+    assert pat_graphql_client.paginate_calls[0][0] == ""
+    assert "role: OWNER" in pat_graphql_client.paginate_calls[0][1]["json"]["query"]
+    assert app_client.paginate_calls == []
+    assert app_graphql_client.paginate_calls == []
+
+
+def test_enterprise_admins_fall_back_to_org_enterprise_owners_without_pat() -> None:
+    enterprise_client = _FakeClient(payload={}, pages=[])
+    enterprise_graphql_client = _FakeClient(
+        payload={},
+        pages=[[{"enterprise": {"ownerInfo": None}}]],
+    )
+    org_client = _FakeClient(payload={}, pages=[])
+    org_graphql_client = _FakeClient(
+        payload={},
+        pages=[
+            [
+                {
+                    "organization": {
+                        "enterpriseOwners": {
+                            "nodes": [{"id": "U_1", "login": "alice"}]
+                        }
+                    }
+                }
+            ]
+        ],
+    )
+    ctx = SourceContext(
+        client=enterprise_client,
+        graphql_client=enterprise_graphql_client,
+        enterprise_name="acme",
+        organizations=[
+            SimpleNamespace(
+                org_name="acme-org",
+                client=org_client,
+                graphql_client=org_graphql_client,
+            )
+        ],
+    )
+
+    rows = list(enterprise_admins.__wrapped__(SimpleNamespace(id="E_1"), ctx))
+
+    assert rows == [
+        {
+            "node_id": "U_1",
+            "login": "alice",
+            "assignment": "direct",
+            "role_id": "owners",
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+        }
+    ]
+    assert enterprise_graphql_client.paginate_calls[0][0] == ""
+    assert org_graphql_client.paginate_calls[0][0] == ""
+    assert (
+        org_graphql_client.paginate_calls[0][1]["json"]["variables"]["login"]
+        == "acme-org"
+    )
+
+
+def test_enterprise_admins_fall_back_after_owner_info_request_failure(caplog) -> None:
+    enterprise_graphql_client = _FailingPaginateClient(payload={})
+    org_graphql_client = _FakeClient(
+        payload={},
+        pages=[
+            [
+                {
+                    "organization": {
+                        "enterpriseOwners": {
+                            "nodes": [{"id": "U_1", "login": "alice"}]
+                        }
+                    }
+                }
+            ]
+        ],
+    )
+    ctx = SourceContext(
+        client=_FakeClient(payload={}),
+        graphql_client=enterprise_graphql_client,
+        enterprise_name="acme",
+        organizations=[
+            SimpleNamespace(
+                org_name="acme-org",
+                client=_FakeClient(payload={}),
+                graphql_client=org_graphql_client,
+            )
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_admins.__wrapped__(SimpleNamespace(id="E_1"), ctx))
+
+    assert rows[0]["node_id"] == "U_1"
+    assert any(
+        "trying organization.enterpriseOwners fallback" in message
+        for message in caplog.messages
     )
 
 
