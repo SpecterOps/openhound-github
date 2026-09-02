@@ -645,6 +645,7 @@ def enterprise_role_users(role: EnterpriseRole, ctx: SourceContext):
 @app.transformer(name="enterprise_admins", columns=EnterpriseAdmin, parallelized=True)
 def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
     seen_node_ids: set[str] = set()
+    owner_info_completed = False
     client, graphql_path = _sso_graphql_client(ctx)
     if not client:
         client, graphql_path = _graphql_client(ctx)
@@ -655,6 +656,7 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
         ):
             seen_node_ids.add(row["node_id"])
             yield row
+        owner_info_completed = True
     except Exception as e:
         logger.warning(
             "Unable to collect enterprise owners from ownerInfo.admins for "
@@ -664,7 +666,7 @@ def enterprise_admins(enterprise_data: Enterprise, ctx: SourceContext):
             extra={"resource": "enterprise_admins", "phase": "resource_iteration"},
         )
 
-    if seen_node_ids:
+    if owner_info_completed and seen_node_ids:
         return
 
     for row in _enterprise_admins_from_organizations(enterprise_data, ctx):

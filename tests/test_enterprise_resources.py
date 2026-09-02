@@ -51,6 +51,13 @@ class _FailingPaginateClient(_FakeClient):
         raise ConnectionError("GraphQL endpoint unreachable")
 
 
+class _PartiallyFailingPaginateClient(_FakeClient):
+    def paginate(self, path: str, **kwargs):
+        self.paginate_calls.append((path, kwargs))
+        yield from self.pages
+        raise ConnectionError("GraphQL endpoint unreachable")
+
+
 class _FailingPostClient(_FakeClient):
     def post(self, path: str, json: dict):
         self.post_calls.append((path, json))
@@ -367,6 +374,66 @@ def test_enterprise_admins_fall_back_after_owner_info_request_failure(caplog) ->
         rows = list(enterprise_admins.__wrapped__(SimpleNamespace(id="E_1"), ctx))
 
     assert rows[0]["node_id"] == "U_1"
+    assert any(
+        "trying organization.enterpriseOwners fallback" in message
+        for message in caplog.messages
+    )
+
+
+def test_enterprise_admins_fall_back_after_partial_owner_info_pagination_failure(
+    caplog,
+) -> None:
+    enterprise_graphql_client = _PartiallyFailingPaginateClient(
+        payload={},
+        pages=[
+            [
+                {
+                    "enterprise": {
+                        "ownerInfo": {
+                            "admins": {
+                                "edges": [{"node": {"id": "U_1", "login": "alice"}}]
+                            }
+                        }
+                    }
+                }
+            ]
+        ],
+    )
+    org_graphql_client = _FakeClient(
+        payload={},
+        pages=[
+            [
+                {
+                    "organization": {
+                        "enterpriseOwners": {
+                            "nodes": [
+                                {"id": "U_1", "login": "alice"},
+                                {"id": "U_2", "login": "bob"},
+                            ]
+                        }
+                    }
+                }
+            ]
+        ],
+    )
+    ctx = SourceContext(
+        client=_FakeClient(payload={}),
+        graphql_client=enterprise_graphql_client,
+        enterprise_name="acme",
+        organizations=[
+            SimpleNamespace(
+                org_name="acme-org",
+                client=_FakeClient(payload={}),
+                graphql_client=org_graphql_client,
+            )
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.enterprise"):
+        rows = list(enterprise_admins.__wrapped__(SimpleNamespace(id="E_1"), ctx))
+
+    assert [row["node_id"] for row in rows] == ["U_1", "U_2"]
+    assert len(org_graphql_client.paginate_calls) == 1
     assert any(
         "trying organization.enterpriseOwners fallback" in message
         for message in caplog.messages
