@@ -137,7 +137,7 @@ class ScimOrganization(ScimScopeAsset):
         return []
 
 
-@app.asset()
+@app.asset(description="Represents enterprise-scoped SCIM organization input data.")
 class EnterpriseScimOrganization(ScimOrganization):
     """Enterprise-scoped SCIM organization input model.
 
@@ -241,7 +241,7 @@ class ScimUser(ScimScopeAsset):
             )
 
 
-@app.asset()
+@app.asset(description="Represents enterprise-scoped SCIM user input data.")
 class EnterpriseScimUser(ScimUser):
     """Enterprise-scoped SCIM user input model."""
 
