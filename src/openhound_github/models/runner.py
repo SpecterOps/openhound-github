@@ -29,7 +29,7 @@ _PRIVATE_REPOSITORY_CREATION_EDGE_KINDS = (
 @dataclass
 class GHRunnerGroupProperties(GHNodeProperties):
     """Properties for GHRunnerGroupProperties.
-    
+
     Attributes:
         scope: Whether the runner group is enterprise or organization scoped.
         group_id: The GitHub runner group ID.
@@ -272,7 +272,9 @@ class EnterpriseRunnerGroup(BaseAsset):
         )
 
 
-@app.asset()
+@app.asset(
+    description="Maps an enterprise runner group to an organization without emitting a node."
+)
 class EnterpriseRunnerGroupOrganization(BaseAsset):
     node_id: str
     login: str | None = None
@@ -296,7 +298,7 @@ class EnterpriseRunnerGroupOrganization(BaseAsset):
 @dataclass
 class GHRunnerProperties(GHNodeProperties):
     """Properties for GHRunnerProperties.
-    
+
     Attributes:
         scope: Whether the runner is enterprise, organization, or repository scoped.
         runner_id: The GitHub runner ID.
@@ -579,7 +581,9 @@ class OrgRunnerGroupAccess(BaseAsset):
 
         actions_enabled_repository_node_ids = {
             repository_node_id
-            for (repository_node_id,) in self._lookup.actions_enabled_repository_node_ids_for_org(
+            for (
+                repository_node_id,
+            ) in self._lookup.actions_enabled_repository_node_ids_for_org(
                 self.org_login
             )
         }

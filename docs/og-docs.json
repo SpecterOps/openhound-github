@@ -1,6 +1,7 @@
 {
     "extensionSchemaPath": "extension/schema.json",
     "extensionShortName": "GitHub",
+    "collectorName": "github",
     "gitHubBaseUrl": "https://github.com/SpecterOps/openhound-github",
     "stripTitlePrefix": "GitHub: ",
     "savedSearchesDir": "extension/saved_searches",
