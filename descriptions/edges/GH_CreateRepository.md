@@ -1,3 +1,20 @@
+# GH_CreateRepository
+
 ## General Information
 
 The non-traversable GH_CreateRepository edge represents that a role has the ability to create new repositories within the organization. This permission is available to Owners and custom organization roles that have been granted the repository creation permission. Creating repositories can introduce new attack surface to an organization, as each new repository is a potential vector for code execution through GitHub Actions workflows, secret exposure, and supply chain attacks.
+
+## Edge Schema
+
+| Source | Destination | Traversable |
+| --- | --- | --- |
+| `GH_OrgRole` | `GH_Organization` | `false` |
+
+## Diagram
+
+```mermaid
+graph LR
+    n0["GH_OrgRole"]
+    n1["GH_Organization"]
+    n0 -.->|GH_CreateRepository| n1
+```
