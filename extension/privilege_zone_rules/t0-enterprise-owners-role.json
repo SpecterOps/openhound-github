@@ -1,0 +1,8 @@
+{
+  "name": "GitHub: Tier Zero Enterprise Owners Role",
+  "description": "The enterprise owners role grants administrative control over the GitHub Enterprise account, including enterprise organizations, members, identity provider configuration, and enterprise-wide security settings.",
+  "cypher": "MATCH (n:GH_EnterpriseRole {short_name:'owners'})\nRETURN n",
+  "enabled": true,
+  "zone": "Tier Zero",
+  "allow_disable": true
+}
