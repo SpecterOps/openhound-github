@@ -92,12 +92,23 @@ def test_enterprise_resource_yields_single_record() -> None:
             }
         }
     )
-    ctx = SourceContext(client=client, enterprise_name="acme")
+    ctx = SourceContext(
+        client=client,
+        enterprise_name="acme",
+        deployment_type="ghes",
+        ghes_version="3.22.1",
+    )
 
     rows = list(enterprise(ctx))
 
     assert len(rows) == 1
     assert rows[0].id == "E_1"
+    assert rows[0].github_deployment_type == "ghes"
+    assert rows[0].ghes_version == "3.22.1"
+
+    rows[0]._lookup = SimpleNamespace(enterprise_id=lambda: "E_1")
+    assert rows[0].as_node.properties.github_deployment_type == "ghes"
+    assert rows[0].as_node.properties.ghes_version == "3.22.1"
     assert len(client.post_calls) == 1
 
 
