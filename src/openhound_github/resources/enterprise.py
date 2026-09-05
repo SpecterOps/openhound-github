@@ -67,6 +67,9 @@ class SourceContext:
     emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    deployment_type: str = "unknown"
+    ghes_version: str | None = None
+    enterprise_version_header: str | None = None
     organizations: list[Any] = field(default_factory=list)
 
 
@@ -133,7 +136,11 @@ def enterprise(ctx: SourceContext):
         response = client.post(graphql_path, json=data).json()
         page_enterprise = (response.get("data") or {}).get("enterprise")
         if page_enterprise:
-            yield page_enterprise
+            yield {
+                **page_enterprise,
+                "github_deployment_type": ctx.deployment_type,
+                "ghes_version": ctx.ghes_version,
+            }
     except Exception as e:
         logger.error(
             f"Error in resource 'enterprise' processing enterprise '{ctx.enterprise_name}': {e}",

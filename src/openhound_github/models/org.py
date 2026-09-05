@@ -74,6 +74,8 @@ class GHOrganizationProperties(GHNodeProperties):
         self_hosted_runners_enabled_repositories: Which repositories may use self-hosted runners: `all`, `selected`, or `none`.
         default_workflow_permissions: The default workflow permissions property.
         can_approve_pull_request_reviews: The can approve pull request reviews property.
+        github_deployment_type: The GitHub deployment type, such as `ghec` or `ghes`.
+        ghes_version: The GitHub Enterprise Server version, when applicable.
         query_organization_roles: Query for organization roles.
         query_users: Query for users.
         query_teams: Query for teams.
@@ -145,6 +147,8 @@ class GHOrganizationProperties(GHNodeProperties):
     self_hosted_runners_enabled_repositories: str | None = None
     default_workflow_permissions: str | None = None
     can_approve_pull_request_reviews: bool | None = None
+    github_deployment_type: str | None = None
+    ghes_version: str | None = None
     query_organization_roles: str | None = None
     query_users: str | None = None
     query_teams: str | None = None
@@ -229,6 +233,8 @@ class Organization(BaseAsset):
     self_hosted_runners_enabled_repositories: str | None = None
     default_workflow_permissions: str | None = None
     can_approve_pull_request_reviews: bool | None = None
+    github_deployment_type: str | None = None
+    ghes_version: str | None = None
 
     @property
     def as_node(self) -> GHNode:
@@ -300,6 +306,8 @@ class Organization(BaseAsset):
                 self_hosted_runners_enabled_repositories=self.self_hosted_runners_enabled_repositories,
                 default_workflow_permissions=self.default_workflow_permissions,
                 can_approve_pull_request_reviews=self.can_approve_pull_request_reviews,
+                github_deployment_type=self.github_deployment_type,
+                ghes_version=self.ghes_version,
                 query_organization_roles=f"MATCH (:GH_Organization {{node_id:'{oid}'}})-[:GH_Contains]->(n:GH_OrgRole) RETURN n",
                 query_users=f"MATCH (n:GH_User {{environmentid:'{oid}'}}) RETURN n",
                 query_teams=f"MATCH (n:GH_Team {{environmentid:'{oid}'}}) RETURN n",
