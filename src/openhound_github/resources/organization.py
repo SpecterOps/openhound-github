@@ -99,6 +99,9 @@ class OrgContext:
     enterprise_name: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    deployment_type: str = "unknown"
+    ghes_version: str | None = None
+    enterprise_version_header: str | None = None
 
 
 @dataclass
@@ -109,6 +112,9 @@ class SourceContext:
     enterprise_name: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    deployment_type: str = "unknown"
+    ghes_version: str | None = None
+    enterprise_version_header: str | None = None
     cache_lock: Lock = field(default_factory=Lock)
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -478,6 +484,8 @@ def organizations(ctx: SourceContext):
             org_data["can_approve_pull_request_reviews"] = workflow_perms.get(
                 "can_approve_pull_request_reviews"
             )
+            org_data["github_deployment_type"] = ctx.deployment_type
+            org_data["ghes_version"] = ctx.ghes_version
 
             yield org_data
         except Exception as e:

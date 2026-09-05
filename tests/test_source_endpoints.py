@@ -15,13 +15,19 @@ from openhound_github.resources.organization import (
     secret_scanning_alerts,
     users,
 )
+from openhound_github.graphql import ENTERPRISE_QUERY
 from openhound_github.source import (
     DEFAULT_GITHUB_GRAPHQL_URL,
     DEFAULT_GITHUB_REST_API_URL,
+    GithubDeploymentMetadata,
     GithubEndpoints,
     GithubEnterpriseAppCredentials,
     GithubOrgAppCredentials,
     GithubTokenCredentials,
+    OrgContext,
+    SourceContext,
+    _apply_github_deployment_metadata,
+    _detect_github_deployment,
     resolve_github_endpoints,
 )
 
@@ -31,6 +37,70 @@ def test_resolve_github_endpoints_uses_dotcom_defaults() -> None:
         rest_api_url=DEFAULT_GITHUB_REST_API_URL,
         graphql_url=DEFAULT_GITHUB_GRAPHQL_URL,
     )
+
+
+@pytest.mark.parametrize(
+    ("payload", "headers", "expected"),
+    (
+        (
+            {"installed_version": "3.22.1"},
+            {},
+            GithubDeploymentMetadata(deployment_type="ghes", ghes_version="3.22.1"),
+        ),
+        (
+            {},
+            {"X-GitHub-Enterprise-Version": "enterprise-server@3.21.0"},
+            GithubDeploymentMetadata(
+                deployment_type="ghes",
+                ghes_version="3.21.0",
+                enterprise_version_header="enterprise-server@3.21.0",
+            ),
+        ),
+        (
+            {},
+            {},
+            GithubDeploymentMetadata(deployment_type="ghec"),
+        ),
+    ),
+)
+def test_detect_github_deployment_from_meta(
+    payload: dict[str, str],
+    headers: dict[str, str],
+    expected: GithubDeploymentMetadata,
+) -> None:
+    response = SimpleNamespace(headers=headers, json=lambda: payload)
+    client = MagicMock()
+    client.get.return_value = response
+
+    assert _detect_github_deployment(client) == expected
+    client.get.assert_called_once_with("/meta")
+
+
+def test_apply_github_deployment_metadata_updates_source_and_org_contexts() -> None:
+    client = MagicMock()
+    client.get.return_value = SimpleNamespace(
+        headers={"X-GitHub-Enterprise-Version": "3.20.4"},
+        json=lambda: {"installed_version": "3.20.4"},
+    )
+    ctx = SourceContext(organizations=[OrgContext(client=client, org_name="acme")])
+
+    metadata = _apply_github_deployment_metadata(ctx, client)
+
+    assert metadata == GithubDeploymentMetadata(
+        deployment_type="ghes",
+        ghes_version="3.20.4",
+        enterprise_version_header="3.20.4",
+    )
+    assert ctx.deployment_type == "ghes"
+    assert ctx.ghes_version == "3.20.4"
+    assert ctx.enterprise_version_header == "3.20.4"
+    assert ctx.organizations[0].deployment_type == "ghes"
+    assert ctx.organizations[0].ghes_version == "3.20.4"
+    assert ctx.organizations[0].enterprise_version_header == "3.20.4"
+
+
+def test_enterprise_query_omits_security_contact_email() -> None:
+    assert "securityContactEmail" not in ENTERPRISE_QUERY
 
 
 def test_resolve_github_endpoints_uses_explicit_endpoint_pair() -> None:
