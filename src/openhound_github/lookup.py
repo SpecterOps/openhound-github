@@ -1,6 +1,7 @@
 import json
 import re
 from functools import lru_cache
+from typing import Any
 
 import duckdb
 from duckdb import DuckDBPyConnection
@@ -166,6 +167,204 @@ class GithubLookup(LookupManager):
             [enterprise_node_id, runner_group_id],
         )
         return [(runner_node_id(enterprise_node_id, int(runner_id)),) for (runner_id,) in rows]
+
+    @staticmethod
+    def _json_list(raw_value: Any) -> list[Any]:
+        if raw_value is None:
+            return []
+        if isinstance(raw_value, str):
+            try:
+                raw_value = json.loads(raw_value)
+            except json.JSONDecodeError:
+                return []
+        if isinstance(raw_value, list):
+            return raw_value
+        return []
+
+    @classmethod
+    def _runner_label_names(cls, raw_labels: Any) -> set[str]:
+        names: set[str] = set()
+        for label in cls._json_list(raw_labels):
+            if isinstance(label, dict):
+                name = label.get("name")
+            else:
+                name = label
+            if name is not None:
+                names.add(str(name).casefold())
+        return names
+
+    @staticmethod
+    def _runner_group_allows_repository(
+        *,
+        repository_node_id: str,
+        repository_visibility: str | None,
+        runner_group_visibility: str | None,
+        allows_public_repositories: bool | None,
+        accessible_repo_node_ids: set[str],
+    ) -> bool:
+        if runner_group_visibility == "all":
+            in_scope = True
+        elif runner_group_visibility == "private":
+            in_scope = repository_visibility in {"private", "internal"}
+        else:
+            in_scope = repository_node_id in accessible_repo_node_ids
+
+        if not in_scope:
+            return False
+
+        if allows_public_repositories is False:
+            return repository_visibility in {"private", "internal"}
+
+        return True
+
+    @lru_cache
+    def workflow_job_runner_node_ids(
+        self,
+        repository_node_id: str,
+        org_login: str,
+        group_name: str | None,
+        labels: tuple[str, ...],
+    ) -> list[str]:
+        """Return accessible self-hosted runners matching a static runs-on selector."""
+        if not group_name and not labels:
+            return []
+
+        repository = self._find_single_row(
+            f"""
+            SELECT visibility, actions_enabled
+            FROM {self.schema}.repositories
+            WHERE node_id = ?
+              AND org_login = ?
+            """,
+            [repository_node_id, org_login],
+        )
+        if not repository:
+            return []
+
+        repository_visibility, actions_enabled = repository
+        required_labels = {str(label).casefold() for label in labels}
+        matching_runner_node_ids: list[str] = []
+        seen_runner_node_ids: set[str] = set()
+
+        def add_matching_runner(node_id: str, raw_labels: Any) -> None:
+            if node_id in seen_runner_node_ids:
+                return
+            if not required_labels.issubset(self._runner_label_names(raw_labels)):
+                return
+            seen_runner_node_ids.add(node_id)
+            matching_runner_node_ids.append(node_id)
+
+        if group_name is None:
+            for runner_id, raw_labels in self._find_all_objects(
+                f"""
+                SELECT id, labels
+                FROM {self.schema}.repo_runners
+                WHERE repository_node_id = ?
+                """,
+                [repository_node_id],
+            ):
+                add_matching_runner(
+                    runner_node_id(repository_node_id, int(runner_id)),
+                    raw_labels,
+                )
+
+        if actions_enabled is not True:
+            return matching_runner_node_ids
+
+        for (
+            runner_group_id,
+            runner_group_name,
+            runner_group_visibility,
+            allows_public_repositories,
+            restricted_to_workflows,
+            inherited,
+            raw_accessible_repo_node_ids,
+        ) in self._find_all_objects(
+            f"""
+            SELECT
+                runner_group_id,
+                runner_group_name,
+                runner_group_visibility,
+                allows_public_repositories,
+                restricted_to_workflows,
+                inherited,
+                accessible_repo_node_ids
+            FROM {self.schema}.org_runner_group_access
+            WHERE org_login = ?
+            """,
+            [org_login],
+        ):
+            if group_name is not None and runner_group_name != group_name:
+                continue
+            if restricted_to_workflows is not False:
+                continue
+
+            accessible_repo_node_ids = {
+                str(node_id)
+                for node_id in self._json_list(raw_accessible_repo_node_ids)
+            }
+            if not self._runner_group_allows_repository(
+                repository_node_id=repository_node_id,
+                repository_visibility=repository_visibility,
+                runner_group_visibility=runner_group_visibility,
+                allows_public_repositories=allows_public_repositories,
+                accessible_repo_node_ids=accessible_repo_node_ids,
+            ):
+                continue
+
+            if inherited:
+                org_node_id = self.org_id_for_login(org_login)
+                if not org_node_id:
+                    continue
+                if (
+                    self.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group(
+                        org_node_id, runner_group_name
+                    )
+                    is not False
+                ):
+                    continue
+                identity = self._enterprise_runner_group_identity_for_inherited_org_group(
+                    org_node_id, runner_group_name
+                )
+                if not identity:
+                    continue
+                enterprise_node_id, enterprise_runner_group_id = identity
+                for runner_id, raw_labels in self._find_all_objects(
+                    f"""
+                    SELECT r.id, r.labels
+                    FROM {self.schema}.enterprise_runner_group_memberships m
+                    JOIN {self.schema}.enterprise_runners r
+                      ON r.enterprise_node_id = m.enterprise_node_id
+                     AND r.id = m.runner_id
+                    WHERE m.enterprise_node_id = ?
+                      AND m.runner_group_id = ?
+                    """,
+                    [enterprise_node_id, enterprise_runner_group_id],
+                ):
+                    add_matching_runner(
+                        runner_node_id(enterprise_node_id, int(runner_id)),
+                        raw_labels,
+                    )
+                continue
+
+            for runner_id, raw_labels in self._find_all_objects(
+                f"""
+                SELECT r.id, r.labels
+                FROM {self.schema}.org_runner_group_memberships m
+                JOIN {self.schema}.org_runners r
+                  ON r.org_login = m.org_login
+                 AND r.id = m.runner_id
+                WHERE m.org_login = ?
+                  AND m.runner_group_id = ?
+                """,
+                [org_login, runner_group_id],
+            ):
+                add_matching_runner(
+                    runner_node_id(self.org_id_for_login(org_login), int(runner_id)),
+                    raw_labels,
+                )
+
+        return matching_runner_node_ids
 
     @lru_cache
     def enterprise_idp_for_scope(

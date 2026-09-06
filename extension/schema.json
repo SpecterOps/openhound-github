@@ -1031,6 +1031,11 @@
       "is_traversable": false
     },
     {
+      "name": "GH_RunsOn",
+      "description": "[Workflow] Job can be scheduled on this self-hosted runner based on its static runs-on selector — GH_WorkflowJob → GH_Runner",
+      "is_traversable": false
+    },
+    {
       "name": "GH_HasMember",
       "description": "Enterprise or organization has this user as a member",
       "is_traversable": false
