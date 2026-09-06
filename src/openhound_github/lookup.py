@@ -513,6 +513,34 @@ class GithubLookup(LookupManager):
         return int(row[0])
 
     @lru_cache
+    def repository_workflow_permissions(
+        self, repository_node_id: str
+    ) -> tuple[str | None, bool | None] | None:
+        row = self._find_single_row(
+            f"""
+            SELECT
+                repository_default_workflow_permissions,
+                repository_can_approve_pull_request_reviews
+            FROM {self.schema}.workflows
+            WHERE repository_node_id = ?
+            LIMIT 1
+            """,
+            [repository_node_id],
+        )
+        if row is None:
+            return None
+
+        default_workflow_permissions, can_approve_pull_request_reviews = row
+        return (
+            default_workflow_permissions,
+            (
+                None
+                if can_approve_pull_request_reviews is None
+                else bool(can_approve_pull_request_reviews)
+            ),
+        )
+
+    @lru_cache
     def repository_default_branch_collected(self, repository_node_id: str) -> bool:
         """Return whether the repository's REST default branch was collected."""
         row = self._find_single_row(

@@ -390,14 +390,18 @@ def test_repository_node_surfaces_branch_ruleset_presence() -> None:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "O_1"
     lookup.repository_branch_ruleset_count.return_value = 2
+    lookup.repository_workflow_permissions.return_value = ("read", False)
     repo._lookup = lookup
 
     node = repo.as_node
 
     assert node.properties.branch_ruleset_count == 2
     assert node.properties.has_branch_rulesets is True
+    assert node.properties.default_workflow_permissions == "read"
+    assert node.properties.can_approve_pull_request_reviews is False
     assert node.properties.size == 0
     lookup.repository_branch_ruleset_count.assert_called_once_with("R_1")
+    lookup.repository_workflow_permissions.assert_called_once_with("R_1")
 
 
 def test_repository_node_preserves_unknown_branch_ruleset_presence() -> None:
@@ -405,12 +409,15 @@ def test_repository_node_preserves_unknown_branch_ruleset_presence() -> None:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "O_1"
     lookup.repository_branch_ruleset_count.return_value = None
+    lookup.repository_workflow_permissions.return_value = None
     repo._lookup = lookup
 
     node = repo.as_node
 
     assert node.properties.branch_ruleset_count is None
     assert node.properties.has_branch_rulesets is None
+    assert node.properties.default_workflow_permissions is None
+    assert node.properties.can_approve_pull_request_reviews is None
 
 
 def test_repository_branch_ruleset_count_lookup_returns_int() -> None:
@@ -427,3 +434,20 @@ def test_repository_branch_ruleset_count_lookup_returns_int() -> None:
 
     assert lookup.repository_branch_ruleset_count("R_1") == 2
     assert lookup.repository_branch_ruleset_count("R_2") is None
+
+
+def test_repository_workflow_permissions_lookup_returns_collected_policy() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    connection.execute(
+        "CREATE TABLE github.workflows (repository_node_id VARCHAR, repository_default_workflow_permissions VARCHAR, repository_can_approve_pull_request_reviews BOOLEAN)"
+    )
+    connection.execute(
+        "INSERT INTO github.workflows VALUES ('R_1', 'read', false), ('R_2', NULL, NULL)"
+    )
+
+    lookup = GithubLookup(connection)
+
+    assert lookup.repository_workflow_permissions("R_1") == ("read", False)
+    assert lookup.repository_workflow_permissions("R_2") == (None, None)
+    assert lookup.repository_workflow_permissions("R_3") is None
