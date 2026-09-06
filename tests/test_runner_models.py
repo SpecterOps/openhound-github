@@ -56,11 +56,12 @@ def _workflow_runner_lookup() -> GithubLookup:
     )
     connection.execute("INSERT INTO github.organizations VALUES ('acme', 'ORG_1')")
     connection.execute(
-        "INSERT INTO github.repositories VALUES ('REPO_1', 'acme', 'private', true), ('REPO_2', 'acme', 'private', true)"
+        "INSERT INTO github.repositories VALUES ('REPO_1', 'acme', 'private', true), ('REPO_2', 'acme', 'private', true), ('REPO_3', 'acme', 'private', false)"
     )
     connection.execute(
         """INSERT INTO github.repo_runners VALUES
-        (21, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'REPO_1')"""
+        (21, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'REPO_1'),
+        (22, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'REPO_3')"""
     )
     connection.execute(
         """INSERT INTO github.org_runners VALUES
@@ -142,6 +143,23 @@ def test_workflow_job_runner_lookup_resolves_inherited_enterprise_group() -> Non
     assert lookup.workflow_job_runner_node_ids(
         "REPO_1", "acme", "enterprise-prod", ("self-hosted", "linux")
     ) == ["ENT_1_runner_31"]
+
+
+def test_workflow_job_runner_lookup_returns_no_runners_when_actions_disabled() -> None:
+    lookup = _workflow_runner_lookup()
+
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_3", "acme", None, ("self-hosted", "linux", "x64")
+        )
+        == []
+    )
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_3", "acme", "Default", ("self-hosted", "linux", "x64")
+        )
+        == []
+    )
 
 
 def test_org_runner_group_keeps_generic_runner_group_label() -> None:
