@@ -118,6 +118,24 @@ def test_workflow_job_group_selector_counts_as_self_hosted() -> None:
     assert job.as_node.properties.is_self_hosted is True
 
 
+def test_workflow_job_uppercase_self_hosted_label_counts_as_self_hosted() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        runs_on=["SELF-HOSTED", "Linux", "X64"],
+    )
+    job._lookup = _org_reference_lookup()
+
+    assert job.runs_on_labels == ["SELF-HOSTED", "Linux", "X64"]
+    assert job.is_self_hosted is True
+    assert job.as_node.properties.is_self_hosted is True
+
+
 def test_workflow_job_emits_runs_on_edges_for_static_selector_matches() -> None:
     job = WorkflowJob(
         node_id="JOB_1",

@@ -229,9 +229,9 @@ class WorkflowJob(BaseAsset):
 
     @property
     def is_self_hosted(self) -> bool:
-        return bool(self.runs_on_group) or "self-hosted" in (
-            self.runs_on_labels or self.runs_on or []
-        )
+        return bool(self.runs_on_group) or "self-hosted" in {
+            str(label).casefold() for label in (self.runs_on_labels or self.runs_on or [])
+        }
 
     @property
     def as_node(self) -> GHNode:
