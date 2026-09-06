@@ -269,7 +269,7 @@ class GithubLookup(LookupManager):
                 )
 
         if actions_enabled is not True:
-            return matching_runner_node_ids
+            return []
 
         for (
             runner_group_id,
