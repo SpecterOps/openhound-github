@@ -41,6 +41,8 @@ class GHRepositoryProperties(GHNodeProperties):
         environment_name: The name of the environment (GitHub organization).
         actions_enabled: Whether GitHub Actions is enabled for this repository.
         self_hosted_runners_enabled: Whether the repository may use self-hosted runners.
+        default_workflow_permissions: The repository's applicable default GITHUB_TOKEN workflow permissions.
+        can_approve_pull_request_reviews: Whether workflows may approve pull request reviews.
         secret_scanning: Status of secret scanning (e.g., `enabled`, `disabled`).
         branch_ruleset_count: Number of branch-targeted rulesets that apply to this repository.
         has_branch_rulesets: Whether at least one branch-targeted ruleset applies to this repository.
@@ -87,6 +89,8 @@ class GHRepositoryProperties(GHNodeProperties):
     environment_name: str | None = None
     actions_enabled: bool | None = None
     self_hosted_runners_enabled: bool | None = None
+    default_workflow_permissions: str | None = None
+    can_approve_pull_request_reviews: bool | None = None
     secret_scanning: str | None = None
     branch_ruleset_count: int | None = None
     has_branch_rulesets: bool | None = None
@@ -226,6 +230,10 @@ class Repository(BaseAsset):
     def as_node(self) -> GHNode:
         rid = self.node_id
         branch_ruleset_count = self._lookup.repository_branch_ruleset_count(rid)
+        workflow_permissions = self._lookup.repository_workflow_permissions(rid)
+        default_workflow_permissions, can_approve_pull_request_reviews = (
+            workflow_permissions if workflow_permissions else (None, None)
+        )
         return GHNode(
             kinds=[nk.REPOSITORY],
             properties=GHRepositoryProperties(
@@ -256,6 +264,8 @@ class Repository(BaseAsset):
                 environmentid=self.org_node_id,
                 actions_enabled=self.actions_enabled,
                 self_hosted_runners_enabled=self.self_hosted_runners_enabled,
+                default_workflow_permissions=default_workflow_permissions,
+                can_approve_pull_request_reviews=can_approve_pull_request_reviews,
                 branch_ruleset_count=branch_ruleset_count,
                 has_branch_rulesets=(
                     branch_ruleset_count > 0

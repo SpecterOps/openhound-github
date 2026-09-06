@@ -1,0 +1,5 @@
+{
+  "name": "GitHub: OIDC-Capable Workflow Jobs on Self-Hosted Runners",
+  "query": "MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(job:GH_WorkflowJob)-[:GH_RunsOn]->(:GH_Runner)\nWHERE 'id-token:write' IN job.effective_github_token_permissions\nRETURN p\nLIMIT 1000",
+  "description": "Returns OIDC-capable workflow jobs that can be scheduled on collected self-hosted runners. These jobs are especially important to review because runner compromise could expose short-lived cloud federation tokens."
+}

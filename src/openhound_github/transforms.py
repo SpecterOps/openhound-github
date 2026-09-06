@@ -172,6 +172,11 @@ def ensure_optional_input_tables(
             labels JSON,
             repository_node_id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.workflows (
+            repository_node_id VARCHAR,
+            repository_default_workflow_permissions VARCHAR,
+            repository_can_approve_pull_request_reviews BOOLEAN
+        );
     """)
     con.execute(f"""
         ALTER TABLE {schema}.branches
@@ -387,6 +392,13 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS labels JSON;
         ALTER TABLE {schema}.repo_runners
             ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
+
+        ALTER TABLE {schema}.workflows
+            ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
+        ALTER TABLE {schema}.workflows
+            ADD COLUMN IF NOT EXISTS repository_default_workflow_permissions VARCHAR;
+        ALTER TABLE {schema}.workflows
+            ADD COLUMN IF NOT EXISTS repository_can_approve_pull_request_reviews BOOLEAN;
     """)
 
 # TODO:
