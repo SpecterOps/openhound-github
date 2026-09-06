@@ -43,6 +43,7 @@ SECRET_REFERENCE_RE = re.compile(r"\$\{\{\s*secrets\.(\w+)\s*\}\}")
 VARIABLE_REFERENCE_RE = re.compile(r"\$\{\{\s*vars\.(\w+)\s*\}\}")
 ACTION_RE = re.compile(r"^(?P<owner>[^/]+)/(?P<name>[^@]+)@(?P<ref>.+)$")
 PINNED_REF_RE = re.compile(r"^[0-9a-f]{40}$")
+TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
 
 
 class WorkflowStepDefinition(BaseModel):
@@ -92,6 +93,49 @@ class Container(BaseModel):
 class RunsOn(BaseModel):
     group: str | None = None
     labels: list[str] | str | None = None
+
+
+class RunsOnSelector(BaseModel):
+    group: str | None = None
+    labels: list[str] = Field(default_factory=list)
+    is_dynamic: bool = False
+
+
+def parse_runs_on_selector(value: Any) -> RunsOnSelector:
+    """Normalize a workflow job's runs-on declaration without losing group data."""
+    if value is None:
+        return RunsOnSelector()
+
+    if isinstance(value, RunsOn):
+        value = value.model_dump()
+
+    group: str | None = None
+    labels: list[str] = []
+
+    if isinstance(value, str):
+        labels = [value]
+    elif isinstance(value, list):
+        labels = [str(item) for item in value]
+    elif isinstance(value, dict):
+        raw_group = value.get("group")
+        if raw_group is not None:
+            group = str(raw_group)
+
+        raw_labels = value.get("labels")
+        if isinstance(raw_labels, str):
+            labels = [raw_labels]
+        elif isinstance(raw_labels, list):
+            labels = [str(item) for item in raw_labels]
+        elif raw_labels is not None:
+            labels = [str(raw_labels)]
+    else:
+        labels = [str(value)]
+
+    is_dynamic = any(TEMPLATE_RE.search(item) for item in labels)
+    if group:
+        is_dynamic = is_dynamic or bool(TEMPLATE_RE.search(group))
+
+    return RunsOnSelector(group=group, labels=labels, is_dynamic=is_dynamic)
 
 
 class WorkflowJobDefinition(BaseModel):
@@ -148,6 +192,10 @@ class WorkflowJobDefinition(BaseModel):
     @property
     def container_value(self) -> str | None:
         return str(self.container) if self.container else None
+
+    @property
+    def runs_on_selector(self) -> RunsOnSelector:
+        return parse_runs_on_selector(self.runs_on)
 
 
 class WorkflowDocument(BaseModel):
@@ -498,6 +546,7 @@ class Workflow(BaseAsset):
         }
         rows = []
         for job_key, job in document.jobs.items():
+            runs_on_selector = job.runs_on_selector
             secret_refs = []
             variable_refs = []
             secret_refs.extend(
@@ -514,6 +563,9 @@ class Workflow(BaseAsset):
                     "name": f"{self.repository_name}\\{job_key}",
                     "job_key": job_key,
                     "runs_on": job.runs_on,
+                    "runs_on_group": runs_on_selector.group,
+                    "runs_on_labels": runs_on_selector.labels or None,
+                    "runs_on_is_dynamic": runs_on_selector.is_dynamic,
                     "container": job.container_value,
                     "environment": job.environment_name,
                     "permissions": job.permissions
