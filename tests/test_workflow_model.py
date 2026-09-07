@@ -182,6 +182,26 @@ jobs:
     ) == {"none"}
 
 
+def test_workflow_job_rows_preserve_job_secret_reference_contexts() -> None:
+    workflow = _workflow_from_yaml(
+        b"""jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+    secrets:
+      forwarded_token: ${{ secrets.FORWARDED_TOKEN }}
+"""
+    )
+
+    row = workflow.workflow_job_rows()[0]
+
+    assert row["secret_references"] == [
+        {"name": "FORWARDED_TOKEN", "context": "secrets:forwarded_token"},
+        {"name": "DEPLOY_TOKEN", "context": "env:DEPLOY_TOKEN"},
+    ]
+
+
 def test_effective_github_token_permissions_use_repository_default_when_undeclared() -> None:
     permissions = _permissions_map(
         resolve_effective_github_token_permissions("read", None, None)
@@ -303,6 +323,24 @@ def test_workflow_job_group_selector_counts_as_self_hosted() -> None:
     assert job.as_node.properties.is_self_hosted is True
 
 
+def test_workflow_job_node_exposes_accessible_secret_query() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+    )
+    job._lookup = _org_reference_lookup()
+
+    assert job.as_node.properties.query_accessible_secrets == (
+        "MATCH p=(:GH_WorkflowJob {node_id:'JOB_1'})"
+        "-[:GH_CanAccessSecret]->(:GH_Secret) RETURN p"
+    )
+
+
 def test_workflow_job_uppercase_self_hosted_label_counts_as_self_hosted() -> None:
     job = WorkflowJob(
         node_id="JOB_1",
@@ -354,6 +392,165 @@ def test_workflow_job_emits_runs_on_edges_for_static_selector_matches() -> None:
     )
 
 
+def test_workflow_job_emits_can_intercept_job_edges_for_interceptable_runner_matches() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        runs_on=["self-hosted", "linux", "x64"],
+    )
+    lookup = _org_reference_lookup()
+    lookup.workflow_job_interceptable_runner_node_ids.return_value = [
+        "REPO_1_runner_1",
+        "ORG_1_runner_2",
+    ]
+    job._lookup = lookup
+
+    edges = list(job._can_intercept_job_edges)
+
+    assert [(edge.kind, edge.start.value, edge.end.value) for edge in edges] == [
+        (ek.CAN_INTERCEPT_JOB, "REPO_1_runner_1", "JOB_1"),
+        (ek.CAN_INTERCEPT_JOB, "ORG_1_runner_2", "JOB_1"),
+    ]
+    assert all(edge.properties.traversable is True for edge in edges)
+    assert all(edge.properties.composed is True for edge in edges)
+    assert edges[0].properties.query_composition == (
+        "MATCH p=(:GH_WorkflowJob {node_id:'JOB_1'})"
+        "-[:GH_RunsOn]->(:GH_Runner {node_id:'REPO_1_runner_1'}) RETURN p"
+    )
+    lookup.workflow_job_interceptable_runner_node_ids.assert_called_once_with(
+        "REPO_1",
+        "github",
+        None,
+        ("self-hosted", "linux", "x64"),
+    )
+
+
+def test_workflow_job_emits_can_access_secret_edges_for_step_references() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        environment="prod",
+    )
+    lookup = _org_reference_lookup()
+    lookup.workflow_step_secret_reference_names.return_value = [
+        "REPO_TOKEN",
+        "ORG_TOKEN",
+        "ENV_TOKEN",
+    ]
+    lookup.repo_secret.side_effect = lambda name, _repo_id: (
+        (name,) if name == "REPO_TOKEN" else None
+    )
+    lookup.org_secret.side_effect = lambda name, _org_login: (
+        (name,) if name == "ORG_TOKEN" else None
+    )
+    lookup.environment_secret_for_environment.side_effect = (
+        lambda name, _repo_id, _environment: (name,) if name == "ENV_TOKEN" else None
+    )
+    job._lookup = lookup
+
+    edges = list(job._can_access_secret_edges)
+
+    assert [edge.kind for edge in edges] == [
+        ek.CAN_ACCESS_SECRET,
+        ek.CAN_ACCESS_SECRET,
+        ek.CAN_ACCESS_SECRET,
+    ]
+    assert [edge.end.kind for edge in edges] == [
+        nk.REPO_SECRET,
+        nk.ORG_SECRET,
+        nk.ENVIRONMENT_SECRET,
+    ]
+    assert all(edge.properties.traversable is True for edge in edges)
+    assert all(edge.properties.composed is True for edge in edges)
+    assert "GH_Contains" in edges[0].properties.query_composition
+    assert "GH_UsesSecret" in edges[0].properties.query_composition
+
+
+def test_workflow_job_can_access_secret_edges_deduplicate_step_references() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+    )
+    lookup = _org_reference_lookup()
+    lookup.workflow_step_secret_reference_names.return_value = [
+        "DEPLOY_TOKEN",
+        "deploy_token",
+    ]
+    lookup.org_secret.return_value = ("DEPLOY_TOKEN",)
+    job._lookup = lookup
+
+    edges = list(job._can_access_secret_edges)
+
+    assert len(edges) == 1
+    assert edges[0].end.kind == nk.ORG_SECRET
+    assert _matcher_values(edges[0]) == {
+        "name": "DEPLOY_TOKEN",
+        "environmentid": ORG_NODE_ID,
+    }
+
+
+def test_workflow_job_job_level_secret_reference_alone_does_not_emit_can_access_secret() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        secret_references=[
+            {"name": "FORWARDED_TOKEN", "context": "secrets:forwarded_token"}
+        ],
+    )
+    lookup = _org_reference_lookup()
+    lookup.workflow_step_secret_reference_names.return_value = []
+    job._lookup = lookup
+
+    assert list(job._can_access_secret_edges) == []
+
+
+def test_workflow_job_job_env_secret_reference_emits_can_access_secret() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        secret_references=[{"name": "DEPLOY_TOKEN", "context": "env:DEPLOY_TOKEN"}],
+    )
+    lookup = _org_reference_lookup()
+    lookup.workflow_step_secret_reference_names.return_value = []
+    lookup.org_secret.return_value = ("DEPLOY_TOKEN",)
+    job._lookup = lookup
+
+    edges = list(job._can_access_secret_edges)
+
+    assert len(edges) == 1
+    assert edges[0].end.kind == nk.ORG_SECRET
+    assert edges[0].properties.query_composition == (
+        "MATCH p=(:GH_WorkflowJob {node_id:'JOB_1'})"
+        "-[:GH_UsesSecret]->(:GH_OrgSecret "
+        "{name:'DEPLOY_TOKEN', environmentid:'MDEyOk9yZ2FuaXphdGlvbjE='}) RETURN p"
+    )
+
+
 def test_workflow_job_dynamic_runs_on_selector_emits_no_edge() -> None:
     job = WorkflowJob(
         node_id="JOB_1",
@@ -370,6 +567,8 @@ def test_workflow_job_dynamic_runs_on_selector_emits_no_edge() -> None:
 
     assert list(job._runs_on_edges) == []
     lookup.workflow_job_runner_node_ids.assert_not_called()
+    assert list(job._can_intercept_job_edges) == []
+    lookup.workflow_job_interceptable_runner_node_ids.assert_not_called()
 
 
 def test_pwn_request_edges_support_branch_lookup_protection_flag() -> None:
@@ -393,6 +592,7 @@ def _org_reference_lookup() -> MagicMock:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = ORG_NODE_ID
     lookup.repository_workflow_permissions.return_value = None
+    lookup.workflow_step_secret_reference_names.return_value = []
     lookup.repo_secret.return_value = None
     lookup.org_secret.return_value = ("DEPLOY_TOKEN",)
     lookup.repo_variable.return_value = None

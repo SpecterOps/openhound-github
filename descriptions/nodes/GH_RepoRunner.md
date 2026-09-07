@@ -5,3 +5,5 @@ Represents a self-hosted runner registered directly to a single GitHub repositor
 The node captures runner metadata such as operating system, status, busy state, labels, and whether the runner is ephemeral when GitHub returns that property.
 
 GH_RunsOn edges from GH_WorkflowJob nodes identify statically resolvable jobs in the containing repository that GitHub could schedule on this runner. These edges do not indicate that the job has actually executed on the runner.
+
+When the runner is not explicitly marked ephemeral, GH_CanInterceptJob edges identify workflow jobs whose future execution context may be exposed to an actor controlling the runner.

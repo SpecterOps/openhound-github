@@ -1,0 +1,5 @@
+{
+  "name": "GitHub: Workflow Jobs Interceptable by Self-Hosted Runners",
+  "query": "MATCH p=(runner:GH_Runner)-[:GH_CanInterceptJob]->(job:GH_WorkflowJob)\nRETURN p\nLIMIT 1000",
+  "description": "Returns workflow jobs whose future execution context may be exposed to an actor controlling a collected self-hosted runner that is not explicitly marked ephemeral."
+}

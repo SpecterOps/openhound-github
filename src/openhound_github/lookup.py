@@ -218,13 +218,13 @@ class GithubLookup(LookupManager):
         return True
 
     @lru_cache
-    def workflow_job_runner_node_ids(
+    def _workflow_job_runner_matches(
         self,
         repository_node_id: str,
         org_login: str,
         group_name: str | None,
         labels: tuple[str, ...],
-    ) -> list[str]:
+    ) -> list[tuple[str, bool | None]]:
         """Return accessible self-hosted runners matching a static runs-on selector."""
         if not group_name and not labels:
             return []
@@ -243,21 +243,23 @@ class GithubLookup(LookupManager):
 
         repository_visibility, actions_enabled = repository
         required_labels = {str(label).casefold() for label in labels}
-        matching_runner_node_ids: list[str] = []
+        matching_runners: list[tuple[str, bool | None]] = []
         seen_runner_node_ids: set[str] = set()
 
-        def add_matching_runner(node_id: str, raw_labels: Any) -> None:
+        def add_matching_runner(
+            node_id: str, raw_labels: Any, ephemeral: bool | None
+        ) -> None:
             if node_id in seen_runner_node_ids:
                 return
             if not required_labels.issubset(self._runner_label_names(raw_labels)):
                 return
             seen_runner_node_ids.add(node_id)
-            matching_runner_node_ids.append(node_id)
+            matching_runners.append((node_id, ephemeral))
 
         if group_name is None:
-            for runner_id, raw_labels in self._find_all_objects(
+            for runner_id, raw_labels, ephemeral in self._find_all_objects(
                 f"""
-                SELECT id, labels
+                SELECT id, labels, ephemeral
                 FROM {self.schema}.repo_runners
                 WHERE repository_node_id = ?
                 """,
@@ -266,6 +268,7 @@ class GithubLookup(LookupManager):
                 add_matching_runner(
                     runner_node_id(repository_node_id, int(runner_id)),
                     raw_labels,
+                    ephemeral,
                 )
 
         if actions_enabled is not True:
@@ -329,9 +332,9 @@ class GithubLookup(LookupManager):
                 if not identity:
                     continue
                 enterprise_node_id, enterprise_runner_group_id = identity
-                for runner_id, raw_labels in self._find_all_objects(
+                for runner_id, raw_labels, ephemeral in self._find_all_objects(
                     f"""
-                    SELECT r.id, r.labels
+                    SELECT r.id, r.labels, r.ephemeral
                     FROM {self.schema}.enterprise_runner_group_memberships m
                     JOIN {self.schema}.enterprise_runners r
                       ON r.enterprise_node_id = m.enterprise_node_id
@@ -344,12 +347,13 @@ class GithubLookup(LookupManager):
                     add_matching_runner(
                         runner_node_id(enterprise_node_id, int(runner_id)),
                         raw_labels,
+                        ephemeral,
                     )
                 continue
 
-            for runner_id, raw_labels in self._find_all_objects(
+            for runner_id, raw_labels, ephemeral in self._find_all_objects(
                 f"""
-                SELECT r.id, r.labels
+                SELECT r.id, r.labels, r.ephemeral
                 FROM {self.schema}.org_runner_group_memberships m
                 JOIN {self.schema}.org_runners r
                   ON r.org_login = m.org_login
@@ -362,9 +366,76 @@ class GithubLookup(LookupManager):
                 add_matching_runner(
                     runner_node_id(self.org_id_for_login(org_login), int(runner_id)),
                     raw_labels,
+                    ephemeral,
                 )
 
-        return matching_runner_node_ids
+        return matching_runners
+
+    @lru_cache
+    def workflow_job_runner_node_ids(
+        self,
+        repository_node_id: str,
+        org_login: str,
+        group_name: str | None,
+        labels: tuple[str, ...],
+    ) -> list[str]:
+        """Return accessible self-hosted runner node IDs matching a static selector."""
+        return [
+            runner_node_id
+            for runner_node_id, _ephemeral in self._workflow_job_runner_matches(
+                repository_node_id,
+                org_login,
+                group_name,
+                labels,
+            )
+        ]
+
+    @lru_cache
+    def workflow_job_interceptable_runner_node_ids(
+        self,
+        repository_node_id: str,
+        org_login: str,
+        group_name: str | None,
+        labels: tuple[str, ...],
+    ) -> list[str]:
+        """Return matching runner node IDs not explicitly marked ephemeral."""
+        return [
+            runner_node_id
+            for runner_node_id, ephemeral in self._workflow_job_runner_matches(
+                repository_node_id,
+                org_login,
+                group_name,
+                labels,
+            )
+            if ephemeral is not True
+        ]
+
+    @lru_cache
+    def workflow_step_secret_reference_names(self, job_node_id: str) -> list[str]:
+        """Return unique secret names statically referenced by steps in a job."""
+        names: list[str] = []
+        seen: set[str] = set()
+        for (raw_references,) in self._find_all_objects(
+            f"""
+            SELECT secret_references
+            FROM {self.schema}.workflow_steps
+            WHERE job_node_id = ?
+            """,
+            [job_node_id],
+        ):
+            for reference in self._json_list(raw_references):
+                if not isinstance(reference, dict):
+                    continue
+                name = reference.get("name")
+                if name is None:
+                    continue
+                name = str(name)
+                key = name.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                names.append(name)
+        return names
 
     @lru_cache
     def enterprise_idp_for_scope(

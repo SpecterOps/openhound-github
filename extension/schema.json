@@ -1036,6 +1036,11 @@
       "is_traversable": false
     },
     {
+      "name": "GH_CanInterceptJob",
+      "description": "[Computed] Persistent self-hosted runner can intercept a workflow job that may be scheduled on it — GH_Runner → GH_WorkflowJob",
+      "is_traversable": true
+    },
+    {
       "name": "GH_HasMember",
       "description": "Enterprise or organization has this user as a member",
       "is_traversable": false
@@ -1044,6 +1049,11 @@
       "name": "GH_UsesSecret",
       "description": "[Workflow] Job or step references a secret by name — GH_WorkflowJob / GH_WorkflowStep → GH_RepoSecret / GH_OrgSecret / GH_EnvironmentSecret (scope match)",
       "is_traversable": false
+    },
+    {
+      "name": "GH_CanAccessSecret",
+      "description": "[Computed] Workflow job execution context can access a statically referenced secret — GH_WorkflowJob → GH_RepoSecret / GH_OrgSecret / GH_EnvironmentSecret",
+      "is_traversable": true
     },
     {
       "name": "GH_UsesVariable",
