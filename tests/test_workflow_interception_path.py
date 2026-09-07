@@ -10,6 +10,7 @@ from openhound_github.models.runner import (
 )
 from openhound_github.models.workflow_job import WorkflowJob
 from openhound_github.models.workflow_step import WorkflowStep
+from openhound_github.transforms import ensure_optional_input_tables
 
 
 def _cross_org_enterprise_runner_lookup() -> GithubLookup:
@@ -228,3 +229,36 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
         "name": "DEPLOY_TOKEN",
         "repository_id": "REPO_B",
     }
+
+
+def test_inherited_runner_lookup_survives_upgraded_enterprise_runner_group_stub() -> None:
+    lookup = _cross_org_enterprise_runner_lookup()
+    lookup.client.execute("DROP TABLE github.enterprise_runner_groups")
+    lookup.client.execute(
+        "CREATE TABLE github.enterprise_runner_groups "
+        "(id BIGINT, name VARCHAR, visibility VARCHAR, enterprise_node_id VARCHAR)"
+    )
+
+    ensure_optional_input_tables(lookup.client)
+    lookup.client.execute(
+        "INSERT INTO github.enterprise_runner_groups "
+        "(id, name, visibility, restricted_to_workflows, enterprise_node_id) "
+        "VALUES (4, 'enterprise-prod', 'selected', false, 'ENT_1')"
+    )
+
+    job = WorkflowJob(
+        node_id="JOB_B",
+        name="victim\\deploy",
+        job_key="deploy",
+        workflow_node_id="WORKFLOW_B",
+        repository_name="victim-repo",
+        repository_node_id="REPO_B",
+        org_login="victim",
+        runs_on={"group": "enterprise-prod", "labels": ["self-hosted", "linux"]},
+    )
+    job._lookup = lookup
+
+    edges = list(job.edges)
+
+    _find_edge(edges, ek.RUNS_ON, "JOB_B", "ENT_1_runner_31")
+    _find_edge(edges, ek.CAN_INTERCEPT_JOB, "ENT_1_runner_31", "JOB_B")

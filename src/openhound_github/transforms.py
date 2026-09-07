@@ -125,6 +125,7 @@ def ensure_optional_input_tables(
             id BIGINT,
             name VARCHAR,
             visibility VARCHAR,
+            restricted_to_workflows BOOLEAN,
             enterprise_node_id VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_runner_group_organizations (
@@ -333,6 +334,8 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS name VARCHAR;
         ALTER TABLE {schema}.enterprise_runner_groups
             ADD COLUMN IF NOT EXISTS visibility VARCHAR;
+        ALTER TABLE {schema}.enterprise_runner_groups
+            ADD COLUMN IF NOT EXISTS restricted_to_workflows BOOLEAN;
         ALTER TABLE {schema}.enterprise_runner_groups
             ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
 
