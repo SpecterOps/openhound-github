@@ -198,6 +198,13 @@ class GHWorkflowJobProperties(GHNodeProperties):
             description="Workflow job execution context can access environment secret",
             traversable=True,
         ),
+        EdgeDef(
+            start=nk.WORKFLOW_JOB,
+            end=nk.ENVIRONMENT,
+            kind=ek.CAN_REQUEST_OIDC_TOKEN_FOR,
+            description="Workflow job execution context can request an OIDC token for environment",
+            traversable=True,
+        ),
     ],
 )
 class WorkflowJob(BaseAsset):
@@ -435,6 +442,33 @@ class WorkflowJob(BaseAsset):
                     properties=EdgeProperties(traversable=False),
                 )
 
+    def _can_request_oidc_token_for_query(self) -> str:
+        return (
+            f"MATCH p=(job:GH_WorkflowJob {{node_id:'{self.node_id}'}})"
+            "-[:GH_DeploysTo]->(:GH_Environment) "
+            "WHERE 'id-token:write' IN job.effective_github_token_permissions "
+            "RETURN p"
+        )
+
+    @property
+    def _can_request_oidc_token_for_edges(self):
+        if "id-token:write" not in (
+            self.calculated_effective_github_token_permissions or []
+        ):
+            return
+
+        for environment_edge in self._environment_edges:
+            yield Edge(
+                kind=ek.CAN_REQUEST_OIDC_TOKEN_FOR,
+                start=environment_edge.start,
+                end=environment_edge.end,
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    query_composition=self._can_request_oidc_token_for_query(),
+                ),
+            )
+
     @property
     def _calls_workflows_edge(self):
         if self.uses_reusable and self.uses_reusable.startswith("./.github/workflows/"):
@@ -573,3 +607,4 @@ class WorkflowJob(BaseAsset):
         yield from self._runs_on_edges
         yield from self._can_intercept_job_edges
         yield from self._can_access_secret_edges
+        yield from self._can_request_oidc_token_for_edges
