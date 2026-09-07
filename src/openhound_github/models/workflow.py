@@ -135,7 +135,7 @@ def normalize_permission_declaration(value: Any) -> list[str] | None:
         return [str(item) for item in value]
 
     if isinstance(value, dict):
-        return [f"{str(key)}:{str(item)}" for key, item in value.items()]
+        return [f"{key!s}:{item!s}" for key, item in value.items()]
 
     return [str(value)]
 

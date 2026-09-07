@@ -173,6 +173,8 @@ def ensure_optional_input_tables(
             repository_node_id VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.workflows (
+            name VARCHAR,
+            path VARCHAR,
             repository_node_id VARCHAR,
             repository_default_workflow_permissions VARCHAR,
             repository_can_approve_pull_request_reviews BOOLEAN
@@ -393,6 +395,10 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.repo_runners
             ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
 
+        ALTER TABLE {schema}.workflows
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
+        ALTER TABLE {schema}.workflows
+            ADD COLUMN IF NOT EXISTS path VARCHAR;
         ALTER TABLE {schema}.workflows
             ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
         ALTER TABLE {schema}.workflows
