@@ -218,6 +218,7 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
     can_intercept = _find_edge(
         job_edges, ek.CAN_INTERCEPT_JOB, "ENT_1_runner_31", "JOB_B"
     )
+    deploys_to = _find_edge(job_edges, ek.DEPLOYS_TO, "JOB_B")
     contains_step = _find_edge(job_edges + step_edges, ek.CONTAINS, "JOB_B", "STEP_B")
     uses_secret = _find_edge(step_edges, ek.USES_SECRET, "STEP_B")
     can_access_secret = _find_edge(job_edges, ek.CAN_ACCESS_SECRET, "JOB_B")
@@ -237,6 +238,7 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
         ]
     ] == [True, True, True, True, True, True]
     assert runs_on.properties.traversable is False
+    assert deploys_to.properties.traversable is False
     assert contains_step.properties.traversable is False
     assert uses_secret.properties.traversable is False
     assert uses_secret.end.kind == nk.REPO_SECRET
@@ -253,7 +255,13 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
         matcher.key: matcher.value
         for matcher in can_request_oidc_token.end.property_matchers
     } == {
-        "name": "PROD",
+        "name": "prod",
+        "repository_id": "REPO_B",
+    }
+    assert {
+        matcher.key: matcher.value for matcher in deploys_to.end.property_matchers
+    } == {
+        "name": "prod",
         "repository_id": "REPO_B",
     }
 

@@ -243,18 +243,21 @@ class GithubLookup(LookupManager):
 
         repository_visibility, actions_enabled = repository
         required_labels = {str(label).casefold() for label in labels}
-        matching_runners: list[tuple[str, bool | None]] = []
+        matching_runners: list[tuple[int, str, bool | None]] = []
         seen_runner_node_ids: set[str] = set()
 
         def add_matching_runner(
-            node_id: str, raw_labels: Any, ephemeral: bool | None
+            source_order: int,
+            node_id: str,
+            raw_labels: Any,
+            ephemeral: bool | None,
         ) -> None:
             if node_id in seen_runner_node_ids:
                 return
             if not required_labels.issubset(self._runner_label_names(raw_labels)):
                 return
             seen_runner_node_ids.add(node_id)
-            matching_runners.append((node_id, ephemeral))
+            matching_runners.append((source_order, node_id, ephemeral))
 
         if group_name is None:
             for runner_id, raw_labels, ephemeral in self._find_all_objects(
@@ -266,6 +269,7 @@ class GithubLookup(LookupManager):
                 [repository_node_id],
             ):
                 add_matching_runner(
+                    0,
                     runner_node_id(repository_node_id, int(runner_id)),
                     raw_labels,
                     ephemeral,
@@ -345,6 +349,7 @@ class GithubLookup(LookupManager):
                     [enterprise_node_id, enterprise_runner_group_id],
                 ):
                     add_matching_runner(
+                        2,
                         runner_node_id(enterprise_node_id, int(runner_id)),
                         raw_labels,
                         ephemeral,
@@ -364,12 +369,19 @@ class GithubLookup(LookupManager):
                 [org_login, runner_group_id],
             ):
                 add_matching_runner(
+                    1,
                     runner_node_id(self.org_id_for_login(org_login), int(runner_id)),
                     raw_labels,
                     ephemeral,
                 )
 
-        return matching_runners
+        return [
+            (node_id, ephemeral)
+            for _source_order, node_id, ephemeral in sorted(
+                matching_runners,
+                key=lambda runner: (runner[0], runner[1]),
+            )
+        ]
 
     @lru_cache
     def workflow_job_runner_node_ids(
@@ -594,6 +606,9 @@ class GithubLookup(LookupManager):
                 repository_can_approve_pull_request_reviews
             FROM {self.schema}.workflows
             WHERE repository_node_id = ?
+            ORDER BY
+                repository_default_workflow_permissions IS NULL,
+                repository_can_approve_pull_request_reviews IS NULL
             LIMIT 1
             """,
             [repository_node_id],

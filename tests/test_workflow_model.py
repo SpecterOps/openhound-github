@@ -489,18 +489,24 @@ def test_workflow_job_emits_can_request_oidc_token_for_environment_without_oidc_
         permissions={"id-token": "write"},
     )
     lookup = _org_reference_lookup()
-    lookup.environment.return_value = ("prod",)
+    lookup.environment.return_value = "prod"
     job._lookup = lookup
 
+    environment_edges = list(job._environment_edges)
     edges = list(job._can_request_oidc_token_for_edges)
 
+    assert len(environment_edges) == 1
+    assert _matcher_values(environment_edges[0]) == {
+        "repository_id": "REPO_1",
+        "name": "prod",
+    }
     assert len(edges) == 1
     assert edges[0].kind == ek.CAN_REQUEST_OIDC_TOKEN_FOR
     assert edges[0].start.value == "JOB_1"
     assert edges[0].end.kind == nk.ENVIRONMENT
     assert _matcher_values(edges[0]) == {
         "repository_id": "REPO_1",
-        "name": "PROD",
+        "name": "prod",
     }
     assert edges[0].properties.traversable is True
     assert edges[0].properties.composed is True
@@ -535,7 +541,7 @@ def test_workflow_job_can_request_oidc_token_for_requires_permission_and_environ
         permissions={"id-token": "write"},
     )
     lookup = _org_reference_lookup()
-    lookup.environment.return_value = ("prod",)
+    lookup.environment.return_value = "prod"
     no_permission._lookup = lookup
     no_environment._lookup = lookup
 
@@ -580,7 +586,7 @@ def test_workflow_job_can_request_oidc_token_for_edges_are_per_job_and_idempoten
         ),
     ]
     lookup = _org_reference_lookup()
-    lookup.environment.return_value = ("prod",)
+    lookup.environment.return_value = "prod"
     for job in jobs:
         job._lookup = lookup
 
@@ -592,8 +598,8 @@ def test_workflow_job_can_request_oidc_token_for_edges_are_per_job_and_idempoten
     ]
 
     assert [(edge.start.value, _matcher_values(edge)) for edge in edges] == [
-        ("JOB_1", {"repository_id": "REPO_1", "name": "PROD"}),
-        ("JOB_2", {"repository_id": "REPO_1", "name": "PROD"}),
+        ("JOB_1", {"repository_id": "REPO_1", "name": "prod"}),
+        ("JOB_2", {"repository_id": "REPO_1", "name": "prod"}),
     ]
     assert len(list(jobs[0]._can_request_oidc_token_for_edges)) == 1
 

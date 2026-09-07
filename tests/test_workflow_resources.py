@@ -64,8 +64,18 @@ def _workflow_row(workflow_id: int, state: str = "active") -> dict:
     }
 
 
+def _workflow_transformer_generator():
+    """Return the raw workflow transformer generator for dlt 1.26.0 tests.
+
+    dlt does not expose a public accessor for the wrapped generator. The
+    private pipe access stays isolated here so tests can preserve deferred()
+    invocation behavior without spreading that dependency.
+    """
+    return inspect.unwrap(workflows._pipe.gen)
+
+
 def _collect_workflows(repo, ctx) -> list[dict]:
-    generator = inspect.unwrap(workflows._pipe.gen)
+    generator = _workflow_transformer_generator()
     return [deferred() for deferred in generator(repo, ctx)]
 
 

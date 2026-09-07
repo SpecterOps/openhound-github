@@ -426,7 +426,10 @@ class WorkflowJob(BaseAsset):
     @property
     def _environment_edges(self):
         if self.environment and not TEMPLATE_RE.search(self.environment):
-            if self._lookup.environment(self.environment, self.repository_node_id):
+            persisted_environment_name = self._lookup.environment(
+                self.environment, self.repository_node_id
+            )
+            if persisted_environment_name:
                 yield Edge(
                     kind=ek.DEPLOYS_TO,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -436,7 +439,7 @@ class WorkflowJob(BaseAsset):
                             PropertyMatch(
                                 key="repository_id", value=self.repository_node_id
                             ),
-                            PropertyMatch(key="name", value=self.environment.upper()),
+                            PropertyMatch(key="name", value=persisted_environment_name),
                         ],
                     ),
                     properties=EdgeProperties(traversable=False),
