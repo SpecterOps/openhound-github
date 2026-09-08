@@ -201,7 +201,7 @@ class OrgRole(BaseAsset):
 
     # node_id: int = Field(alias="id")
     id: int
-    name: str  # full: "my-org/owners"
+    name: str  # role-only name from the API, e.g. "owners" or "Custom Role Manager"
     created_at: datetime
     updated_at: datetime | None = None
     organization: Organization | None = None
