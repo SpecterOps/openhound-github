@@ -240,9 +240,17 @@ def _repository_workflow_permissions(
     if cache_key not in ctx.repository_workflow_permissions_cache:
         with ctx.cache_lock:
             if cache_key not in ctx.repository_workflow_permissions_cache:
-                ctx.repository_workflow_permissions_cache[cache_key] = client.get(
-                    f"/repos/{repository_full_name}/actions/permissions/workflow"
-                ).json()
+                try:
+                    ctx.repository_workflow_permissions_cache[cache_key] = client.get(
+                        f"/repos/{repository_full_name}/actions/permissions/workflow"
+                    ).json()
+                except Exception as e:
+                    logger.warning(
+                        "Unable to fetch workflow permissions for repository '%s': %s",
+                        repository_full_name,
+                        e,
+                    )
+                    ctx.repository_workflow_permissions_cache[cache_key] = {}
     return ctx.repository_workflow_permissions_cache[cache_key]
 
 

@@ -34,6 +34,10 @@ from openhound_github.models.workflow_reference import (
 TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
 
 
+def _escape_cypher_string(value: Any) -> str:
+    return str(value).replace("\\", "\\\\").replace("'", "\\'")
+
+
 @dataclass
 class GHWorkflowJobProperties(GHNodeProperties):
     """Workflow job-specific properties.
@@ -542,7 +546,8 @@ class WorkflowJob(BaseAsset):
         source: str,
     ) -> str:
         properties = ", ".join(
-            f"{matcher.key}:'{matcher.value}'" for matcher in property_matchers
+            f"{matcher.key}:'{_escape_cypher_string(matcher.value)}'"
+            for matcher in property_matchers
         )
         if source == "job":
             return (

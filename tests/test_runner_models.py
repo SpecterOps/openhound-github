@@ -176,6 +176,21 @@ def test_workflow_job_runner_lookup_returns_no_runners_when_actions_disabled() -
     )
 
 
+def test_workflow_job_runner_lookup_skips_org_runners_when_org_id_is_missing() -> None:
+    lookup = _workflow_runner_lookup()
+    lookup.client.execute("DELETE FROM github.organizations WHERE login = 'acme'")
+
+    assert lookup.workflow_job_runner_node_ids(
+        "REPO_1", "acme", None, ("self-hosted", "linux", "x64")
+    ) == ["REPO_1_runner_21"]
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_1", "acme", "Default", ("self-hosted", "linux", "x64")
+        )
+        == []
+    )
+
+
 def test_org_runner_group_keeps_generic_runner_group_label() -> None:
     group = OrgRunnerGroup(id=1, name="Default", org_login="acme")
     group._lookup = SimpleNamespace(org_id_for_login=lambda _login: "ORG_1")
