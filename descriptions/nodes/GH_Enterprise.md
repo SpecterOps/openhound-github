@@ -23,8 +23,9 @@ A GitHub Enterprise account that contains organizations, enterprise teams, roles
 | `created_at` | `string` | When the enterprise was created. |
 | `updated_at` | `string` | When the enterprise was last updated. |
 | `billing_email` | `string` | The enterprise billing email. |
-| `security_contact_email` | `string` | The enterprise security contact email. |
 | `viewer_is_admin` | `boolean` | Whether the authenticated viewer is an enterprise admin. |
+| `github_deployment_type` | `string` | The GitHub deployment type, such as `ghec` or `ghes`. |
+| `ghes_version` | `string` | The GitHub Enterprise Server version, when applicable. |
 | `environment_name` | `string` | The enterprise environment name. |
 | `query_organizations` | `string` | Query for contained organizations. |
 

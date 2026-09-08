@@ -24,6 +24,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.permissions import normalize_permission_declaration
 
 
 class GithubActionsLoader(yaml.SafeLoader):
@@ -122,22 +123,6 @@ GITHUB_TOKEN_PERMISSION_SCOPES = (
 )
 READ_ONLY_GITHUB_TOKEN_PERMISSION_SCOPES = {"models", "vulnerability-alerts"}
 WRITE_ONLY_GITHUB_TOKEN_PERMISSION_SCOPES = {"id-token"}
-
-
-def normalize_permission_declaration(value: Any) -> list[str] | None:
-    if value is None:
-        return None
-
-    if isinstance(value, str):
-        return [value]
-
-    if isinstance(value, list):
-        return [str(item) for item in value]
-
-    if isinstance(value, dict):
-        return [f"{key!s}:{item!s}" for key, item in value.items()]
-
-    return [str(value)]
 
 
 def _empty_github_token_permissions() -> dict[str, str]:

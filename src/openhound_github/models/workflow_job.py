@@ -21,8 +21,8 @@ from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.permissions import normalize_permission_declaration
 from openhound_github.models.workflow import (
-    normalize_permission_declaration,
     parse_runs_on_selector,
     resolve_effective_github_token_permissions,
 )
@@ -32,6 +32,10 @@ from openhound_github.models.workflow_reference import (
 )
 
 TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
+
+
+def _escape_cypher_string(value: Any) -> str:
+    return str(value).replace("\\", "\\\\").replace("'", "\\'")
 
 
 @dataclass
@@ -542,7 +546,8 @@ class WorkflowJob(BaseAsset):
         source: str,
     ) -> str:
         properties = ", ".join(
-            f"{matcher.key}:'{matcher.value}'" for matcher in property_matchers
+            f"{matcher.key}:'{_escape_cypher_string(matcher.value)}'"
+            for matcher in property_matchers
         )
         if source == "job":
             return (

@@ -476,6 +476,35 @@ def test_workflow_job_emits_can_access_secret_edges_for_step_references() -> Non
     assert "GH_UsesSecret" in edges[0].properties.query_composition
 
 
+def test_workflow_job_can_access_secret_query_escapes_environment_matcher_values() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        environment=r"prod\east's",
+    )
+    lookup = _org_reference_lookup()
+    lookup.workflow_step_secret_reference_names.return_value = ["ENV_TOKEN"]
+    lookup.org_secret.return_value = None
+    lookup.environment_secret_for_environment.return_value = ("ENV_TOKEN",)
+    job._lookup = lookup
+
+    edge = next(job._can_access_secret_edges)
+
+    assert edge.end.kind == nk.ENVIRONMENT_SECRET
+    assert edge.properties.query_composition == (
+        "MATCH p=(:GH_WorkflowJob {node_id:'JOB_1'})"
+        "-[:GH_Contains]->(:GH_WorkflowStep)"
+        "-[:GH_UsesSecret]->(:GH_EnvironmentSecret "
+        "{name:'ENV_TOKEN', deployment_environment_name:'prod\\\\east\\'s', "
+        "repository_id:'REPO_1'}) RETURN p"
+    )
+
+
 def test_workflow_job_emits_can_request_oidc_token_for_environment_without_oidc_step() -> None:
     job = WorkflowJob(
         node_id="JOB_1",

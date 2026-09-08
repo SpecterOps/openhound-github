@@ -278,6 +278,16 @@ class GithubLookup(LookupManager):
         if actions_enabled is not True:
             return []
 
+        org_node_id = self.org_id_for_login(org_login)
+        if not org_node_id:
+            return [
+                (node_id, ephemeral)
+                for _source_order, node_id, ephemeral in sorted(
+                    matching_runners,
+                    key=lambda runner: (runner[0], runner[1]),
+                )
+            ]
+
         for (
             runner_group_id,
             runner_group_name,
@@ -320,9 +330,6 @@ class GithubLookup(LookupManager):
                 continue
 
             if inherited:
-                org_node_id = self.org_id_for_login(org_login)
-                if not org_node_id:
-                    continue
                 if (
                     self.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group(
                         org_node_id, runner_group_name
@@ -370,7 +377,7 @@ class GithubLookup(LookupManager):
             ):
                 add_matching_runner(
                     1,
-                    runner_node_id(self.org_id_for_login(org_login), int(runner_id)),
+                    runner_node_id(org_node_id, int(runner_id)),
                     raw_labels,
                     ephemeral,
                 )

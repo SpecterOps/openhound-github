@@ -24,10 +24,10 @@ When present, `workflow_permissions` captures the top-level `permissions` declar
 | `html_url` | `string` | The GitHub web URL for the workflow file. |
 | `branch` | `string` | The branch where the workflow file was found. |
 | `contents` | `string` | The content of the workflow file. |
+| `workflow_permissions` | `list[string]` | Permissions declared at the workflow level. |
 | `triggers` | `list[string]` | The triggers value. |
 | `trigger_dispatch_inputs` | `list[string]` | The trigger dispatch inputs value. |
 | `is_pwn_requestable` | `boolean` | The is pwn requestable value. |
-| `workflow_permissions` | `list[string]` | Permissions declared at the workflow level. |
 | `query_repository` | `string` | Query for repository. |
 | `query_jobs` | `string` | Query for workflow jobs. |
 | `query_execution` | `string` | Query for workflow executions. |

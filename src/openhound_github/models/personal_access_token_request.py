@@ -9,6 +9,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.permissions import normalize_permission_declaration
 
 
 class Owner(BaseModel):
@@ -29,19 +30,23 @@ class GHPersonalAccessTokenRequestProperties(GHNodeProperties):
         repository_selection: Whether the request targets `all`, `subset`, or `none` of the organization's repositories.
         reason: The rationale provided by the requester for the access request.
         org_name: The org name property.
+        organization_permissions: Requested organization-scoped permissions in `scope:access` form.
+        repository_permissions: Requested repository-scoped permissions in `scope:access` form.
         query_organization_permissions: Query for organization permissions.
         query_user: Query for user.
         query_repositories: Query for repositories.
     """
 
     # TODO: Check for the following fields
-    # owner_id, owner_node_id, toke_id, token_expires_at, token_last_used_at, permissions, and environment_name
+    # owner_id, owner_node_id, toke_id, token_expires_at, token_last_used_at, and environment_name
 
     token_name: str | None = None
     owner_login: str | None = None
     repository_selection: str | None = None
     reason: str | None = None
     org_name: str | None = None
+    organization_permissions: list[str] | None = None
+    repository_permissions: list[str] | None = None
     query_organization_permissions: str | None = None
     query_user: str | None = None
     query_repositories: str | None = None
@@ -102,6 +107,7 @@ class PersonalAccessTokenRequest(BaseAsset):
     @property
     def as_node(self) -> GHNode:
         rid = self.node_id
+        permissions = self.permissions or {}
         return GHNode(
             kinds=[nk.PERSONAL_ACCESS_TOKEN_REQUEST],
             properties=GHPersonalAccessTokenRequestProperties(
@@ -114,6 +120,12 @@ class PersonalAccessTokenRequest(BaseAsset):
                 repository_selection=self.repository_selection,
                 reason=self.reason,
                 org_name=self.org_login,
+                organization_permissions=normalize_permission_declaration(
+                    permissions.get("organization")
+                ),
+                repository_permissions=normalize_permission_declaration(
+                    permissions.get("repository")
+                ),
                 query_organization_permissions=f"MATCH p=(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}})-[:GH_CanAccess]->(:GH_Organization) RETURN p",
                 query_user=f"MATCH p=(:GH_User)-[:GH_HasPersonalAccessTokenRequest]->(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}})-[:GH_CanAccess]->(:GH_Repository) RETURN p LIMIT 1000",

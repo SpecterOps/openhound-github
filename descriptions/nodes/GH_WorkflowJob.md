@@ -47,32 +47,32 @@ When `runs_on_is_dynamic` is true, runner matching and interception status remai
 
 ```mermaid
 graph LR
-    n0["GH_Workflow"]
+    n0["GH_Runner"]
     n1["GH_WorkflowJob"]
-    n2["GH_Environment"]
-    n3["GH_EnvironmentSecret"]
-    n4["GH_EnvironmentVariable"]
-    n5["GH_OrgSecret"]
-    n6["GH_OrgVariable"]
-    n7["GH_RepoSecret"]
-    n8["GH_RepoVariable"]
-    n9["GH_Runner"]
+    n2["GH_Workflow"]
+    n3["GH_Environment"]
+    n4["GH_EnvironmentSecret"]
+    n5["GH_EnvironmentVariable"]
+    n6["GH_OrgSecret"]
+    n7["GH_OrgVariable"]
+    n8["GH_RepoSecret"]
+    n9["GH_RepoVariable"]
     n10["GH_WorkflowStep"]
-    n0 -.->|GH_Contains| n1
-    n1 -->|GH_CanRequestOIDCTokenFor| n2
-    n1 -.->|GH_DeploysTo| n2
-    n1 -.->|GH_UsesSecret| n3
-    n1 -.->|GH_UsesVariable| n4
-    n1 -.->|GH_UsesSecret| n5
-    n1 -.->|GH_UsesVariable| n6
-    n1 -.->|GH_UsesSecret| n7
-    n1 -.->|GH_UsesVariable| n8
-    n1 -.->|GH_RunsOn| n9
-    n1 -->|GH_CanAccessSecret| n3
-    n1 -->|GH_CanAccessSecret| n5
-    n1 -->|GH_CanAccessSecret| n7
-    n9 -->|GH_CanInterceptJob| n1
-    n1 -.->|GH_CallsWorkflow| n0
+    n0 -->|GH_CanInterceptJob| n1
+    n2 -.->|GH_Contains| n1
+    n1 -->|GH_CanRequestOIDCTokenFor| n3
+    n1 -.->|GH_DeploysTo| n3
+    n1 -->|GH_CanAccessSecret| n4
+    n1 -.->|GH_UsesSecret| n4
+    n1 -.->|GH_UsesVariable| n5
+    n1 -->|GH_CanAccessSecret| n6
+    n1 -.->|GH_UsesSecret| n6
+    n1 -.->|GH_UsesVariable| n7
+    n1 -->|GH_CanAccessSecret| n8
+    n1 -.->|GH_UsesSecret| n8
+    n1 -.->|GH_UsesVariable| n9
+    n1 -.->|GH_RunsOn| n0
+    n1 -.->|GH_CallsWorkflow| n2
     n1 -.->|GH_DependsOn| n1
     n1 -.->|GH_Contains| n10
 ```
