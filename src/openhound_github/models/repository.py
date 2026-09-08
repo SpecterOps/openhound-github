@@ -46,6 +46,8 @@ class GHRepositoryProperties(GHNodeProperties):
         secret_scanning: Status of secret scanning (e.g., `enabled`, `disabled`).
         branch_ruleset_count: Number of branch-targeted rulesets that apply to this repository.
         has_branch_rulesets: Whether at least one branch-targeted ruleset applies to this repository.
+        branch_count: Number of branch refs reported by GitHub for this repository.
+        environment_count: Number of deployment environments reported by GitHub for this repository.
         query_branches: Query for branches.
         query_protected_branches: Query for protected branches.
         query_branch_protection_rules: Query for branch protection rules.
@@ -94,6 +96,8 @@ class GHRepositoryProperties(GHNodeProperties):
     secret_scanning: str | None = None
     branch_ruleset_count: int | None = None
     has_branch_rulesets: bool | None = None
+    branch_count: int | None = None
+    environment_count: int | None = None
     query_branches: str | None = None
     query_protected_branches: str | None = None
     query_branch_protection_rules: str | None = None
@@ -149,6 +153,7 @@ class Branch(BaseModel):
 class Ref(BaseModel):
     page_info: PageInfo = Field(alias="pageInfo")
     nodes: list[Branch]
+    total_count: int | None = Field(alias="totalCount", default=None)
 
 
 class RepositoryQL(BaseModel):
@@ -158,6 +163,8 @@ class RepositoryQL(BaseModel):
     name: str
     refs: Ref
     branch_ruleset_count: int | None = None
+    branch_count: int | None = None
+    environment_count: int | None = None
 
     # Additional
     org_login: str
@@ -230,6 +237,7 @@ class Repository(BaseAsset):
     def as_node(self) -> GHNode:
         rid = self.node_id
         branch_ruleset_count = self._lookup.repository_branch_ruleset_count(rid)
+        branch_count, environment_count = self._lookup.repository_graphql_counts(rid)
         workflow_permissions = self._lookup.repository_workflow_permissions(rid)
         default_workflow_permissions, can_approve_pull_request_reviews = (
             workflow_permissions if workflow_permissions else (None, None)
@@ -272,6 +280,8 @@ class Repository(BaseAsset):
                     if branch_ruleset_count is not None
                     else None
                 ),
+                branch_count=branch_count,
+                environment_count=environment_count,
                 # secret_scanning=self.secret_scanning,
                 query_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Branch) RETURN p",
                 query_protected_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) RETURN p",

@@ -272,6 +272,7 @@ query RepoRefs($login: String!, $count: Int!, $after: String) {
                     totalCount
                 }
                 refs(first: 100, refPrefix: "refs/heads/") {
+                    totalCount
                     nodes {
                         id
                         name
@@ -279,6 +280,9 @@ query RepoRefs($login: String!, $count: Int!, $after: String) {
                         branchProtectionRule { id }
                     }
                     pageInfo { endCursor hasNextPage }
+                }
+                environments(first: 1) {
+                    totalCount
                 }
             }
             pageInfo { endCursor hasNextPage }

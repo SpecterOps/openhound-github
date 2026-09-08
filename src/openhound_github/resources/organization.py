@@ -1207,10 +1207,14 @@ def repositories_graphql(ctx: SourceContext):
                 for repo in repos_page["nodes"]:
                     repo_record = {**repo}
                     branch_rulesets = repo_record.pop("branchRulesets", None) or {}
+                    environments = repo_record.pop("environments", None) or {}
+                    refs = repo_record.get("refs") or {}
                     emitted_repositories += 1
                     yield {
                         **repo_record,
                         "branch_ruleset_count": branch_rulesets.get("totalCount"),
+                        "branch_count": refs.get("totalCount"),
+                        "environment_count": environments.get("totalCount"),
                         "org_login": org_name,
                     }
 
@@ -1430,20 +1434,23 @@ def workflow_steps(workflow: Workflow):
 
 
 @app.transformer(name="environments", columns=Environment, parallelized=True)
-def environments(repo: Repository, ctx: SourceContext):
+def environments(repo: RepositoryQL, ctx: SourceContext):
     """Fetch deployment environments for a repository.
 
     Args:
-        repo (Repository): The repository to fetch environments for.
+        repo (RepositoryQL): Repository metadata with the GitHub-reported environment count.
         ctx (SourceContext): The shared context containing the REST client and organization name.
 
     Yields:
         Environment (Environment): Deployment environment record.
     """
 
-    full_name = repo.full_name
+    if repo.environment_count == 0:
+        return
+
+    full_name = f"{repo.org_login}/{repo.name}"
     repo_name = repo.name
-    repo_node_id = repo.node_id
+    repo_node_id = repo.id
     client = _client_for_org(ctx, repo.org_login)
     for page in client.paginate(
         f"/repos/{full_name}/environments",
@@ -2317,12 +2324,12 @@ def organization_resources(ctx: SourceContext):
     repo_roles_base = RepositoryRoleCache(ctx)
     repos_resource = repositories(ctx)
     workflows_resource = repos_resource | workflows(ctx)
-    environments_resource = repos_resource | environments(ctx)
     personal_access_tokens_resource = personal_access_tokens(ctx)
 
     teams_resource = teams(ctx)
     team_external_groups_resource = team_external_groups(ctx)
     repositories_graphql_resource = repositories_graphql(ctx)
+    environments_resource = repositories_graphql_resource | environments(ctx)
     app_installs_resource = app_installations(ctx)
     runner_groups_resource = runner_groups(ctx)
     runner_group_access_resource = runner_groups_resource | org_runner_group_access(ctx)

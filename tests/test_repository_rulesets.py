@@ -38,6 +38,8 @@ def _repository_page_data(
     repository_name: str,
     *,
     branch_ruleset_count: int | None = None,
+    branch_count: int | None = None,
+    environment_count: int | None = None,
     repository_end_cursor: str | None = None,
     repositories_has_next_page: bool = False,
 ) -> dict:
@@ -54,12 +56,14 @@ def _repository_page_data(
                         "name": repository_name,
                         "branchRulesets": {"totalCount": branch_ruleset_count},
                         "refs": {
+                            "totalCount": branch_count,
                             "nodes": [],
                             "pageInfo": {
                                 "endCursor": None,
                                 "hasNextPage": False,
                             },
                         },
+                        "environments": {"totalCount": environment_count},
                     }
                 ]
             }
@@ -122,8 +126,18 @@ def _make_repository() -> Repository:
     )
 
 
-def test_repositories_graphql_flattens_branch_ruleset_count() -> None:
-    client = _FakeClient()
+def test_repositories_graphql_flattens_repository_counts() -> None:
+    client = _FakeClient(
+        _graphql_response(
+            _repository_page_data(
+                "R_1",
+                "repo",
+                branch_ruleset_count=2,
+                branch_count=7,
+                environment_count=3,
+            )
+        )
+    )
     ctx = SourceContext(
         client=client,
         organizations=[OrgContext(client=client, org_name="org")],
@@ -136,10 +150,13 @@ def test_repositories_graphql_flattens_branch_ruleset_count() -> None:
             "id": "R_1",
             "name": "repo",
             "refs": {
+                "totalCount": 7,
                 "nodes": [],
                 "pageInfo": {"endCursor": None, "hasNextPage": False},
             },
             "branch_ruleset_count": 2,
+            "branch_count": 7,
+            "environment_count": 3,
             "org_login": "org",
         }
     ]
@@ -390,6 +407,7 @@ def test_repository_node_surfaces_branch_ruleset_presence() -> None:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "O_1"
     lookup.repository_branch_ruleset_count.return_value = 2
+    lookup.repository_graphql_counts.return_value = (7, 3)
     lookup.repository_workflow_permissions.return_value = ("read", False)
     repo._lookup = lookup
 
@@ -397,10 +415,13 @@ def test_repository_node_surfaces_branch_ruleset_presence() -> None:
 
     assert node.properties.branch_ruleset_count == 2
     assert node.properties.has_branch_rulesets is True
+    assert node.properties.branch_count == 7
+    assert node.properties.environment_count == 3
     assert node.properties.default_workflow_permissions == "read"
     assert node.properties.can_approve_pull_request_reviews is False
     assert node.properties.size == 0
     lookup.repository_branch_ruleset_count.assert_called_once_with("R_1")
+    lookup.repository_graphql_counts.assert_called_once_with("R_1")
     lookup.repository_workflow_permissions.assert_called_once_with("R_1")
 
 
@@ -409,6 +430,7 @@ def test_repository_node_preserves_unknown_branch_ruleset_presence() -> None:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "O_1"
     lookup.repository_branch_ruleset_count.return_value = None
+    lookup.repository_graphql_counts.return_value = (None, None)
     lookup.repository_workflow_permissions.return_value = None
     repo._lookup = lookup
 
@@ -416,6 +438,8 @@ def test_repository_node_preserves_unknown_branch_ruleset_presence() -> None:
 
     assert node.properties.branch_ruleset_count is None
     assert node.properties.has_branch_rulesets is None
+    assert node.properties.branch_count is None
+    assert node.properties.environment_count is None
     assert node.properties.default_workflow_permissions is None
     assert node.properties.can_approve_pull_request_reviews is None
 
@@ -434,6 +458,23 @@ def test_repository_branch_ruleset_count_lookup_returns_int() -> None:
 
     assert lookup.repository_branch_ruleset_count("R_1") == 2
     assert lookup.repository_branch_ruleset_count("R_2") is None
+
+
+def test_repository_graphql_counts_lookup_returns_ints() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    connection.execute(
+        "CREATE TABLE github.repositories_graphql (id VARCHAR, branch_count BIGINT, environment_count BIGINT)"
+    )
+    connection.execute(
+        "INSERT INTO github.repositories_graphql VALUES ('R_1', 7, 3), ('R_2', NULL, NULL)"
+    )
+
+    lookup = GithubLookup(connection)
+
+    assert lookup.repository_graphql_counts("R_1") == (7, 3)
+    assert lookup.repository_graphql_counts("R_2") == (None, None)
+    assert lookup.repository_graphql_counts("R_3") == (None, None)
 
 
 def test_repository_workflow_permissions_lookup_returns_collected_policy() -> None:

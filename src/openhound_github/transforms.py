@@ -20,7 +20,9 @@ def ensure_optional_input_tables(
         );
         CREATE TABLE IF NOT EXISTS {schema}.repositories_graphql (
             id VARCHAR,
-            branch_ruleset_count BIGINT
+            branch_ruleset_count BIGINT,
+            branch_count BIGINT,
+            environment_count BIGINT
         );
         CREATE TABLE IF NOT EXISTS {schema}.branch_protection_rules (
             id VARCHAR,
@@ -198,6 +200,10 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS id VARCHAR;
         ALTER TABLE {schema}.repositories_graphql
             ADD COLUMN IF NOT EXISTS branch_ruleset_count BIGINT;
+        ALTER TABLE {schema}.repositories_graphql
+            ADD COLUMN IF NOT EXISTS branch_count BIGINT;
+        ALTER TABLE {schema}.repositories_graphql
+            ADD COLUMN IF NOT EXISTS environment_count BIGINT;
 
         ALTER TABLE {schema}.branch_protection_rules
             ADD COLUMN IF NOT EXISTS id VARCHAR;

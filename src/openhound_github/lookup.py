@@ -596,6 +596,25 @@ class GithubLookup(LookupManager):
         return int(row[0])
 
     @lru_cache
+    def repository_graphql_counts(
+        self, repository_node_id: str
+    ) -> tuple[int | None, int | None]:
+        row = self._find_single_row(
+            f"""
+            SELECT branch_count, environment_count
+            FROM {self.schema}.repositories_graphql
+            WHERE id = ?
+            """,
+            [repository_node_id],
+        )
+        if row is None:
+            return None, None
+        return (
+            None if row[0] is None else int(row[0]),
+            None if row[1] is None else int(row[1]),
+        )
+
+    @lru_cache
     def repository_workflow_permissions(
         self, repository_node_id: str
     ) -> tuple[str | None, bool | None] | None:
