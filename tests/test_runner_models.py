@@ -28,10 +28,10 @@ def _workflow_runner_lookup() -> GithubLookup:
         "CREATE TABLE github.repositories (node_id VARCHAR, org_login VARCHAR, visibility VARCHAR, actions_enabled BOOLEAN)"
     )
     connection.execute(
-        "CREATE TABLE github.repo_runners (id BIGINT, labels JSON, repository_node_id VARCHAR)"
+        "CREATE TABLE github.repo_runners (id BIGINT, labels JSON, ephemeral BOOLEAN, repository_node_id VARCHAR)"
     )
     connection.execute(
-        "CREATE TABLE github.org_runners (id BIGINT, labels JSON, org_login VARCHAR)"
+        "CREATE TABLE github.org_runners (id BIGINT, labels JSON, ephemeral BOOLEAN, org_login VARCHAR)"
     )
     connection.execute(
         "CREATE TABLE github.org_runner_group_access (runner_group_id BIGINT, runner_group_name VARCHAR, runner_group_visibility VARCHAR, allows_public_repositories BOOLEAN, restricted_to_workflows BOOLEAN, inherited BOOLEAN, accessible_repo_node_ids JSON, org_login VARCHAR)"
@@ -52,7 +52,7 @@ def _workflow_runner_lookup() -> GithubLookup:
         "CREATE TABLE github.enterprise_runner_group_memberships (runner_group_id BIGINT, runner_id BIGINT, enterprise_node_id VARCHAR)"
     )
     connection.execute(
-        "CREATE TABLE github.enterprise_runners (id BIGINT, labels JSON, enterprise_node_id VARCHAR)"
+        "CREATE TABLE github.enterprise_runners (id BIGINT, labels JSON, ephemeral BOOLEAN, enterprise_node_id VARCHAR)"
     )
     connection.execute("INSERT INTO github.organizations VALUES ('acme', 'ORG_1')")
     connection.execute(
@@ -60,14 +60,14 @@ def _workflow_runner_lookup() -> GithubLookup:
     )
     connection.execute(
         """INSERT INTO github.repo_runners VALUES
-        (21, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'REPO_1'),
-        (22, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'REPO_3')"""
+        (21, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', false, 'REPO_1'),
+        (22, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', false, 'REPO_3')"""
     )
     connection.execute(
         """INSERT INTO github.org_runners VALUES
-        (11, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'acme'),
-        (12, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"ARM64"}]', 'acme'),
-        (13, '[{"name":"self-hosted"},{"name":"Windows"},{"name":"X64"}]', 'acme')"""
+        (11, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', false, 'acme'),
+        (12, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"ARM64"}]', true, 'acme'),
+        (13, '[{"name":"self-hosted"},{"name":"Windows"},{"name":"X64"}]', NULL, 'acme')"""
     )
     connection.execute(
         """INSERT INTO github.org_runner_group_access VALUES
@@ -93,7 +93,7 @@ def _workflow_runner_lookup() -> GithubLookup:
     )
     connection.execute(
         """INSERT INTO github.enterprise_runners VALUES
-        (31, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'ENT_1')"""
+        (31, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', false, 'ENT_1')"""
     )
     return GithubLookup(connection)
 
@@ -112,6 +112,20 @@ def test_workflow_job_runner_lookup_filters_to_named_group_and_allows_multiple_m
     assert lookup.workflow_job_runner_node_ids(
         "REPO_1", "acme", "prod-runners", ("self-hosted", "linux")
     ) == ["ORG_1_runner_11", "ORG_1_runner_12"]
+
+
+def test_workflow_job_interceptable_runner_lookup_excludes_only_explicitly_ephemeral_runners() -> None:
+    lookup = _workflow_runner_lookup()
+
+    assert lookup.workflow_job_interceptable_runner_node_ids(
+        "REPO_1", "acme", None, ("self-hosted", "linux", "x64")
+    ) == ["REPO_1_runner_21", "ORG_1_runner_11", "ENT_1_runner_31"]
+    assert lookup.workflow_job_interceptable_runner_node_ids(
+        "REPO_1", "acme", "prod-runners", ("self-hosted", "linux")
+    ) == ["ORG_1_runner_11"]
+    assert lookup.workflow_job_interceptable_runner_node_ids(
+        "REPO_1", "acme", "Default", ("self-hosted", "windows", "x64")
+    ) == ["ORG_1_runner_13"]
 
 
 def test_workflow_job_runner_lookup_filters_non_matching_labels_and_unauthorized_groups() -> None:
@@ -258,6 +272,39 @@ def test_runner_groups_and_runners_use_scope_owner_prefixes_with_generic_suffixe
     assert repo_runner.as_node.id == "REPO_1_runner_10"
     assert repo_runner.as_node.properties.name == "acme/repo/repo-runner-1"
     assert repo_runner.as_node.properties.displayname == "repo-runner-1"
+
+
+def test_runner_nodes_expose_interceptable_job_query() -> None:
+    org_runner = OrgRunner(id=8, name="org-runner-1", org_login="acme")
+    org_runner._lookup = SimpleNamespace(org_id_for_login=lambda _login: "ORG_1")
+    enterprise_runner = EnterpriseRunner(
+        id=9,
+        name="enterprise-runner-1",
+        enterprise_node_id="ENT_1",
+        enterprise_slug="acme-enterprise",
+    )
+    repo_runner = RepoRunner(
+        id=10,
+        name="repo-runner-1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        repository_full_name="acme/repo",
+        org_login="acme",
+    )
+    repo_runner._lookup = SimpleNamespace(org_id_for_login=lambda _login: "ORG_1")
+
+    assert org_runner.as_node.properties.query_interceptable_jobs == (
+        "MATCH p=(:GH_Runner {node_id:'ORG_1_runner_8'})"
+        "-[:GH_CanInterceptJob]->(:GH_WorkflowJob) RETURN p"
+    )
+    assert enterprise_runner.as_node.properties.query_interceptable_jobs == (
+        "MATCH p=(:GH_Runner {node_id:'ENT_1_runner_9'})"
+        "-[:GH_CanInterceptJob]->(:GH_WorkflowJob) RETURN p"
+    )
+    assert repo_runner.as_node.properties.query_interceptable_jobs == (
+        "MATCH p=(:GH_Runner {node_id:'REPO_1_runner_10'})"
+        "-[:GH_CanInterceptJob]->(:GH_WorkflowJob) RETURN p"
+    )
 
 
 def test_enterprise_runner_group_with_all_visibility_emits_only_containment() -> None:

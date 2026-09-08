@@ -115,3 +115,25 @@ def test_scim_group_id_for_team_external_group_skips_org_only_context() -> None:
     lookup = GithubLookup(connection, schema="github_test")
 
     assert lookup.scim_group_id_for_team_external_group("acme", "Engineering") is None
+
+
+def test_workflow_step_secret_reference_names_deduplicates_across_steps() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github_test")
+    connection.execute(
+        "CREATE TABLE github_test.workflow_steps "
+        "(job_node_id VARCHAR, secret_references JSON)"
+    )
+    connection.execute(
+        "INSERT INTO github_test.workflow_steps VALUES "
+        "('JOB_1', '[{\"name\":\"DEPLOY_TOKEN\",\"context\":\"run\"}]'), "
+        "('JOB_1', '[{\"name\":\"deploy_token\",\"context\":\"env\"}, {\"name\":\"API_KEY\",\"context\":\"with\"}]'), "
+        "('JOB_2', '[{\"name\":\"OTHER_TOKEN\",\"context\":\"run\"}]')"
+    )
+
+    lookup = GithubLookup(connection, schema="github_test")
+
+    assert lookup.workflow_step_secret_reference_names("JOB_1") == [
+        "DEPLOY_TOKEN",
+        "API_KEY",
+    ]

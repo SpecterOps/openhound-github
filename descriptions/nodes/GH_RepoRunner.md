@@ -8,6 +8,8 @@ The node captures runner metadata such as operating system, status, busy state, 
 
 GH_RunsOn edges from GH_WorkflowJob nodes identify statically resolvable jobs in the containing repository that GitHub could schedule on this runner. These edges do not indicate that the job has actually executed on the runner.
 
+When the runner is not explicitly marked ephemeral, GH_CanInterceptJob edges identify workflow jobs whose future execution context may be exposed to an actor controlling the runner.
+
 ## Properties
 
 | Property | Type | Description |
@@ -34,6 +36,7 @@ GH_RunsOn edges from GH_WorkflowJob nodes identify statically resolvable jobs in
 | `query_group` | `string` | Query for group. |
 | `query_repositories` | `string` | Query for repositories. |
 | `query_jobs` | `string` | Query for workflow jobs that can be scheduled on the runner. |
+| `query_interceptable_jobs` | `string` | Query for workflow jobs the runner can intercept. |
 
 ## Diagram
 
@@ -45,4 +48,5 @@ graph LR
     n0 -.->|GH_CanUseRunner| n1
     n0 -.->|GH_Contains| n1
     n2 -.->|GH_RunsOn| n1
+    n1 -->|GH_CanInterceptJob| n2
 ```

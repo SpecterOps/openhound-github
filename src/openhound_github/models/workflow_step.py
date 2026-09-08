@@ -15,17 +15,16 @@ from openhound.core.models.entries_dataclass import (  # type: ignore[import-unt
     EdgeProperties,
     PropertyMatch,
 )
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-
-
-class WorkflowReference(BaseModel):
-    name: str
-    context: str | None = None
+from openhound_github.models.workflow_reference import (
+    WorkflowReference,
+    resolved_secret_targets,
+)
 
 
 @dataclass
@@ -193,62 +192,30 @@ class WorkflowStep(BaseAsset):
             ),
         )
 
+    def _resolved_secret_targets(self, references: list[WorkflowReference]):
+        return resolved_secret_targets(
+            self._lookup,
+            references,
+            repository_node_id=self.repository_node_id,
+            org_login=self.org_login,
+            org_node_id=self.org_node_id,
+            environment=self.job_environment,
+        )
+
     @property
     def _uses_secret_edges(self):
-        for ref in self.secret_references:
-            if self._lookup.repo_secret(ref.name, self.repository_node_id):
-                yield Edge(
-                    kind=ek.USES_SECRET,
-                    start=EdgePath(value=self.node_id, match_by="id"),
-                    end=ConditionalEdgePath(
-                        kind=nk.REPO_SECRET,
-                        property_matchers=[
-                            PropertyMatch(key="name", value=ref.name.upper()),
-                            PropertyMatch(
-                                key="repository_id", value=self.repository_node_id
-                            ),
-                        ],
-                    ),
-                    properties=EdgeProperties(traversable=False),
-                )
-            if self._lookup.org_secret(ref.name, self.org_login):
-                yield Edge(
-                    kind=ek.USES_SECRET,
-                    start=EdgePath(value=self.node_id, match_by="id"),
-                    end=ConditionalEdgePath(
-                        kind=nk.ORG_SECRET,
-                        property_matchers=[
-                            PropertyMatch(key="name", value=ref.name.upper()),
-                            PropertyMatch(
-                                key="environmentid", value=self.org_node_id
-                            ),
-                        ],
-                    ),
-                    properties=EdgeProperties(traversable=False),
-                )
-
-            if self.job_environment and "${{" not in self.job_environment:
-                if self._lookup.environment_secret_for_environment(
-                    ref.name, self.repository_node_id, self.job_environment
-                ):
-                    yield Edge(
-                        kind=ek.USES_SECRET,
-                        start=EdgePath(value=self.node_id, match_by="id"),
-                        end=ConditionalEdgePath(
-                            kind=nk.ENVIRONMENT_SECRET,
-                            property_matchers=[
-                                PropertyMatch(key="name", value=ref.name.upper()),
-                                PropertyMatch(
-                                    key="deployment_environment_name",
-                                    value=self.job_environment,
-                                ),
-                                PropertyMatch(
-                                    key="repository_id", value=self.repository_node_id
-                                ),
-                            ],
-                        ),
-                        properties=EdgeProperties(traversable=False),
-                    )
+        for kind, property_matchers in self._resolved_secret_targets(
+            self.secret_references
+        ):
+            yield Edge(
+                kind=ek.USES_SECRET,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=ConditionalEdgePath(
+                    kind=kind,
+                    property_matchers=property_matchers,
+                ),
+                properties=EdgeProperties(traversable=False),
+            )
 
     @property
     def _uses_variable_edges(self):

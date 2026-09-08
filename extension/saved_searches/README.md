@@ -2,6 +2,15 @@
 
 Pre-built Cypher queries for identifying security-relevant configurations across your GitHub organization. Each query is stored as an individual JSON file with `name`, `query`, and `description` fields, designed to be imported into BloodHound's saved queries feature.
 
+## Runner Interception Analysis
+
+Use the runner interception searches as a progression:
+
+1. Start with `workflow-jobs-interceptable-by-self-hosted-runners.json` to inventory jobs whose future execution context may be exposed to collected self-hosted runners.
+2. Prioritize `shared-self-hosted-runners-can-intercept-secret-bearing-jobs.json` because organization- and enterprise-scoped runners can create cross-repository blast radius.
+3. Use `self-hosted-runners-can-intercept-broad-token-jobs.json` and `workflow-jobs-with-id-token-write-on-self-hosted-runners.json` to find interceptable jobs with high-impact GITHUB_TOKEN or OIDC permissions.
+4. For a specific finding, follow `GH_RunsOn`, `GH_CanUseRunner`, `GH_CanAccessSecret`, and the workflow/job/step nodes to verify why the runner is eligible and what the job can access.
+
 ## Severity Levels
 
 | Indicator | Severity | Description |
@@ -80,24 +89,27 @@ Pre-built Cypher queries for identifying security-relevant configurations across
 | 40 | `org-roles-bypass-security-scanning.json` | Org Roles That Can Bypass Security Scanning | Finds organization roles with permissions to bypass or manage security scanning dismissals. These roles can suppress secret scanning and code scanning findings. |
 | 41 | `github-to-azure-identity.json` | GitHub-to-Azure Identity Assumptions | Finds GitHub entities (repositories, branches, environments) that can assume Azure identities via OIDC federation. Verify that each trust relationship is intentional and scoped appropriately. |
 | 42 | `workflow-jobs-with-id-token-write.json` | Workflow Jobs with OIDC Token Permission | Returns workflow jobs whose effective GITHUB_TOKEN permissions include `id-token:write`. |
-| 43 | `workflow-jobs-with-id-token-write-on-self-hosted-runners.json` | OIDC-Capable Workflow Jobs on Self-Hosted Runners | Returns OIDC-capable jobs that can be scheduled on collected self-hosted runners. |
+| 43 | `workflow-jobs-with-id-token-write-on-self-hosted-runners.json` | OIDC-Capable Workflow Jobs Interceptable by Self-Hosted Runners | Returns OIDC-capable jobs whose execution context may be exposed to collected self-hosted runners. |
 | 44 | `workflow-jobs-with-broad-token-write-permissions.json` | Workflow Jobs with Broad GITHUB_TOKEN Write Permissions | Returns jobs with effective write access to repository contents, Actions, or pull requests. |
 | 45 | `workflow-jobs-with-observed-oidc-auth-steps.json` | Workflow Jobs with Observed OIDC Authentication Steps | Returns OIDC-capable jobs with descendant steps that show likely token consumption. |
+| 46 | `workflow-jobs-interceptable-by-self-hosted-runners.json` | Workflow Jobs Interceptable by Self-Hosted Runners | Returns workflow jobs whose future execution context may be exposed to collected self-hosted runners. |
+| 47 | `shared-self-hosted-runners-can-intercept-secret-bearing-jobs.json` | Shared Self-Hosted Runners Can Intercept Secret-Bearing Jobs | Returns shared organization- and enterprise-scoped runners that can intercept jobs with secret access. |
+| 48 | `self-hosted-runners-can-intercept-broad-token-jobs.json` | Self-Hosted Runners Can Intercept Broad-Token Jobs | Returns self-hosted runners that can intercept jobs with high-impact GITHUB_TOKEN write permissions. |
 
 ### :white_circle: Low &mdash; Hygiene & Governance
 
 | # | File | Name | Description |
 |---|------|------|-------------|
-| 46 | `environments-admin-bypass.json` | Environments Where Admins Can Bypass Protections | Finds deployment environments where administrators can bypass protection rules such as required reviewers and wait timers. Admins can deploy to these environments without any approval. |
-| 47 | `app-installations-all-repos.json` | App Installations with Access to All Repositories | Finds GitHub App installations that have access to every repository in the organization. A compromised app credential would affect all repositories. |
-| 48 | `users-without-external-identity.json` | GitHub Users Without External Identity Mapping | Finds GitHub users that are not linked to any external identity via SAML or SCIM. These users cannot be centrally offboarded through the identity provider and may retain access after employment ends. |
-| 49 | `external-identities-without-scim.json` | External Identities Without SCIM Provisioning | Finds external identities that lack SCIM synchronization. Without SCIM, user deprovisioning in the identity provider will not automatically revoke GitHub access. |
-| 50 | `org-owners.json` | Organization Owners | Returns all users who hold the organization owners role. |
-| 51 | `privileged-custom-org-roles.json` | Privileged Custom Org Roles | Returns all custom organization roles that are privileged (i.e., have permissions that are not default). |
-| 52 | `global-repo-perms.json` | Global Repo Permissions | Returns all users who hold a global repository permission role (i.e., roles that are not default). |
-| 53 | `hybrid-identities.json` | External Identities | Returns all external identities (e.g., Azure or Okta users) that are associated with GitHub users. |
-| 54 | `privileged-hybrid-identities.json` | Privileged Hybrid Identities | Returns all hybrid identities (e.g., Azure or Okta users) that are associated with GitHub users who hold the organization owners role. |
-| 55 | `saml-configuration.json` | SAML Configuration Mapping | Finds SAML Identity Providers, their external identities, and mapped users. |
-| 56 | `team-membership-admin.json` | Team Membership Admins | Returns all users who hold the maintainer role over a team, including team nesting. |
-| 57 | `team-structure.json` | Team Structure | Returns the structure of teams within organizations, including team roles and their members. |
-| 58 | `repository-workflows.json` | Repository Workflows | Returns all repository workflows. |
+| 49 | `environments-admin-bypass.json` | Environments Where Admins Can Bypass Protections | Finds deployment environments where administrators can bypass protection rules such as required reviewers and wait timers. Admins can deploy to these environments without any approval. |
+| 50 | `app-installations-all-repos.json` | App Installations with Access to All Repositories | Finds GitHub App installations that have access to every repository in the organization. A compromised app credential would affect all repositories. |
+| 51 | `users-without-external-identity.json` | GitHub Users Without External Identity Mapping | Finds GitHub users that are not linked to any external identity via SAML or SCIM. These users cannot be centrally offboarded through the identity provider and may retain access after employment ends. |
+| 52 | `external-identities-without-scim.json` | External Identities Without SCIM Provisioning | Finds external identities that lack SCIM synchronization. Without SCIM, user deprovisioning in the identity provider will not automatically revoke GitHub access. |
+| 53 | `org-owners.json` | Organization Owners | Returns all users who hold the organization owners role. |
+| 54 | `privileged-custom-org-roles.json` | Privileged Custom Org Roles | Returns all custom organization roles that are privileged (i.e., have permissions that are not default). |
+| 55 | `global-repo-perms.json` | Global Repo Permissions | Returns all users who hold a global repository permission role (i.e., roles that are not default). |
+| 56 | `hybrid-identities.json` | External Identities | Returns all external identities (e.g., Azure or Okta users) that are associated with GitHub users. |
+| 57 | `privileged-hybrid-identities.json` | Privileged Hybrid Identities | Returns all hybrid identities (e.g., Azure or Okta users) that are associated with GitHub users who hold the organization owners role. |
+| 58 | `saml-configuration.json` | SAML Configuration Mapping | Finds SAML Identity Providers, their external identities, and mapped users. |
+| 59 | `team-membership-admin.json` | Team Membership Admins | Returns all users who hold the maintainer role over a team, including team nesting. |
+| 60 | `team-structure.json` | Team Structure | Returns the structure of teams within organizations, including team roles and their members. |
+| 61 | `repository-workflows.json` | Repository Workflows | Returns all repository workflows. |

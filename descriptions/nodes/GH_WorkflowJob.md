@@ -8,6 +8,10 @@ When the job has a statically resolvable self-hosted `runs-on` selector, GH_Runs
 
 When present, `job_permissions` captures the job-level `permissions` declaration from the workflow YAML. `effective_github_token_permissions` captures the calculated static `GITHUB_TOKEN` permissions after applying the repository default, workflow-level declaration, and job-level declaration.
 
+GH_CanAccessSecret edges identify secrets statically referenced by the job's modeled steps or job-level `env` block that the job execution context can access. GH_CanInterceptJob edges from GH_Runner nodes not explicitly marked ephemeral identify jobs whose future execution context may be exposed if that runner is controlled.
+
+When `runs_on_is_dynamic` is true, runner matching and interception status remain unresolved: the collector does not emit GH_CanInterceptJob edges for the job, so `query_interceptable_jobs` cannot match it and the absence of an edge must not be treated as evidence that the job is definitively non-interceptable.
+
 ## Properties
 
 | Property | Type | Description |
@@ -37,6 +41,7 @@ When present, `job_permissions` captures the job-level `permissions` declaration
 | `query_steps` | `string` | Query for workflow steps. |
 | `query_references` | `string` | Query for workflow references (secrets and variables). |
 | `query_runners` | `string` | Query for eligible self-hosted runners. |
+| `query_accessible_secrets` | `string` | Query for secrets accessible to the job execution context. |
 
 ## Diagram
 
@@ -62,6 +67,10 @@ graph LR
     n1 -.->|GH_UsesSecret| n7
     n1 -.->|GH_UsesVariable| n8
     n1 -.->|GH_RunsOn| n9
+    n1 -->|GH_CanAccessSecret| n3
+    n1 -->|GH_CanAccessSecret| n5
+    n1 -->|GH_CanAccessSecret| n7
+    n9 -->|GH_CanInterceptJob| n1
     n1 -.->|GH_CallsWorkflow| n0
     n1 -.->|GH_DependsOn| n1
     n1 -.->|GH_Contains| n10

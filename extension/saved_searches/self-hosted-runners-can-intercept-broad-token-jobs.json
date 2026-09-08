@@ -1,0 +1,5 @@
+{
+  "name": "GitHub: Self-Hosted Runners Can Intercept Broad-Token Jobs",
+  "query": "MATCH p=(runner:GH_Runner)-[:GH_CanInterceptJob]->(job:GH_WorkflowJob)\nWHERE 'contents:write' IN job.effective_github_token_permissions\nOR 'actions:write' IN job.effective_github_token_permissions\nOR 'pull-requests:write' IN job.effective_github_token_permissions\nRETURN p\nLIMIT 1000",
+  "description": "Returns self-hosted runners that can intercept workflow jobs whose effective GITHUB_TOKEN has high-impact write permissions. These jobs can materially increase the blast radius of runner compromise."
+}

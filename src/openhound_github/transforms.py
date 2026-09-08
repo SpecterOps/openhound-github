@@ -125,6 +125,7 @@ def ensure_optional_input_tables(
             id BIGINT,
             name VARCHAR,
             visibility VARCHAR,
+            restricted_to_workflows BOOLEAN,
             enterprise_node_id VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_runner_group_organizations (
@@ -140,6 +141,7 @@ def ensure_optional_input_tables(
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_runners (
             id BIGINT,
             labels JSON,
+            ephemeral BOOLEAN,
             enterprise_node_id VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.runner_groups (
@@ -150,6 +152,7 @@ def ensure_optional_input_tables(
         CREATE TABLE IF NOT EXISTS {schema}.org_runners (
             id BIGINT,
             labels JSON,
+            ephemeral BOOLEAN,
             org_login VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.org_runner_group_access (
@@ -170,6 +173,7 @@ def ensure_optional_input_tables(
         CREATE TABLE IF NOT EXISTS {schema}.repo_runners (
             id BIGINT,
             labels JSON,
+            ephemeral BOOLEAN,
             repository_node_id VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.workflows (
@@ -178,6 +182,10 @@ def ensure_optional_input_tables(
             repository_node_id VARCHAR,
             repository_default_workflow_permissions VARCHAR,
             repository_can_approve_pull_request_reviews BOOLEAN
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.workflow_steps (
+            job_node_id VARCHAR,
+            secret_references JSON
         );
     """)
     con.execute(f"""
@@ -327,6 +335,8 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.enterprise_runner_groups
             ADD COLUMN IF NOT EXISTS visibility VARCHAR;
         ALTER TABLE {schema}.enterprise_runner_groups
+            ADD COLUMN IF NOT EXISTS restricted_to_workflows BOOLEAN;
+        ALTER TABLE {schema}.enterprise_runner_groups
             ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
 
         ALTER TABLE {schema}.enterprise_runner_group_organizations
@@ -348,6 +358,8 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.enterprise_runners
             ADD COLUMN IF NOT EXISTS labels JSON;
         ALTER TABLE {schema}.enterprise_runners
+            ADD COLUMN IF NOT EXISTS ephemeral BOOLEAN;
+        ALTER TABLE {schema}.enterprise_runners
             ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
 
         ALTER TABLE {schema}.runner_groups
@@ -361,6 +373,8 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS id BIGINT;
         ALTER TABLE {schema}.org_runners
             ADD COLUMN IF NOT EXISTS labels JSON;
+        ALTER TABLE {schema}.org_runners
+            ADD COLUMN IF NOT EXISTS ephemeral BOOLEAN;
         ALTER TABLE {schema}.org_runners
             ADD COLUMN IF NOT EXISTS org_login VARCHAR;
 
@@ -393,6 +407,8 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.repo_runners
             ADD COLUMN IF NOT EXISTS labels JSON;
         ALTER TABLE {schema}.repo_runners
+            ADD COLUMN IF NOT EXISTS ephemeral BOOLEAN;
+        ALTER TABLE {schema}.repo_runners
             ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
 
         ALTER TABLE {schema}.workflows
@@ -405,6 +421,11 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS repository_default_workflow_permissions VARCHAR;
         ALTER TABLE {schema}.workflows
             ADD COLUMN IF NOT EXISTS repository_can_approve_pull_request_reviews BOOLEAN;
+
+        ALTER TABLE {schema}.workflow_steps
+            ADD COLUMN IF NOT EXISTS job_node_id VARCHAR;
+        ALTER TABLE {schema}.workflow_steps
+            ADD COLUMN IF NOT EXISTS secret_references JSON;
     """)
 
 # TODO:
