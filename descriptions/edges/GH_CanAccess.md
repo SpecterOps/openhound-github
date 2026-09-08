@@ -2,13 +2,14 @@
 
 ## General Information
 
-The non-traversable GH_CanAccess edge indicates that a personal access token or app installation has been granted access to specific repositories. This edge represents the scope of access granted to a token or app rather than a direct attack path, providing visibility into which repositories are reachable through non-human credentials. It is non-traversable because token and app access does not transitively extend to other principals.
+The non-traversable GH_CanAccess edge indicates that a personal access token, app installation, or deploy key has been granted access to a repository or organization. This edge represents the scope of access granted to a non-human credential rather than a direct attack path, providing visibility into which repositories are reachable through that credential. It is non-traversable because credential access does not transitively extend to other principals.
 
 ## Edge Schema
 
 | Source | Destination | Traversable |
 | --- | --- | --- |
 | `GH_AppInstallation` | `GH_Repository` | `false` |
+| `GH_DeployKey` | `GH_Repository` | `false` |
 | `GH_PersonalAccessToken` | `GH_Organization` | `false` |
 | `GH_PersonalAccessToken` | `GH_Repository` | `false` |
 
@@ -18,9 +19,11 @@ The non-traversable GH_CanAccess edge indicates that a personal access token or 
 graph LR
     n0["GH_AppInstallation"]
     n1["GH_Repository"]
-    n2["GH_PersonalAccessToken"]
-    n3["GH_Organization"]
+    n2["GH_DeployKey"]
+    n3["GH_PersonalAccessToken"]
+    n4["GH_Organization"]
     n0 -.->|GH_CanAccess| n1
-    n2 -.->|GH_CanAccess| n3
     n2 -.->|GH_CanAccess| n1
+    n3 -.->|GH_CanAccess| n4
+    n3 -.->|GH_CanAccess| n1
 ```

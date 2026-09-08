@@ -22,6 +22,7 @@ from .env_secret import EnvironmentSecret
 from .env_variable import EnvironmentVariable
 from .environment import Environment
 from .environment_branch_policy import EnvironmentBranchPolicy
+from .deploy_key import DeployKey
 from .external_identity import ExternalIdentity
 from .org import Organization
 from .org_role import OrgRole
@@ -132,6 +133,7 @@ __all__ = [
     "EnvironmentSecret",
     "EnvironmentVariable",
     "EnvironmentBranchPolicy",
+    "DeployKey",
     "Enterprise",
     "EnterpriseAdmin",
     "EnterpriseManagedUser",

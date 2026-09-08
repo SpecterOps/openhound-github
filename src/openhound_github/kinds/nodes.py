@@ -33,6 +33,7 @@ REPO_ROLE = "GH_RepoRole"
 REPO_SECRET = "GH_RepoSecret"
 REPO_VARIABLE = "GH_RepoVariable"
 REPO_RUNNER = "GH_RepoRunner"
+DEPLOY_KEY = "GH_DeployKey"
 
 DEFAULT_ROLE = "GH_RepoRole"
 

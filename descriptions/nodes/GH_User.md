@@ -36,13 +36,14 @@ graph LR
     n4["GH_SecretScanningAlert"]
     n5["GH_Branch"]
     n6["GH_BranchProtectionRule"]
-    n7["GH_EnterpriseRole"]
-    n8["GH_Environment"]
-    n9["GH_OrgRole"]
-    n10["GH_PersonalAccessToken"]
-    n11["GH_PersonalAccessTokenRequest"]
-    n12["GH_RepoRole"]
-    n13["GH_TeamRole"]
+    n7["GH_DeployKey"]
+    n8["GH_EnterpriseRole"]
+    n9["GH_Environment"]
+    n10["GH_OrgRole"]
+    n11["GH_PersonalAccessToken"]
+    n12["GH_PersonalAccessTokenRequest"]
+    n13["GH_RepoRole"]
+    n14["GH_TeamRole"]
     n0 -.->|GH_HasMember| n1
     n2 -.->|GH_MapsToUser| n1
     n3 -.->|GH_MapsToUser| n1
@@ -50,12 +51,13 @@ graph LR
     n1 -.->|GH_CanWriteBranch| n5
     n1 -.->|GH_BypassPullRequestAllowances| n6
     n1 -.->|GH_RestrictionsCanPush| n6
-    n1 -->|GH_HasRole| n7
-    n1 -.->|GH_ApprovesDeploymentTo| n8
-    n1 -->|GH_CanDeployToEnvironment| n8
-    n1 -->|GH_HasRole| n9
-    n1 -.->|GH_HasPersonalAccessToken| n10
-    n1 -.->|GH_HasPersonalAccessTokenRequest| n11
-    n1 -->|GH_HasRole| n12
+    n1 -.->|GH_AddedDeployKey| n7
+    n1 -->|GH_HasRole| n8
+    n1 -.->|GH_ApprovesDeploymentTo| n9
+    n1 -->|GH_CanDeployToEnvironment| n9
+    n1 -->|GH_HasRole| n10
+    n1 -.->|GH_HasPersonalAccessToken| n11
+    n1 -.->|GH_HasPersonalAccessTokenRequest| n12
     n1 -->|GH_HasRole| n13
+    n1 -->|GH_HasRole| n14
 ```

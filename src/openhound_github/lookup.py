@@ -55,6 +55,35 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def user_node_id_for_login(self, org_login: str, user_login: str) -> str | None:
+        return self._find_single_object(
+            f"""
+            WITH candidate_users AS (
+                SELECT 0 AS priority, u.id
+                FROM {self.schema}.users u
+                WHERE lower(u.org_login) = lower(?)
+                  AND lower(u.login) = lower(?)
+
+                UNION ALL
+
+                SELECT 1 AS priority, eu.id
+                FROM {self.schema}.enterprise_users eu
+                JOIN {self.schema}.enterprise e
+                  ON lower(e.slug) = lower(eu.enterprise_slug)
+                JOIN {self.schema}.enterprise_organizations eo
+                  ON eo.enterprise_node_id = e.id
+                WHERE lower(eo.login) = lower(?)
+                  AND lower(eu.login) = lower(?)
+            )
+            SELECT id
+            FROM candidate_users
+            ORDER BY priority
+            LIMIT 1
+            """,
+            [org_login, user_login, org_login, user_login],
+        )
+
+    @lru_cache
     def org_login(self) -> str | None:
         res = self._find_single_object(
             f"""SELECT login FROM {self.schema}.organizations"""
@@ -605,20 +634,21 @@ class GithubLookup(LookupManager):
     @lru_cache
     def repository_graphql_counts(
         self, repository_node_id: str
-    ) -> tuple[int | None, int | None]:
+    ) -> tuple[int | None, int | None, int | None]:
         row = self._find_single_row(
             f"""
-            SELECT branch_count, environment_count
+            SELECT branch_count, environment_count, deploy_key_count
             FROM {self.schema}.repositories_graphql
             WHERE id = ?
             """,
             [repository_node_id],
         )
         if row is None:
-            return None, None
+            return None, None, None
         return (
             None if row[0] is None else int(row[0]),
             None if row[1] is None else int(row[1]),
+            None if row[2] is None else int(row[2]),
         )
 
     @lru_cache

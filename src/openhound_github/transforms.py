@@ -22,7 +22,8 @@ def ensure_optional_input_tables(
             id VARCHAR,
             branch_ruleset_count BIGINT,
             branch_count BIGINT,
-            environment_count BIGINT
+            environment_count BIGINT,
+            deploy_key_count BIGINT
         );
         CREATE TABLE IF NOT EXISTS {schema}.branch_protection_rules (
             id VARCHAR,
@@ -53,6 +54,7 @@ def ensure_optional_input_tables(
         );
         CREATE TABLE IF NOT EXISTS {schema}.users (
             id VARCHAR,
+            login VARCHAR,
             role VARCHAR,
             org_login VARCHAR
         );
@@ -113,10 +115,19 @@ def ensure_optional_input_tables(
             variable_name VARCHAR,
             repository_node_id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise (
+            id VARCHAR,
+            slug VARCHAR
+        );
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_organizations (
             id VARCHAR,
             login VARCHAR,
             enterprise_node_id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_users (
+            id VARCHAR,
+            login VARCHAR,
+            enterprise_slug VARCHAR
         );
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_scim_groups (
             id VARCHAR,
@@ -204,6 +215,8 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS branch_count BIGINT;
         ALTER TABLE {schema}.repositories_graphql
             ADD COLUMN IF NOT EXISTS environment_count BIGINT;
+        ALTER TABLE {schema}.repositories_graphql
+            ADD COLUMN IF NOT EXISTS deploy_key_count BIGINT;
 
         ALTER TABLE {schema}.branch_protection_rules
             ADD COLUMN IF NOT EXISTS id VARCHAR;
@@ -248,6 +261,8 @@ def ensure_optional_input_tables(
 
         ALTER TABLE {schema}.users
             ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.users
+            ADD COLUMN IF NOT EXISTS login VARCHAR;
         ALTER TABLE {schema}.users
             ADD COLUMN IF NOT EXISTS role VARCHAR;
         ALTER TABLE {schema}.users
@@ -320,12 +335,24 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.selected_organization_variables
             ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
 
+        ALTER TABLE {schema}.enterprise
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.enterprise
+            ADD COLUMN IF NOT EXISTS slug VARCHAR;
+
         ALTER TABLE {schema}.enterprise_organizations
             ADD COLUMN IF NOT EXISTS id VARCHAR;
         ALTER TABLE {schema}.enterprise_organizations
             ADD COLUMN IF NOT EXISTS login VARCHAR;
         ALTER TABLE {schema}.enterprise_organizations
             ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+
+        ALTER TABLE {schema}.enterprise_users
+            ADD COLUMN IF NOT EXISTS id VARCHAR;
+        ALTER TABLE {schema}.enterprise_users
+            ADD COLUMN IF NOT EXISTS login VARCHAR;
+        ALTER TABLE {schema}.enterprise_users
+            ADD COLUMN IF NOT EXISTS enterprise_slug VARCHAR;
 
         ALTER TABLE {schema}.enterprise_scim_groups
             ADD COLUMN IF NOT EXISTS id VARCHAR;

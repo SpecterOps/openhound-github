@@ -48,6 +48,7 @@ class GHRepositoryProperties(GHNodeProperties):
         has_branch_rulesets: Whether at least one branch-targeted ruleset applies to this repository.
         branch_count: Number of branch refs reported by GitHub for this repository.
         environment_count: Number of deployment environments reported by GitHub for this repository.
+        deploy_key_count: Number of deploy keys reported by GitHub for this repository.
         query_branches: Query for branches.
         query_protected_branches: Query for protected branches.
         query_branch_protection_rules: Query for branch protection rules.
@@ -58,6 +59,7 @@ class GHRepositoryProperties(GHNodeProperties):
         query_environments: Query for environments.
         query_secrets: Query for secrets.
         query_variables: Query for variables.
+        query_deploy_keys: Query for deploy keys.
         query_secret_scanning_alerts: Query for secret scanning alerts.
         query_explicit_readers: Query for explicit readers.
         query_unrolled_readers: Query for unrolled readers.
@@ -98,6 +100,7 @@ class GHRepositoryProperties(GHNodeProperties):
     has_branch_rulesets: bool | None = None
     branch_count: int | None = None
     environment_count: int | None = None
+    deploy_key_count: int | None = None
     query_branches: str | None = None
     query_protected_branches: str | None = None
     query_branch_protection_rules: str | None = None
@@ -108,6 +111,7 @@ class GHRepositoryProperties(GHNodeProperties):
     query_environments: str | None = None
     query_secrets: str | None = None
     query_variables: str | None = None
+    query_deploy_keys: str | None = None
     query_secret_scanning_alerts: str | None = None
     query_explicit_readers: str | None = None
     query_unrolled_readers: str | None = None
@@ -165,6 +169,7 @@ class RepositoryQL(BaseModel):
     branch_ruleset_count: int | None = None
     branch_count: int | None = None
     environment_count: int | None = None
+    deploy_key_count: int | None = None
 
     # Additional
     org_login: str
@@ -237,7 +242,9 @@ class Repository(BaseAsset):
     def as_node(self) -> GHNode:
         rid = self.node_id
         branch_ruleset_count = self._lookup.repository_branch_ruleset_count(rid)
-        branch_count, environment_count = self._lookup.repository_graphql_counts(rid)
+        branch_count, environment_count, deploy_key_count = (
+            self._lookup.repository_graphql_counts(rid)
+        )
         workflow_permissions = self._lookup.repository_workflow_permissions(rid)
         default_workflow_permissions, can_approve_pull_request_reviews = (
             workflow_permissions if workflow_permissions else (None, None)
@@ -282,6 +289,7 @@ class Repository(BaseAsset):
                 ),
                 branch_count=branch_count,
                 environment_count=environment_count,
+                deploy_key_count=deploy_key_count,
                 # secret_scanning=self.secret_scanning,
                 query_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Branch) RETURN p",
                 query_protected_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) RETURN p",
@@ -299,6 +307,7 @@ class Repository(BaseAsset):
                 query_environments=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Environment) RETURN p",
                 query_secrets=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasSecret]->(:GH_Secret) RETURN p",
                 query_variables=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasVariable]->(:GH_Variable) RETURN p",
+                query_deploy_keys=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_DeployKey) RETURN p",
                 query_secret_scanning_alerts=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_SecretScanningAlert) RETURN p",
                 query_explicit_readers=f"MATCH p=(role:GH_Role)-[:GH_HasBaseRole|GH_ReadRepoContents*1..]->(r:GH_Repository {{node_id:'{rid}'}}) MATCH p1=(:GH_User)-[:GH_HasRole]->(role) RETURN p,p1",
                 query_unrolled_readers=f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_ReadRepoContents*1..]->(r:GH_Repository {{node_id:'{rid}'}}) MATCH p1=(:GH_User)-[:GH_HasRole]->(role) RETURN p,p1",

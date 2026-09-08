@@ -69,6 +69,7 @@ The collector runs successfully with the documented read-only permission set. So
 
 - Organization `Members: write` enables external group mapping collection for IdP-synced teams, which allows the converter to emit `SCIM_Provisioned` edges from `SCIM_Group` to `GH_Team`. This is useful when the organization uses team synchronization with an external identity provider; if no GitHub teams are linked to external groups, this permission does not add graph data.
 - Classic PAT scope `manage_runners:enterprise` enables enterprise self-hosted runner group and runner collection. This is useful when the enterprise has enterprise-scoped runner groups or runners, especially runner groups shared into organizations; if all runners are organization- or repository-scoped, this scope does not add graph data.
+- Repository `Administration: read` enables deploy key collection. GitHub exposes repository deploy keys through an administration-scoped read endpoint, and the collector emits `GH_DeployKey` nodes only when that endpoint is accessible.
 
 If these optional permissions are not granted, OpenHound skips the affected resources and continues collecting the rest of the GitHub environment.
 

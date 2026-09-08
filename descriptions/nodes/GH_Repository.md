@@ -48,6 +48,7 @@ The `branch_count` and `environment_count` properties preserve GitHub-reported t
 | `has_branch_rulesets` | `boolean` | Whether at least one branch-targeted ruleset applies to this repository. |
 | `branch_count` | `integer` | Number of branch refs reported by GitHub for this repository. |
 | `environment_count` | `integer` | Number of deployment environments reported by GitHub for this repository. |
+| `deploy_key_count` | `integer` | Number of deploy keys reported by GitHub for this repository. |
 | `query_branches` | `string` | Query for branches. |
 | `query_protected_branches` | `string` | Query for protected branches. |
 | `query_branch_protection_rules` | `string` | Query for branch protection rules. |
@@ -58,6 +59,7 @@ The `branch_count` and `environment_count` properties preserve GitHub-reported t
 | `query_environments` | `string` | Query for environments. |
 | `query_secrets` | `string` | Query for secrets. |
 | `query_variables` | `string` | Query for variables. |
+| `query_deploy_keys` | `string` | Query for deploy keys. |
 | `query_secret_scanning_alerts` | `string` | Query for secret scanning alerts. |
 | `query_explicit_readers` | `string` | Query for explicit readers. |
 | `query_unrolled_readers` | `string` | Query for unrolled readers. |
@@ -70,98 +72,101 @@ The `branch_count` and `environment_count` properties preserve GitHub-reported t
 graph LR
     n0["GH_AppInstallation"]
     n1["GH_Repository"]
-    n2["GH_Organization"]
-    n3["GH_PersonalAccessToken"]
-    n4["GH_RepoRole"]
-    n5["GH_Branch"]
-    n6["GH_BranchProtectionRule"]
-    n7["GH_Environment"]
-    n8["GH_OrgRunnerGroup"]
-    n9["GH_OrgSecret"]
-    n10["GH_OrgVariable"]
-    n11["GH_RepoRunner"]
-    n12["GH_RepoSecret"]
-    n13["GH_RepoVariable"]
-    n14["GH_SecretScanningAlert"]
-    n15["GH_Workflow"]
+    n2["GH_DeployKey"]
+    n3["GH_Organization"]
+    n4["GH_PersonalAccessToken"]
+    n5["GH_RepoRole"]
+    n6["GH_Branch"]
+    n7["GH_BranchProtectionRule"]
+    n8["GH_Environment"]
+    n9["GH_OrgRunnerGroup"]
+    n10["GH_OrgSecret"]
+    n11["GH_OrgVariable"]
+    n12["GH_RepoRunner"]
+    n13["GH_RepoSecret"]
+    n14["GH_RepoVariable"]
+    n15["GH_SecretScanningAlert"]
+    n16["GH_Workflow"]
     n0 -.->|GH_CanAccess| n1
-    n2 -->|GH_Owns| n1
-    n3 -.->|GH_CanAccess| n1
-    n4 -.->|GH_AddAssignee| n1
-    n4 -.->|GH_AddLabel| n1
-    n4 -->|GH_AdminTo| n1
-    n4 -.->|GH_BypassBranchProtection| n1
-    n4 -.->|GH_CanCreateBranch| n1
-    n4 -->|GH_CanCreateEnvironment| n1
-    n4 -->|GH_CanPwnRequest| n1
-    n4 -.->|GH_CloseDiscussion| n1
-    n4 -.->|GH_CloseIssue| n1
-    n4 -.->|GH_ClosePullRequest| n1
-    n4 -.->|GH_ConvertIssuesToDiscussions| n1
-    n4 -.->|GH_CreateDiscussionCategory| n1
-    n4 -.->|GH_CreateSoloMergeQueueEntry| n1
-    n4 -.->|GH_CreateTag| n1
-    n4 -.->|GH_DeleteAlertsCodeScanning| n1
-    n4 -.->|GH_DeleteDiscussion| n1
-    n4 -.->|GH_DeleteDiscussionComment| n1
-    n4 -.->|GH_DeleteIssue| n1
-    n4 -.->|GH_DeleteTag| n1
-    n4 -.->|GH_EditCategoryOnDiscussion| n1
-    n4 -.->|GH_EditDiscussionCategory| n1
-    n4 -.->|GH_EditDiscussionComment| n1
-    n4 -.->|GH_EditRepoAnnouncementBanners| n1
-    n4 -.->|GH_EditRepoCustomPropertiesValues| n1
-    n4 -.->|GH_EditRepoMetadata| n1
-    n4 -.->|GH_EditRepoProtections| n1
-    n4 -.->|GH_JumpMergeQueue| n1
-    n4 -.->|GH_ManageDeployKeys| n1
-    n4 -.->|GH_ManageDiscussionBadges| n1
-    n4 -.->|GH_ManageRepoSecurityProducts| n1
-    n4 -.->|GH_ManageSecurityProducts| n1
-    n4 -.->|GH_ManageSettingsMergeTypes| n1
-    n4 -.->|GH_ManageSettingsPages| n1
-    n4 -.->|GH_ManageSettingsProjects| n1
-    n4 -.->|GH_ManageSettingsWiki| n1
-    n4 -.->|GH_ManageTopics| n1
-    n4 -.->|GH_ManageWebhooks| n1
-    n4 -.->|GH_MarkAsDuplicate| n1
-    n4 -.->|GH_PushProtectedBranch| n1
-    n4 -.->|GH_ReadCodeScanning| n1
-    n4 -.->|GH_ReadRepoContents| n1
-    n4 -.->|GH_RemoveAssignee| n1
-    n4 -.->|GH_RemoveLabel| n1
-    n4 -.->|GH_ReopenDiscussion| n1
-    n4 -.->|GH_ReopenIssue| n1
-    n4 -.->|GH_ReopenPullRequest| n1
-    n4 -.->|GH_RequestPrReview| n1
-    n4 -.->|GH_ResolveDependabotAlerts| n1
-    n4 -.->|GH_ResolveSecretScanningAlerts| n1
-    n4 -.->|GH_RunOrgMigration| n1
-    n4 -.->|GH_SetInteractionLimits| n1
-    n4 -.->|GH_SetIssueType| n1
-    n4 -.->|GH_SetMilestone| n1
-    n4 -.->|GH_SetSocialPreview| n1
-    n4 -.->|GH_ToggleDiscussionAnswer| n1
-    n4 -.->|GH_ToggleDiscussionCommentMinimize| n1
-    n4 -.->|GH_ViewDependabotAlerts| n1
-    n4 -.->|GH_ViewSecretScanningAlerts| n1
-    n4 -.->|GH_WriteCodeScanning| n1
-    n4 -.->|GH_WriteRepoContents| n1
-    n4 -.->|GH_WriteRepoPullRequests| n1
-    n1 -.->|GH_Contains| n5
+    n2 -.->|GH_CanAccess| n1
+    n3 -->|GH_Owns| n1
+    n4 -.->|GH_CanAccess| n1
+    n5 -.->|GH_AddAssignee| n1
+    n5 -.->|GH_AddLabel| n1
+    n5 -->|GH_AdminTo| n1
+    n5 -.->|GH_BypassBranchProtection| n1
+    n5 -.->|GH_CanCreateBranch| n1
+    n5 -->|GH_CanCreateEnvironment| n1
+    n5 -->|GH_CanPwnRequest| n1
+    n5 -.->|GH_CloseDiscussion| n1
+    n5 -.->|GH_CloseIssue| n1
+    n5 -.->|GH_ClosePullRequest| n1
+    n5 -.->|GH_ConvertIssuesToDiscussions| n1
+    n5 -.->|GH_CreateDiscussionCategory| n1
+    n5 -.->|GH_CreateSoloMergeQueueEntry| n1
+    n5 -.->|GH_CreateTag| n1
+    n5 -.->|GH_DeleteAlertsCodeScanning| n1
+    n5 -.->|GH_DeleteDiscussion| n1
+    n5 -.->|GH_DeleteDiscussionComment| n1
+    n5 -.->|GH_DeleteIssue| n1
+    n5 -.->|GH_DeleteTag| n1
+    n5 -.->|GH_EditCategoryOnDiscussion| n1
+    n5 -.->|GH_EditDiscussionCategory| n1
+    n5 -.->|GH_EditDiscussionComment| n1
+    n5 -.->|GH_EditRepoAnnouncementBanners| n1
+    n5 -.->|GH_EditRepoCustomPropertiesValues| n1
+    n5 -.->|GH_EditRepoMetadata| n1
+    n5 -.->|GH_EditRepoProtections| n1
+    n5 -.->|GH_JumpMergeQueue| n1
+    n5 -.->|GH_ManageDeployKeys| n1
+    n5 -.->|GH_ManageDiscussionBadges| n1
+    n5 -.->|GH_ManageRepoSecurityProducts| n1
+    n5 -.->|GH_ManageSecurityProducts| n1
+    n5 -.->|GH_ManageSettingsMergeTypes| n1
+    n5 -.->|GH_ManageSettingsPages| n1
+    n5 -.->|GH_ManageSettingsProjects| n1
+    n5 -.->|GH_ManageSettingsWiki| n1
+    n5 -.->|GH_ManageTopics| n1
+    n5 -.->|GH_ManageWebhooks| n1
+    n5 -.->|GH_MarkAsDuplicate| n1
+    n5 -.->|GH_PushProtectedBranch| n1
+    n5 -.->|GH_ReadCodeScanning| n1
+    n5 -.->|GH_ReadRepoContents| n1
+    n5 -.->|GH_RemoveAssignee| n1
+    n5 -.->|GH_RemoveLabel| n1
+    n5 -.->|GH_ReopenDiscussion| n1
+    n5 -.->|GH_ReopenIssue| n1
+    n5 -.->|GH_ReopenPullRequest| n1
+    n5 -.->|GH_RequestPrReview| n1
+    n5 -.->|GH_ResolveDependabotAlerts| n1
+    n5 -.->|GH_ResolveSecretScanningAlerts| n1
+    n5 -.->|GH_RunOrgMigration| n1
+    n5 -.->|GH_SetInteractionLimits| n1
+    n5 -.->|GH_SetIssueType| n1
+    n5 -.->|GH_SetMilestone| n1
+    n5 -.->|GH_SetSocialPreview| n1
+    n5 -.->|GH_ToggleDiscussionAnswer| n1
+    n5 -.->|GH_ToggleDiscussionCommentMinimize| n1
+    n5 -.->|GH_ViewDependabotAlerts| n1
+    n5 -.->|GH_ViewSecretScanningAlerts| n1
+    n5 -.->|GH_WriteCodeScanning| n1
+    n5 -.->|GH_WriteRepoContents| n1
+    n5 -.->|GH_WriteRepoPullRequests| n1
     n1 -.->|GH_Contains| n6
-    n1 -->|GH_CanDeployToEnvironment| n7
     n1 -.->|GH_Contains| n7
-    n1 -->|GH_CanUseRunner| n8
-    n1 -.->|GH_IsEligibleFor| n8
-    n1 -->|GH_HasSecret| n9
-    n1 -->|GH_HasVariable| n10
-    n1 -.->|GH_CanUseRunner| n11
-    n1 -.->|GH_Contains| n11
+    n1 -.->|GH_Contains| n2
+    n1 -->|GH_CanDeployToEnvironment| n8
+    n1 -.->|GH_Contains| n8
+    n1 -->|GH_CanUseRunner| n9
+    n1 -.->|GH_IsEligibleFor| n9
+    n1 -->|GH_HasSecret| n10
+    n1 -->|GH_HasVariable| n11
+    n1 -.->|GH_CanUseRunner| n12
     n1 -.->|GH_Contains| n12
-    n1 -->|GH_HasSecret| n12
     n1 -.->|GH_Contains| n13
-    n1 -->|GH_HasVariable| n13
+    n1 -->|GH_HasSecret| n13
     n1 -.->|GH_Contains| n14
+    n1 -->|GH_HasVariable| n14
     n1 -.->|GH_Contains| n15
+    n1 -.->|GH_Contains| n16
 ```

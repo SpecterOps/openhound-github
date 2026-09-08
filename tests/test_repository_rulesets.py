@@ -40,6 +40,7 @@ def _repository_page_data(
     branch_ruleset_count: int | None = None,
     branch_count: int | None = None,
     environment_count: int | None = None,
+    deploy_key_count: int | None = None,
     repository_end_cursor: str | None = None,
     repositories_has_next_page: bool = False,
 ) -> dict:
@@ -64,6 +65,7 @@ def _repository_page_data(
                             },
                         },
                         "environments": {"totalCount": environment_count},
+                        "deployKeys": {"totalCount": deploy_key_count},
                     }
                 ]
             }
@@ -135,6 +137,7 @@ def test_repositories_graphql_flattens_repository_counts() -> None:
                 branch_ruleset_count=2,
                 branch_count=7,
                 environment_count=3,
+                deploy_key_count=2,
             )
         )
     )
@@ -157,6 +160,7 @@ def test_repositories_graphql_flattens_repository_counts() -> None:
             "branch_ruleset_count": 2,
             "branch_count": 7,
             "environment_count": 3,
+            "deploy_key_count": 2,
             "org_login": "org",
         }
     ]
@@ -407,7 +411,7 @@ def test_repository_node_surfaces_branch_ruleset_presence() -> None:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "O_1"
     lookup.repository_branch_ruleset_count.return_value = 2
-    lookup.repository_graphql_counts.return_value = (7, 3)
+    lookup.repository_graphql_counts.return_value = (7, 3, 2)
     lookup.repository_workflow_permissions.return_value = ("read", False)
     repo._lookup = lookup
 
@@ -417,6 +421,7 @@ def test_repository_node_surfaces_branch_ruleset_presence() -> None:
     assert node.properties.has_branch_rulesets is True
     assert node.properties.branch_count == 7
     assert node.properties.environment_count == 3
+    assert node.properties.deploy_key_count == 2
     assert node.properties.default_workflow_permissions == "read"
     assert node.properties.can_approve_pull_request_reviews is False
     assert node.properties.size == 0
@@ -430,7 +435,7 @@ def test_repository_node_preserves_unknown_branch_ruleset_presence() -> None:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = "O_1"
     lookup.repository_branch_ruleset_count.return_value = None
-    lookup.repository_graphql_counts.return_value = (None, None)
+    lookup.repository_graphql_counts.return_value = (None, None, None)
     lookup.repository_workflow_permissions.return_value = None
     repo._lookup = lookup
 
@@ -440,6 +445,7 @@ def test_repository_node_preserves_unknown_branch_ruleset_presence() -> None:
     assert node.properties.has_branch_rulesets is None
     assert node.properties.branch_count is None
     assert node.properties.environment_count is None
+    assert node.properties.deploy_key_count is None
     assert node.properties.default_workflow_permissions is None
     assert node.properties.can_approve_pull_request_reviews is None
 
@@ -464,17 +470,17 @@ def test_repository_graphql_counts_lookup_returns_ints() -> None:
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github")
     connection.execute(
-        "CREATE TABLE github.repositories_graphql (id VARCHAR, branch_count BIGINT, environment_count BIGINT)"
+        "CREATE TABLE github.repositories_graphql (id VARCHAR, branch_count BIGINT, environment_count BIGINT, deploy_key_count BIGINT)"
     )
     connection.execute(
-        "INSERT INTO github.repositories_graphql VALUES ('R_1', 7, 3), ('R_2', NULL, NULL)"
+        "INSERT INTO github.repositories_graphql VALUES ('R_1', 7, 3, 2), ('R_2', NULL, NULL, NULL)"
     )
 
     lookup = GithubLookup(connection)
 
-    assert lookup.repository_graphql_counts("R_1") == (7, 3)
-    assert lookup.repository_graphql_counts("R_2") == (None, None)
-    assert lookup.repository_graphql_counts("R_3") == (None, None)
+    assert lookup.repository_graphql_counts("R_1") == (7, 3, 2)
+    assert lookup.repository_graphql_counts("R_2") == (None, None, None)
+    assert lookup.repository_graphql_counts("R_3") == (None, None, None)
 
 
 def test_repository_workflow_permissions_lookup_returns_collected_policy() -> None:

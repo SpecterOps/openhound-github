@@ -191,6 +191,14 @@
       "color": "#66C7E8"
     },
     {
+      "name": "GH_DeployKey",
+      "display_name": "GitHub Deploy Key",
+      "description": "A repository-scoped SSH deploy key that grants read-only or read-write access to repository contents",
+      "is_display_kind": true,
+      "icon": "key",
+      "color": "#F9C74F"
+    },
+    {
       "name": "GH_Secret",
       "display_name": "GitHub Secret",
       "description": "Generic label applied to GitHub secret nodes across organization, repository, and environment scope",
@@ -323,6 +331,11 @@
     {
       "name": "GH_Contains",
       "description": "Container relationship for organizational hierarchy (org contains secrets/variables, repo contains secrets/variables, environment contains secrets/variables)",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_AddedDeployKey",
+      "description": "User added this repository deploy key",
       "is_traversable": false
     },
     {
@@ -962,7 +975,7 @@
     },
     {
       "name": "GH_CanAccess",
-      "description": "Personal access token or app installation can access this repository or organization",
+      "description": "Personal access token, app installation, or deploy key can access this repository or organization",
       "is_traversable": false
     },
     {
