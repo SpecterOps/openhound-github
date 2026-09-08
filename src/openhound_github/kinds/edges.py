@@ -18,6 +18,7 @@ MEMBER_OF = "GH_MemberOf"
 # Access and capability edges
 CAN_ACCESS = "GH_CanAccess"
 CAN_USE_RUNNER = "GH_CanUseRunner"
+RUNS_ON = "GH_RunsOn"
 IS_ELIGIBLE_FOR = "GH_IsEligibleFor"
 CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS = "GH_CanCreateRepositoryWithRunnerAccess"
 CAN_CREATE_BRANCH = "GH_CanCreateBranch"

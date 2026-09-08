@@ -18,6 +18,150 @@ from openhound_github.models.runner import (
 )
 
 
+def _workflow_runner_lookup() -> GithubLookup:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    connection.execute(
+        "CREATE TABLE github.organizations (login VARCHAR, node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.repositories (node_id VARCHAR, org_login VARCHAR, visibility VARCHAR, actions_enabled BOOLEAN)"
+    )
+    connection.execute(
+        "CREATE TABLE github.repo_runners (id BIGINT, labels JSON, repository_node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.org_runners (id BIGINT, labels JSON, org_login VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.org_runner_group_access (runner_group_id BIGINT, runner_group_name VARCHAR, runner_group_visibility VARCHAR, allows_public_repositories BOOLEAN, restricted_to_workflows BOOLEAN, inherited BOOLEAN, accessible_repo_node_ids JSON, org_login VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.org_runner_group_memberships (runner_group_id BIGINT, runner_id BIGINT, org_login VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.enterprise_organizations (id VARCHAR, enterprise_node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.enterprise_runner_groups (id BIGINT, name VARCHAR, visibility VARCHAR, restricted_to_workflows BOOLEAN, enterprise_node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.enterprise_runner_group_organizations (node_id VARCHAR, runner_group_id BIGINT, enterprise_node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.enterprise_runner_group_memberships (runner_group_id BIGINT, runner_id BIGINT, enterprise_node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github.enterprise_runners (id BIGINT, labels JSON, enterprise_node_id VARCHAR)"
+    )
+    connection.execute("INSERT INTO github.organizations VALUES ('acme', 'ORG_1')")
+    connection.execute(
+        "INSERT INTO github.repositories VALUES ('REPO_1', 'acme', 'private', true), ('REPO_2', 'acme', 'private', true), ('REPO_3', 'acme', 'private', false)"
+    )
+    connection.execute(
+        """INSERT INTO github.repo_runners VALUES
+        (21, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'REPO_1'),
+        (22, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'REPO_3')"""
+    )
+    connection.execute(
+        """INSERT INTO github.org_runners VALUES
+        (11, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'acme'),
+        (12, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"ARM64"}]', 'acme'),
+        (13, '[{"name":"self-hosted"},{"name":"Windows"},{"name":"X64"}]', 'acme')"""
+    )
+    connection.execute(
+        """INSERT INTO github.org_runner_group_access VALUES
+        (1, 'Default', 'all', true, false, false, '[]', 'acme'),
+        (2, 'prod-runners', 'selected', true, false, false, '["REPO_1"]', 'acme'),
+        (3, 'restricted-runners', 'all', true, true, false, '[]', 'acme'),
+        (4, 'enterprise-prod', 'selected', true, false, true, '["REPO_1"]', 'acme')"""
+    )
+    connection.execute(
+        "INSERT INTO github.org_runner_group_memberships VALUES (1, 11, 'acme'), (1, 12, 'acme'), (1, 13, 'acme'), (2, 11, 'acme'), (2, 12, 'acme'), (3, 11, 'acme')"
+    )
+    connection.execute(
+        "INSERT INTO github.enterprise_organizations VALUES ('ORG_1', 'ENT_1')"
+    )
+    connection.execute(
+        "INSERT INTO github.enterprise_runner_groups VALUES (4, 'enterprise-prod', 'selected', false, 'ENT_1')"
+    )
+    connection.execute(
+        "INSERT INTO github.enterprise_runner_group_organizations VALUES ('ORG_1', 4, 'ENT_1')"
+    )
+    connection.execute(
+        "INSERT INTO github.enterprise_runner_group_memberships VALUES (4, 31, 'ENT_1')"
+    )
+    connection.execute(
+        """INSERT INTO github.enterprise_runners VALUES
+        (31, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', 'ENT_1')"""
+    )
+    return GithubLookup(connection)
+
+
+def test_workflow_job_runner_lookup_matches_all_static_labels_across_accessible_runners() -> None:
+    lookup = _workflow_runner_lookup()
+
+    assert lookup.workflow_job_runner_node_ids(
+        "REPO_1", "acme", None, ("self-hosted", "linux", "x64")
+    ) == ["REPO_1_runner_21", "ORG_1_runner_11", "ENT_1_runner_31"]
+
+
+def test_workflow_job_runner_lookup_filters_to_named_group_and_allows_multiple_matches() -> None:
+    lookup = _workflow_runner_lookup()
+
+    assert lookup.workflow_job_runner_node_ids(
+        "REPO_1", "acme", "prod-runners", ("self-hosted", "linux")
+    ) == ["ORG_1_runner_11", "ORG_1_runner_12"]
+
+
+def test_workflow_job_runner_lookup_filters_non_matching_labels_and_unauthorized_groups() -> None:
+    lookup = _workflow_runner_lookup()
+
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_1", "acme", "prod-runners", ("self-hosted", "windows")
+        )
+        == []
+    )
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_2", "acme", "prod-runners", ("self-hosted",)
+        )
+        == []
+    )
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_1", "acme", "restricted-runners", ("self-hosted",)
+        )
+        == []
+    )
+
+
+def test_workflow_job_runner_lookup_resolves_inherited_enterprise_group() -> None:
+    lookup = _workflow_runner_lookup()
+
+    assert lookup.workflow_job_runner_node_ids(
+        "REPO_1", "acme", "enterprise-prod", ("self-hosted", "linux")
+    ) == ["ENT_1_runner_31"]
+
+
+def test_workflow_job_runner_lookup_returns_no_runners_when_actions_disabled() -> None:
+    lookup = _workflow_runner_lookup()
+
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_3", "acme", None, ("self-hosted", "linux", "x64")
+        )
+        == []
+    )
+    assert (
+        lookup.workflow_job_runner_node_ids(
+            "REPO_3", "acme", "Default", ("self-hosted", "linux", "x64")
+        )
+        == []
+    )
+
+
 def test_org_runner_group_keeps_generic_runner_group_label() -> None:
     group = OrgRunnerGroup(id=1, name="Default", org_login="acme")
     group._lookup = SimpleNamespace(org_id_for_login=lambda _login: "ORG_1")

@@ -15,13 +15,13 @@ from openhound.core.models.entries_dataclass import (  # type: ignore[import-unt
     EdgeProperties,
     PropertyMatch,
 )
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.workflow import RunsOn
+from openhound_github.models.workflow import parse_runs_on_selector
 
 TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
 
@@ -38,6 +38,9 @@ class GHWorkflowJobProperties(GHNodeProperties):
     Attributes:
         job_key: The YAML key for the job.
         runs_on: The runner label expression for the job.
+        runs_on_group: The statically declared runner group, if any.
+        runs_on_labels: The normalized runner labels from runs-on.
+        runs_on_is_dynamic: Whether runs-on contains a GitHub Actions expression.
         is_self_hosted: Whether the job targets self-hosted runners.
         container: The optional container configuration.
         environment: The deployment environment name.
@@ -50,10 +53,14 @@ class GHWorkflowJobProperties(GHNodeProperties):
         query_repository: Query for repository.
         query_steps: Query for workflow steps.
         query_references: Query for workflow references (secrets and variables).
+        query_runners: Query for eligible self-hosted runners.
     """
 
     job_key: str | None = None
     runs_on: list[str] | None = None
+    runs_on_group: str | None = None
+    runs_on_labels: list[str] | None = None
+    runs_on_is_dynamic: bool = False
     is_self_hosted: bool = False
     container: str | None = None
     environment: str | None = None
@@ -66,6 +73,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
     query_repository: str | None = None
     query_steps: str | None = None
     query_references: str | None = None
+    query_runners: str | None = None
 
 
 @app.asset(
@@ -146,6 +154,13 @@ class GHWorkflowJobProperties(GHNodeProperties):
             description="Workflow job references environment secret",
             traversable=False,
         ),
+        EdgeDef(
+            start=nk.WORKFLOW_JOB,
+            end=nk.RUNNER,
+            kind=ek.RUNS_ON,
+            description="Workflow job can be scheduled on self-hosted runner",
+            traversable=False,
+        ),
     ],
 )
 class WorkflowJob(BaseAsset):
@@ -161,6 +176,9 @@ class WorkflowJob(BaseAsset):
     repository_node_id: str
     org_login: str
     runs_on: list[str] | None = None
+    runs_on_group: str | None = None
+    runs_on_labels: list[str] | None = None
+    runs_on_is_dynamic: bool = False
     container: str | None = None
     environment: str | None = None
     permissions: list[str] | None = None
@@ -190,39 +208,30 @@ class WorkflowJob(BaseAsset):
 
         return [str(value)]
 
+    @model_validator(mode="before")
+    @classmethod
+    def populate_runs_on_selector_fields(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+
+        selector = parse_runs_on_selector(value.get("runs_on"))
+        normalized = dict(value)
+        normalized.setdefault("runs_on_group", selector.group)
+        normalized.setdefault("runs_on_labels", selector.labels or None)
+        normalized.setdefault("runs_on_is_dynamic", selector.is_dynamic)
+        return normalized
+
     @field_validator("runs_on", mode="before")
     @classmethod
     def normalize_runs_on(cls, value: Any) -> list[str] | None:
-        if value is None:
-            return None
-
-        if isinstance(value, str):
-            return [value]
-
-        if isinstance(value, list):
-            return [str(item) for item in value]
-
-        if isinstance(value, RunsOn):
-            value = value.model_dump()
-
-        if isinstance(value, dict):
-            labels = value.get("labels")
-            if labels is None:
-                return None
-
-            if isinstance(labels, str):
-                return [labels]
-
-            if isinstance(labels, list):
-                return [str(item) for item in labels]
-
-            return [str(labels)]
-
-        return [str(value)]
+        labels = parse_runs_on_selector(value).labels
+        return labels or None
 
     @property
     def is_self_hosted(self) -> bool:
-        return "self-hosted" in (self.runs_on or [])
+        return bool(self.runs_on_group) or "self-hosted" in {
+            str(label).casefold() for label in (self.runs_on_labels or self.runs_on or [])
+        }
 
     @property
     def as_node(self) -> GHNode:
@@ -235,6 +244,9 @@ class WorkflowJob(BaseAsset):
                 node_id=self.node_id,
                 job_key=self.job_key,
                 runs_on=self.runs_on,
+                runs_on_group=self.runs_on_group,
+                runs_on_labels=self.runs_on_labels,
+                runs_on_is_dynamic=self.runs_on_is_dynamic,
                 is_self_hosted=self.is_self_hosted,
                 container=self.container,
                 environment=self.environment,
@@ -248,6 +260,7 @@ class WorkflowJob(BaseAsset):
                 query_repository=f"MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(:GH_WorkflowJob {{node_id:'{jid}'}}) RETURN p",
                 query_steps=f"MATCH p=(:GH_WorkflowJob {{node_id:'{jid}'}})-[:GH_Contains]->(:GH_WorkflowStep) RETURN p",
                 query_references=f"MATCH p=(:GH_WorkflowJob {{node_id:'{jid}'}})-[:GH_Contains]->(step:GH_WorkflowStep) OPTIONAL MATCH p1=(step)-[:GH_UsesSecret]->() OPTIONAL MATCH p2=(step)-[:GH_UsesVariable]->() RETURN p,p1,p2",
+                query_runners=f"MATCH p=(:GH_WorkflowJob {{node_id:'{jid}'}})-[:GH_RunsOn]->(:GH_Runner) RETURN p",
             ),
         )
 
@@ -426,6 +439,24 @@ class WorkflowJob(BaseAsset):
                 )
 
     @property
+    def _runs_on_edges(self):
+        if self.runs_on_is_dynamic:
+            return
+
+        for runner_node_id in self._lookup.workflow_job_runner_node_ids(
+            self.repository_node_id,
+            self.org_login,
+            self.runs_on_group,
+            tuple(self.runs_on_labels or ()),
+        ):
+            yield Edge(
+                kind=ek.RUNS_ON,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(value=runner_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=False),
+            )
+
+    @property
     def edges(self):
         yield from self._calls_workflows_edge
         yield from self._environment_edges
@@ -433,3 +464,4 @@ class WorkflowJob(BaseAsset):
         yield from self._has_job_edge
         yield from self._uses_secret_edges
         yield from self._uses_variable_edges
+        yield from self._runs_on_edges

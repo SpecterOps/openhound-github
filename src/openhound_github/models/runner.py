@@ -316,6 +316,7 @@ class GHRunnerProperties(GHNodeProperties):
         environment_name: The name of the environment (GitHub organization).
         query_group: Query for group.
         query_repositories: Query for repositories.
+        query_jobs: Query for workflow jobs that can be scheduled on the runner.
     """
 
     scope: str | None = None
@@ -334,6 +335,7 @@ class GHRunnerProperties(GHNodeProperties):
     environment_name: str | None = None
     query_group: str | None = None
     query_repositories: str | None = None
+    query_jobs: str | None = None
 
 
 @app.asset(
@@ -384,6 +386,7 @@ class OrgRunner(BaseAsset):
                 environmentid=self.org_node_id,
                 query_group=f"MATCH p=(:GH_OrgRunnerGroup)-[:GH_HasRunner]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunnerGroup)-[:GH_HasRunner]->(:GH_OrgRunner {{node_id:'{rid}'}}) RETURN p",
+                query_jobs=f"MATCH p=(:GH_WorkflowJob)-[:GH_RunsOn]->(:GH_Runner {{node_id:'{rid}'}}) RETURN p",
             ),
         )
 
@@ -437,6 +440,7 @@ class EnterpriseRunner(BaseAsset):
                 environmentid=self.enterprise_node_id,
                 query_group=f"MATCH p=(:GH_EnterpriseRunnerGroup)-[:GH_HasRunner]->(:GH_EnterpriseRunner {{node_id:'{rid}'}}) RETURN p",
                 query_repositories=f"MATCH p=(:GH_Repository)-[:GH_CanUseRunner]->(:GH_OrgRunnerGroup)-[:GH_InheritedFrom]->(:GH_EnterpriseRunnerGroup)-[:GH_HasRunner]->(:GH_EnterpriseRunner {{node_id:'{rid}'}}) RETURN p",
+                query_jobs=f"MATCH p=(:GH_WorkflowJob)-[:GH_RunsOn]->(:GH_Runner {{node_id:'{rid}'}}) RETURN p",
             ),
         )
 
@@ -873,6 +877,7 @@ class RepoRunner(BaseAsset):
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
                 query_repositories=f"MATCH p=(:GH_Repository {{node_id:'{self.repository_node_id}'}})-[:GH_CanUseRunner]->(:GH_RepoRunner {{node_id:'{rid}'}}) RETURN p",
+                query_jobs=f"MATCH p=(:GH_WorkflowJob)-[:GH_RunsOn]->(:GH_Runner {{node_id:'{rid}'}}) RETURN p",
             ),
         )
 

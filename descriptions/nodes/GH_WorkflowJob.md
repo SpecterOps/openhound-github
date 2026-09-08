@@ -4,6 +4,8 @@
 
 Represents a single job within a GitHub Actions workflow. Jobs are the top-level execution units of a workflow — they run on a runner, hold a set of steps, and can declare permissions, environments, and dependencies on other jobs.
 
+When the job has a statically resolvable self-hosted `runs-on` selector, GH_RunsOn edges identify each GH_Runner that currently satisfies the declared label and runner-group constraints under the repository's runner access policy. These edges represent schedulability, not historical execution.
+
 ## Properties
 
 | Property | Type | Description |
@@ -15,6 +17,9 @@ Represents a single job within a GitHub Actions workflow. Jobs are the top-level
 | `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
 | `job_key` | `string` | The YAML key for the job. |
 | `runs_on` | `list[string]` | The runner label expression for the job. |
+| `runs_on_group` | `string` | The statically declared runner group, if any. |
+| `runs_on_labels` | `list[string]` | The normalized runner labels from runs-on. |
+| `runs_on_is_dynamic` | `boolean` | Whether runs-on contains a GitHub Actions expression. |
 | `is_self_hosted` | `boolean` | Whether the job targets self-hosted runners. |
 | `container` | `string` | The optional container configuration. |
 | `environment` | `string` | The deployment environment name. |
@@ -27,6 +32,7 @@ Represents a single job within a GitHub Actions workflow. Jobs are the top-level
 | `query_repository` | `string` | Query for repository. |
 | `query_steps` | `string` | Query for workflow steps. |
 | `query_references` | `string` | Query for workflow references (secrets and variables). |
+| `query_runners` | `string` | Query for eligible self-hosted runners. |
 
 ## Diagram
 
@@ -41,7 +47,8 @@ graph LR
     n6["GH_OrgVariable"]
     n7["GH_RepoSecret"]
     n8["GH_RepoVariable"]
-    n9["GH_WorkflowStep"]
+    n9["GH_Runner"]
+    n10["GH_WorkflowStep"]
     n0 -.->|GH_Contains| n1
     n1 -.->|GH_DeploysTo| n2
     n1 -.->|GH_UsesSecret| n3
@@ -50,7 +57,8 @@ graph LR
     n1 -.->|GH_UsesVariable| n6
     n1 -.->|GH_UsesSecret| n7
     n1 -.->|GH_UsesVariable| n8
+    n1 -.->|GH_RunsOn| n9
     n1 -.->|GH_CallsWorkflow| n0
     n1 -.->|GH_DependsOn| n1
-    n1 -.->|GH_Contains| n9
+    n1 -.->|GH_Contains| n10
 ```

@@ -6,6 +6,8 @@ Represents a self-hosted runner owned by a GitHub organization. Organization run
 
 The node captures runner metadata such as operating system, status, busy state, labels, and whether the runner is ephemeral when GitHub returns that property.
 
+GH_RunsOn edges from GH_WorkflowJob nodes identify statically resolvable jobs that GitHub could schedule on this runner under the current runner-group access policy. These edges do not indicate that the job has actually executed on the runner.
+
 ## Properties
 
 | Property | Type | Description |
@@ -31,6 +33,7 @@ The node captures runner metadata such as operating system, status, busy state, 
 | `environment_name` | `string` | The name of the environment (GitHub organization). |
 | `query_group` | `string` | Query for group. |
 | `query_repositories` | `string` | Query for repositories. |
+| `query_jobs` | `string` | Query for workflow jobs that can be scheduled on the runner. |
 
 ## Diagram
 
@@ -38,6 +41,8 @@ The node captures runner metadata such as operating system, status, busy state, 
 graph LR
     n0["GH_OrgRunnerGroup"]
     n1["GH_OrgRunner"]
+    n2["GH_WorkflowJob"]
     n0 -.->|GH_Contains| n1
     n0 -->|GH_HasRunner| n1
+    n2 -.->|GH_RunsOn| n1
 ```

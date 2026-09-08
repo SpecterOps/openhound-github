@@ -137,6 +137,41 @@ def ensure_optional_input_tables(
             runner_id BIGINT,
             enterprise_node_id VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_runners (
+            id BIGINT,
+            labels JSON,
+            enterprise_node_id VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.runner_groups (
+            id BIGINT,
+            name VARCHAR,
+            org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.org_runners (
+            id BIGINT,
+            labels JSON,
+            org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.org_runner_group_access (
+            runner_group_id BIGINT,
+            runner_group_name VARCHAR,
+            runner_group_visibility VARCHAR,
+            allows_public_repositories BOOLEAN,
+            restricted_to_workflows BOOLEAN,
+            inherited BOOLEAN,
+            accessible_repo_node_ids JSON,
+            org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.org_runner_group_memberships (
+            runner_group_id BIGINT,
+            runner_id BIGINT,
+            org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.repo_runners (
+            id BIGINT,
+            labels JSON,
+            repository_node_id VARCHAR
+        );
     """)
     con.execute(f"""
         ALTER TABLE {schema}.branches
@@ -300,6 +335,58 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS runner_id BIGINT;
         ALTER TABLE {schema}.enterprise_runner_group_memberships
             ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+
+        ALTER TABLE {schema}.enterprise_runners
+            ADD COLUMN IF NOT EXISTS id BIGINT;
+        ALTER TABLE {schema}.enterprise_runners
+            ADD COLUMN IF NOT EXISTS labels JSON;
+        ALTER TABLE {schema}.enterprise_runners
+            ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+
+        ALTER TABLE {schema}.runner_groups
+            ADD COLUMN IF NOT EXISTS id BIGINT;
+        ALTER TABLE {schema}.runner_groups
+            ADD COLUMN IF NOT EXISTS name VARCHAR;
+        ALTER TABLE {schema}.runner_groups
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.org_runners
+            ADD COLUMN IF NOT EXISTS id BIGINT;
+        ALTER TABLE {schema}.org_runners
+            ADD COLUMN IF NOT EXISTS labels JSON;
+        ALTER TABLE {schema}.org_runners
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS runner_group_id BIGINT;
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS runner_group_name VARCHAR;
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS runner_group_visibility VARCHAR;
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS allows_public_repositories BOOLEAN;
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS restricted_to_workflows BOOLEAN;
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS inherited BOOLEAN;
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS accessible_repo_node_ids JSON;
+        ALTER TABLE {schema}.org_runner_group_access
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.org_runner_group_memberships
+            ADD COLUMN IF NOT EXISTS runner_group_id BIGINT;
+        ALTER TABLE {schema}.org_runner_group_memberships
+            ADD COLUMN IF NOT EXISTS runner_id BIGINT;
+        ALTER TABLE {schema}.org_runner_group_memberships
+            ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+
+        ALTER TABLE {schema}.repo_runners
+            ADD COLUMN IF NOT EXISTS id BIGINT;
+        ALTER TABLE {schema}.repo_runners
+            ADD COLUMN IF NOT EXISTS labels JSON;
+        ALTER TABLE {schema}.repo_runners
+            ADD COLUMN IF NOT EXISTS repository_node_id VARCHAR;
     """)
 
 # TODO:
