@@ -1,3 +1,5 @@
+# GH_UsesSecret
+
 ## General Information
 
 The non-traversable GH_UsesSecret edge links a workflow job or step to the secret it references via a `${{ secrets.NAME }}` expression. This edge reveals which secrets a workflow component can access at runtime, enabling analysts to trace the blast radius of a compromised workflow.
@@ -18,3 +20,31 @@ The edge carries a `context` property indicating where the reference was found:
 - `with` — inside a `with:` input block of a `uses:` action step
 - `env` — inside the step's `env:` block
 - `run` — inline within a `run:` shell script
+
+## Edge Schema
+
+| Source | Destination | Traversable |
+| --- | --- | --- |
+| `GH_WorkflowJob` | `GH_EnvironmentSecret` | `false` |
+| `GH_WorkflowJob` | `GH_OrgSecret` | `false` |
+| `GH_WorkflowJob` | `GH_RepoSecret` | `false` |
+| `GH_WorkflowStep` | `GH_EnvironmentSecret` | `false` |
+| `GH_WorkflowStep` | `GH_OrgSecret` | `false` |
+| `GH_WorkflowStep` | `GH_RepoSecret` | `false` |
+
+## Diagram
+
+```mermaid
+graph LR
+    n0["GH_WorkflowJob"]
+    n1["GH_EnvironmentSecret"]
+    n2["GH_OrgSecret"]
+    n3["GH_RepoSecret"]
+    n4["GH_WorkflowStep"]
+    n0 -.->|GH_UsesSecret| n1
+    n0 -.->|GH_UsesSecret| n2
+    n0 -.->|GH_UsesSecret| n3
+    n4 -.->|GH_UsesSecret| n1
+    n4 -.->|GH_UsesSecret| n2
+    n4 -.->|GH_UsesSecret| n3
+```

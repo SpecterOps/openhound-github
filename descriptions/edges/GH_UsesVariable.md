@@ -1,3 +1,5 @@
+# GH_UsesVariable
+
 ## General Information
 
 The non-traversable GH_UsesVariable edge links a workflow job or step to the variable it references via a `${{ vars.NAME }}` expression. This edge maps variable consumption within workflows. Unlike secrets, variable values are readable via the API, making them lower sensitivity — but they can still influence workflow behavior (e.g., controlling target environments or feature flags).
@@ -18,3 +20,31 @@ The edge carries a `context` property indicating where the reference was found:
 - `with` — inside a `with:` input block of a `uses:` action step
 - `env` — inside the step's `env:` block
 - `run` — inline within a `run:` shell script
+
+## Edge Schema
+
+| Source | Destination | Traversable |
+| --- | --- | --- |
+| `GH_WorkflowJob` | `GH_EnvironmentVariable` | `false` |
+| `GH_WorkflowJob` | `GH_OrgVariable` | `false` |
+| `GH_WorkflowJob` | `GH_RepoVariable` | `false` |
+| `GH_WorkflowStep` | `GH_EnvironmentVariable` | `false` |
+| `GH_WorkflowStep` | `GH_OrgVariable` | `false` |
+| `GH_WorkflowStep` | `GH_RepoVariable` | `false` |
+
+## Diagram
+
+```mermaid
+graph LR
+    n0["GH_WorkflowJob"]
+    n1["GH_EnvironmentVariable"]
+    n2["GH_OrgVariable"]
+    n3["GH_RepoVariable"]
+    n4["GH_WorkflowStep"]
+    n0 -.->|GH_UsesVariable| n1
+    n0 -.->|GH_UsesVariable| n2
+    n0 -.->|GH_UsesVariable| n3
+    n4 -.->|GH_UsesVariable| n1
+    n4 -.->|GH_UsesVariable| n2
+    n4 -.->|GH_UsesVariable| n3
+```
