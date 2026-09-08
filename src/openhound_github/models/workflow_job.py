@@ -21,8 +21,8 @@ from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.permissions import normalize_permission_declaration
 from openhound_github.models.workflow import (
-    normalize_permission_declaration,
     parse_runs_on_selector,
     resolve_effective_github_token_permissions,
 )
