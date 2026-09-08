@@ -202,7 +202,7 @@ class GHWorkflowJobProperties(GHNodeProperties):
             start=nk.WORKFLOW_JOB,
             end=nk.ENVIRONMENT,
             kind=ek.CAN_REQUEST_OIDC_TOKEN_FOR,
-            description="Workflow job execution context can request an OIDC token for environment",
+            description="Workflow job has a static upper-bound capability to request an OIDC token for environment",
             traversable=True,
         ),
     ],

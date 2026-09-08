@@ -1057,7 +1057,7 @@
     },
     {
       "name": "GH_CanRequestOIDCTokenFor",
-      "description": "[Computed] Workflow job execution context can request a GitHub OIDC token for its deployment environment — GH_WorkflowJob → GH_Environment",
+      "description": "[Computed] Workflow job has a static upper-bound capability to request a GitHub OIDC token for its deployment environment — GH_WorkflowJob → GH_Environment",
       "is_traversable": true
     },
     {
