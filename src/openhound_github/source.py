@@ -1,4 +1,5 @@
 import logging
+import re
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import Any, Union
@@ -42,6 +43,16 @@ logger = logging.getLogger(__name__)
 class GithubEndpoints:
     rest_api_url: str
     graphql_url: str
+
+
+@dataclass(frozen=True)
+class GithubDeploymentMetadata:
+    deployment_type: str = "unknown"
+    ghes_version: str | None = None
+    enterprise_version_header: str | None = None
+
+
+_GHES_VERSION_PATTERN = re.compile(r"(?:enterprise-server@)?(?P<version>\d+\.\d+(?:\.\d+)?)")
 
 
 def _normalize_endpoint_url(url: str, setting_name: str) -> str:
@@ -140,6 +151,9 @@ class OrgContext:
     enterprise_name: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    deployment_type: str = "unknown"
+    ghes_version: str | None = None
+    enterprise_version_header: str | None = None
 
 
 @dataclass
@@ -153,6 +167,9 @@ class SourceContext:
     emit_legacy_scim_correlations: bool = False
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
     github_web_origin: str = DEFAULT_GITHUB_WEB_ORIGIN
+    deployment_type: str = "unknown"
+    ghes_version: str | None = None
+    enterprise_version_header: str | None = None
     cache_lock: Lock = field(default_factory=Lock)
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -164,6 +181,60 @@ class SourceContext:
     @property
     def org_names(self) -> list[str]:
         return [org.org_name for org in self.organizations or []]
+
+
+def _ghes_version_from_header(header: str | None) -> str | None:
+    if not header:
+        return None
+    match = _GHES_VERSION_PATTERN.search(header)
+    return match.group("version") if match else None
+
+
+def _detect_github_deployment(client: RESTClient) -> GithubDeploymentMetadata:
+    try:
+        response = client.get("/meta")
+        payload = response.json()
+    except Exception as exc:
+        logger.warning("Unable to detect GitHub deployment metadata from /meta: %s", exc)
+        return GithubDeploymentMetadata()
+
+    if not isinstance(payload, dict):
+        payload = {}
+
+    headers = getattr(response, "headers", {})
+    enterprise_version_header = None
+    if hasattr(headers, "get"):
+        header_value = headers.get("X-GitHub-Enterprise-Version")
+        if isinstance(header_value, str) and header_value:
+            enterprise_version_header = header_value
+
+    installed_version = payload.get("installed_version")
+    if not isinstance(installed_version, str) or not installed_version:
+        installed_version = _ghes_version_from_header(enterprise_version_header)
+
+    if installed_version or enterprise_version_header:
+        return GithubDeploymentMetadata(
+            deployment_type="ghes",
+            ghes_version=installed_version,
+            enterprise_version_header=enterprise_version_header,
+        )
+
+    return GithubDeploymentMetadata(deployment_type="ghec")
+
+
+def _apply_github_deployment_metadata(
+    ctx: SourceContext,
+    client: RESTClient,
+) -> GithubDeploymentMetadata:
+    metadata = _detect_github_deployment(client)
+    ctx.deployment_type = metadata.deployment_type
+    ctx.ghes_version = metadata.ghes_version
+    ctx.enterprise_version_header = metadata.enterprise_version_header
+    for org in ctx.organizations or []:
+        org.deployment_type = metadata.deployment_type
+        org.ghes_version = metadata.ghes_version
+        org.enterprise_version_header = metadata.enterprise_version_header
+    return metadata
 
 
 def _canonicalize_org_names(ctx: SourceContext) -> None:
@@ -354,6 +425,11 @@ def source(
                     )
                 )
 
+        deployment_client = ctx.client
+        if deployment_client is None and ctx.organizations:
+            deployment_client = ctx.organizations[0].client
+        if deployment_client is not None:
+            _apply_github_deployment_metadata(ctx, deployment_client)
         return (*enterprise_resources(ctx), *organization_resources(ctx))
 
     elif credentials.auth == "org_app":
@@ -388,6 +464,7 @@ def source(
             )
         )
 
+        _apply_github_deployment_metadata(ctx, org_client)
         _canonicalize_org_names(ctx)
         return organization_resources(ctx)
 
@@ -404,6 +481,7 @@ def source(
                 github_deployment_id=github_deployment_id,
                 github_web_origin=github_web_origin,
             )
+            _apply_github_deployment_metadata(ctx, token_api_client)
             return enterprise_resources(ctx)
 
         token_api_client, token_graphql_client = token_clients(credentials.token)
@@ -420,5 +498,6 @@ def source(
                 github_web_origin=github_web_origin,
             )
         )
+        _apply_github_deployment_metadata(ctx, token_api_client)
         _canonicalize_org_names(ctx)
         return organization_resources(ctx)
