@@ -13,8 +13,18 @@ class _FakeResponse:
 
 
 class _FakeClient:
-    def __init__(self, workflow_pages: list[list[dict]]):
+    def __init__(
+        self,
+        workflow_pages: list[list[dict]],
+        *,
+        default_workflow_permissions: str = "read",
+        can_approve_pull_request_reviews: bool = False,
+        workflow_permission_responses: dict[str, dict] | None = None,
+    ):
         self.workflow_pages = workflow_pages
+        self.default_workflow_permissions = default_workflow_permissions
+        self.can_approve_pull_request_reviews = can_approve_pull_request_reviews
+        self.workflow_permission_responses = workflow_permission_responses or {}
         self.get_calls: list[tuple[str, dict]] = []
         self.paginate_calls: list[tuple[str, dict]] = []
 
@@ -25,10 +35,12 @@ class _FakeClient:
     def get(self, path: str, **kwargs):
         self.get_calls.append((path, kwargs))
         if path.endswith("/actions/permissions/workflow"):
+            if path in self.workflow_permission_responses:
+                return _FakeResponse(self.workflow_permission_responses[path])
             return _FakeResponse(
                 {
-                    "default_workflow_permissions": "read",
-                    "can_approve_pull_request_reviews": False,
+                    "default_workflow_permissions": self.default_workflow_permissions,
+                    "can_approve_pull_request_reviews": self.can_approve_pull_request_reviews,
                 }
             )
         return _FakeResponse({"content": "am9iczoge30="})
@@ -40,6 +52,18 @@ def _repo() -> SimpleNamespace:
         name="repo",
         node_id="REPO_1",
         org_login="acme",
+        default_branch="main",
+    )
+
+
+def _repo_for_org(
+    org_login: str, node_id: str, repository_name: str = "repo"
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        full_name=f"{org_login}/{repository_name}",
+        name=repository_name,
+        node_id=node_id,
+        org_login=org_login,
         default_branch="main",
     )
 
@@ -106,3 +130,84 @@ def test_workflows_cache_repository_permissions_for_active_workflows() -> None:
     assert [
         path for path, _kwargs in client.get_calls if path.endswith("/permissions/workflow")
     ] == ["/repos/acme/repo/actions/permissions/workflow"]
+
+
+def test_workflows_cache_repository_permissions_by_organization_and_repository() -> None:
+    acme_client = _FakeClient(
+        [[_workflow_row(1)]],
+        default_workflow_permissions="read",
+        can_approve_pull_request_reviews=False,
+    )
+    other_client = _FakeClient(
+        [[_workflow_row(2)]],
+        default_workflow_permissions="write",
+        can_approve_pull_request_reviews=True,
+    )
+    ctx = SourceContext(
+        client=acme_client,
+        organizations=[
+            OrgContext(client=acme_client, org_name="acme"),
+            OrgContext(client=other_client, org_name="other"),
+        ],
+    )
+
+    acme_rows = _collect_workflows(_repo_for_org("acme", "REPO_1"), ctx)
+    other_rows = _collect_workflows(_repo_for_org("other", "REPO_2"), ctx)
+
+    assert acme_rows[0]["repository_default_workflow_permissions"] == "read"
+    assert acme_rows[0]["repository_can_approve_pull_request_reviews"] is False
+    assert other_rows[0]["repository_default_workflow_permissions"] == "write"
+    assert other_rows[0]["repository_can_approve_pull_request_reviews"] is True
+    assert ctx.repository_workflow_permissions_cache == {
+        "acme/repo": {
+            "default_workflow_permissions": "read",
+            "can_approve_pull_request_reviews": False,
+        },
+        "other/repo": {
+            "default_workflow_permissions": "write",
+            "can_approve_pull_request_reviews": True,
+        },
+    }
+
+
+def test_workflows_cache_repository_permissions_by_repository_within_organization() -> None:
+    client = _FakeClient(
+        [[_workflow_row(1)]],
+        workflow_permission_responses={
+            "/repos/acme/repo/actions/permissions/workflow": {
+                "default_workflow_permissions": "read",
+                "can_approve_pull_request_reviews": False,
+            },
+            "/repos/acme/other-repo/actions/permissions/workflow": {
+                "default_workflow_permissions": "write",
+                "can_approve_pull_request_reviews": True,
+            },
+        },
+    )
+    ctx = _ctx(client)
+
+    repo_rows = _collect_workflows(_repo_for_org("acme", "REPO_1"), ctx)
+    other_repo_rows = _collect_workflows(
+        _repo_for_org("acme", "REPO_2", repository_name="other-repo"), ctx
+    )
+
+    assert repo_rows[0]["repository_default_workflow_permissions"] == "read"
+    assert repo_rows[0]["repository_can_approve_pull_request_reviews"] is False
+    assert other_repo_rows[0]["repository_default_workflow_permissions"] == "write"
+    assert other_repo_rows[0]["repository_can_approve_pull_request_reviews"] is True
+    assert [
+        path for path, _kwargs in client.get_calls if path.endswith("/permissions/workflow")
+    ] == [
+        "/repos/acme/repo/actions/permissions/workflow",
+        "/repos/acme/other-repo/actions/permissions/workflow",
+    ]
+    assert ctx.repository_workflow_permissions_cache == {
+        "acme/repo": {
+            "default_workflow_permissions": "read",
+            "can_approve_pull_request_reviews": False,
+        },
+        "acme/other-repo": {
+            "default_workflow_permissions": "write",
+            "can_approve_pull_request_reviews": True,
+        },
+    }
