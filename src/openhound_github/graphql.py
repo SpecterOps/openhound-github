@@ -36,7 +36,6 @@ query Enterprise($slug: String!, $after: String) {
         createdAt
         updatedAt
         billingEmail
-        securityContactEmail
         viewerIsAdmin
         organizations(first: 100, after: $after) {
             nodes {

@@ -1,3 +1,20 @@
+# GH_SyncedTo
+
 ## General Information
 
 The traversable GH_SyncedTo edge is a hybrid edge that maps an external IdP user to a GitHub user based on SCIM provisioning. This edge represents a confirmed identity linkage between an external identity provider and GitHub. It is traversable because compromising the IdP account provides a verified path to the corresponding GitHub account, making it a critical edge for cross-system attack path analysis. This edge enables analysts to trace access from enterprise identity providers like Azure AD, Okta, or PingOne into the GitHub environment.
+
+## Edge Schema
+
+| Source | Destination | Traversable |
+| --- | --- | --- |
+| `External identity` | `GH_User` | `true` |
+
+## Diagram
+
+```mermaid
+graph LR
+    n0["External identity"]
+    n1["GH_User"]
+    n0 -->|GH_SyncedTo| n1
+```
