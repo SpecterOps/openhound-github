@@ -1,3 +1,23 @@
+# GH_HasMember
+
 ## General Information
 
 The non-traversable GH_HasMember edge represents the relationship between a GitHub enterprise or organization and a user who is a member of that scope. This edge records membership as directory context rather than as an access path: being listed as a member does not by itself describe what the user can do, only that the user belongs to the enterprise or organization. Membership remains security-relevant because it defines the population from which roles, team assignments, and token approvals are drawn, and it helps analysts understand who is inside the trust boundary when reviewing GitHub exposure.
+
+## Edge Schema
+
+| Source | Destination | Traversable |
+| --- | --- | --- |
+| `GH_Enterprise` | `GH_EnterpriseManagedUser` | `false` |
+| `GH_Enterprise` | `GH_User` | `false` |
+
+## Diagram
+
+```mermaid
+graph LR
+    n0["GH_Enterprise"]
+    n1["GH_EnterpriseManagedUser"]
+    n2["GH_User"]
+    n0 -.->|GH_HasMember| n1
+    n0 -.->|GH_HasMember| n2
+```
