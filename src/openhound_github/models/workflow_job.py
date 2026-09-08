@@ -21,7 +21,11 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.workflow import parse_runs_on_selector
+from openhound_github.models.workflow import (
+    normalize_permission_declaration,
+    parse_runs_on_selector,
+    resolve_effective_github_token_permissions,
+)
 
 TEMPLATE_RE = re.compile(r"\$\{\{\s*[^}]+?\s*\}\}")
 
@@ -44,7 +48,9 @@ class GHWorkflowJobProperties(GHNodeProperties):
         is_self_hosted: Whether the job targets self-hosted runners.
         container: The optional container configuration.
         environment: The deployment environment name.
-        permissions: Effective job permissions.
+        permissions: Applicable declared workflow or job permissions after job-over-workflow precedence.
+        job_permissions: Optional permissions declared at the job level; absent when the job has no declaration.
+        effective_github_token_permissions: Calculated GITHUB_TOKEN permissions after repository defaults and declarations are applied.
         uses_reusable: The reusable workflow reference used by this job.
         workflow_node_id: The parent workflow node ID.
         repository_name: The containing repository name.
@@ -65,6 +71,8 @@ class GHWorkflowJobProperties(GHNodeProperties):
     container: str | None = None
     environment: str | None = None
     permissions: list[str] | None = None
+    job_permissions: list[str] | None = None
+    effective_github_token_permissions: list[str] | None = None
     uses_reusable: str | None = None
     workflow_node_id: str | None = None
     repository_name: str | None = None
@@ -182,6 +190,8 @@ class WorkflowJob(BaseAsset):
     container: str | None = None
     environment: str | None = None
     permissions: list[str] | None = None
+    job_permissions: list[str] | None = None
+    effective_github_token_permissions: list[str] | None = None
     uses_reusable: str | None = None
     dependency_node_ids: list[str] = Field(default_factory=list)
     secret_references: list[WorkflowReference] = Field(default_factory=list)
@@ -191,22 +201,15 @@ class WorkflowJob(BaseAsset):
     def org_node_id(self) -> str | None:
         return self._lookup.org_id_for_login(self.org_login)
 
-    @field_validator("permissions", mode="before")
+    @field_validator(
+        "permissions",
+        "job_permissions",
+        "effective_github_token_permissions",
+        mode="before",
+    )
     @classmethod
     def normalize_permissions(cls, value: Any) -> list[str] | None:
-        if value is None:
-            return None
-
-        if isinstance(value, str):
-            return [value]
-
-        if isinstance(value, list):
-            return [str(item) for item in value]
-
-        if isinstance(value, dict):
-            return [f"{str(key)}:{str(value)}" for key, value in value.items()]
-
-        return [str(value)]
+        return normalize_permission_declaration(value)
 
     @model_validator(mode="before")
     @classmethod
@@ -234,6 +237,20 @@ class WorkflowJob(BaseAsset):
         }
 
     @property
+    def calculated_effective_github_token_permissions(self) -> list[str] | None:
+        workflow_permissions = self._lookup.repository_workflow_permissions(
+            self.repository_node_id
+        )
+        default_workflow_permissions = (
+            workflow_permissions[0] if workflow_permissions else None
+        )
+        return resolve_effective_github_token_permissions(
+            default_workflow_permissions,
+            self.permissions,
+            None,
+        )
+
+    @property
     def as_node(self) -> GHNode:
         jid = self.node_id
         return GHNode(
@@ -251,6 +268,8 @@ class WorkflowJob(BaseAsset):
                 container=self.container,
                 environment=self.environment,
                 permissions=self.permissions,
+                job_permissions=self.job_permissions,
+                effective_github_token_permissions=self.calculated_effective_github_token_permissions,
                 uses_reusable=self.uses_reusable,
                 workflow_node_id=self.workflow_node_id,
                 repository_name=self.repository_name,

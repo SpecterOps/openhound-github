@@ -6,6 +6,8 @@ Represents a single job within a GitHub Actions workflow. Jobs are the top-level
 
 When the job has a statically resolvable self-hosted `runs-on` selector, GH_RunsOn edges identify each GH_Runner that currently satisfies the declared label and runner-group constraints under the repository's runner access policy. These edges represent schedulability, not historical execution.
 
+When present, `job_permissions` captures the job-level `permissions` declaration from the workflow YAML. `effective_github_token_permissions` captures the calculated static `GITHUB_TOKEN` permissions after applying the repository default, workflow-level declaration, and job-level declaration.
+
 ## Properties
 
 | Property | Type | Description |
@@ -23,7 +25,9 @@ When the job has a statically resolvable self-hosted `runs-on` selector, GH_Runs
 | `is_self_hosted` | `boolean` | Whether the job targets self-hosted runners. |
 | `container` | `string` | The optional container configuration. |
 | `environment` | `string` | The deployment environment name. |
-| `permissions` | `list[string]` | Effective job permissions. |
+| `permissions` | `list[string]` | Applicable declared workflow or job permissions after job-over-workflow precedence. |
+| `job_permissions` | `list[string]` | Optional permissions declared at the job level; absent when the job has no declaration. |
+| `effective_github_token_permissions` | `list[string]` | Calculated GITHUB_TOKEN permissions after repository defaults and declarations are applied. |
 | `uses_reusable` | `string` | The reusable workflow reference used by this job. |
 | `workflow_node_id` | `string` | The parent workflow node ID. |
 | `repository_name` | `string` | The containing repository name. |

@@ -1,0 +1,5 @@
+{
+  "name": "GitHub: Workflow Jobs with Observed OIDC Authentication Steps",
+  "query": "MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(job:GH_WorkflowJob)-[:GH_Contains]->(step:GH_WorkflowStep)\nWHERE 'id-token:write' IN job.effective_github_token_permissions\nAND (\n  step.action_slug = 'aws-actions/configure-aws-credentials'\n  OR step.action_slug = 'azure/login'\n  OR step.action_slug = 'Azure/login'\n  OR step.action_slug = 'actions/deploy-pages'\n  OR step.contents CONTAINS 'getIDToken'\n  OR step.contents CONTAINS 'ACTIONS_ID_TOKEN_REQUEST_URL'\n  OR step.contents CONTAINS 'ACTIONS_ID_TOKEN_REQUEST_TOKEN'\n)\nRETURN p\nLIMIT 1000",
+  "description": "Returns OIDC-capable workflow jobs with direct descendant steps that show likely OIDC token consumption, including common AWS, Azure, GitHub Pages, and direct token-request patterns. This is evidence of likely use, not a complete classifier for every possible OIDC consumer; reusable workflow callers may require following GH_CallsWorkflow to find the consuming steps."
+}

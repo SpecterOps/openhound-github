@@ -122,6 +122,9 @@ class SourceContext:
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    repository_workflow_permissions_cache: dict[str, dict[str, Any]] = field(
+        default_factory=dict
+    )
 
 
 class RepositoryRoleCache:
@@ -228,6 +231,19 @@ def _workflow_permissions(
         org_name,
         f"/orgs/{org_name}/actions/permissions/workflow",
     )
+
+
+def _repository_workflow_permissions(
+    ctx: SourceContext, client: RESTClient, repository_full_name: str
+) -> dict[str, Any]:
+    cache_key = repository_full_name.casefold()
+    if cache_key not in ctx.repository_workflow_permissions_cache:
+        with ctx.cache_lock:
+            if cache_key not in ctx.repository_workflow_permissions_cache:
+                ctx.repository_workflow_permissions_cache[cache_key] = client.get(
+                    f"/repos/{repository_full_name}/actions/permissions/workflow"
+                ).json()
+    return ctx.repository_workflow_permissions_cache[cache_key]
 
 
 def _rest_teams_for_org(
@@ -1360,7 +1376,10 @@ def workflows(repo: Repository, ctx: SourceContext):
 
     @app.defer
     def _workflow_file_contents(
-        client: RESTClient, repo: Repository, workflow: dict[str, Any]
+        client: RESTClient,
+        repo: Repository,
+        workflow: dict[str, Any],
+        workflow_permissions: dict[str, Any],
     ) -> dict | None:
         path = workflow.get("path")
         if not path:
@@ -1382,15 +1401,28 @@ def workflows(repo: Repository, ctx: SourceContext):
             "repository_name": repo.name,
             "repository_node_id": repo.node_id,
             "org_login": repo.org_login,
+            "repository_default_workflow_permissions": workflow_permissions.get(
+                "default_workflow_permissions"
+            ),
+            "repository_can_approve_pull_request_reviews": workflow_permissions.get(
+                "can_approve_pull_request_reviews"
+            ),
         }
 
     client = _client_for_org(ctx, repo.org_login)
+    workflow_permissions: dict[str, Any] | None = None
     for page in client.paginate(
         f"/repos/{repo.full_name}/actions/workflows", params={"per_page": 100}
     ):
         for workflow in page:
             if workflow.get("state") == "active":
-                yield _workflow_file_contents(client, repo, workflow)
+                if workflow_permissions is None:
+                    workflow_permissions = _repository_workflow_permissions(
+                        ctx, client, repo.full_name
+                    )
+                yield _workflow_file_contents(
+                    client, repo, workflow, workflow_permissions
+                )
 
 
 @app.transformer(name="workflow_jobs", columns=WorkflowJob, parallelized=True)

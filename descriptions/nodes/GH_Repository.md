@@ -4,6 +4,8 @@
 
 Represents a GitHub repository within the organization. Repository nodes capture metadata about the repo including visibility, Actions enablement status, and security configuration. Repository role nodes (GH_RepoRole) are created alongside each repository to represent the permission levels available.
 
+For repositories with active workflows, the collector records the applicable default workflow permissions and whether workflows may approve pull request reviews. These properties preserve the repository-level policy input later used to derive effective GITHUB_TOKEN permissions for GH_WorkflowJob nodes.
+
 ## Properties
 
 | Property | Type | Description |
@@ -40,6 +42,8 @@ Represents a GitHub repository within the organization. Repository nodes capture
 | `secret_scanning` | `string` | Status of secret scanning (e.g., `enabled`, `disabled`). |
 | `branch_ruleset_count` | `integer` | Number of branch-targeted rulesets that apply to this repository. |
 | `has_branch_rulesets` | `boolean` | Whether at least one branch-targeted ruleset applies to this repository. |
+| `default_workflow_permissions` | `string` | The repository's applicable default GITHUB_TOKEN workflow permissions. |
+| `can_approve_pull_request_reviews` | `boolean` | Whether workflows may approve pull request reviews. |
 | `query_branches` | `string` | Query for branches. |
 | `query_protected_branches` | `string` | Query for protected branches. |
 | `query_branch_protection_rules` | `string` | Query for branch protection rules. |

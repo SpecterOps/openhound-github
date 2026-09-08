@@ -1,0 +1,5 @@
+{
+  "name": "GitHub: Workflow Jobs with Broad GITHUB_TOKEN Write Permissions",
+  "query": "MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(job:GH_WorkflowJob)\nWHERE 'contents:write' IN job.effective_github_token_permissions\nOR 'actions:write' IN job.effective_github_token_permissions\nOR 'pull-requests:write' IN job.effective_github_token_permissions\nRETURN p\nLIMIT 1000",
+  "description": "Returns workflow jobs whose calculated effective GITHUB_TOKEN permissions include write access to repository contents, Actions, or pull requests. These permissions can materially increase the impact of workflow compromise."
+}

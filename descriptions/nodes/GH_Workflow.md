@@ -4,6 +4,8 @@
 
 Represents a GitHub Actions workflow defined in a repository. Workflow nodes capture the workflow definition metadata including its file path, state, containing repository, and the full YAML contents of the workflow file. Only repositories with GitHub Actions enabled are queried for workflows.
 
+When present, `workflow_permissions` captures the top-level `permissions` declaration from the workflow YAML.
+
 ## Properties
 
 | Property | Type | Description |
@@ -25,6 +27,7 @@ Represents a GitHub Actions workflow defined in a repository. Workflow nodes cap
 | `triggers` | `list[string]` | The triggers value. |
 | `trigger_dispatch_inputs` | `list[string]` | The trigger dispatch inputs value. |
 | `is_pwn_requestable` | `boolean` | The is pwn requestable value. |
+| `workflow_permissions` | `list[string]` | Permissions declared at the workflow level. |
 | `query_repository` | `string` | Query for repository. |
 | `query_jobs` | `string` | Query for workflow jobs. |
 | `query_execution` | `string` | Query for workflow executions. |

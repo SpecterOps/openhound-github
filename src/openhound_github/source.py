@@ -177,6 +177,9 @@ class SourceContext:
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    repository_workflow_permissions_cache: dict[str, dict[str, Any]] = field(
+        default_factory=dict
+    )
 
     @property
     def org_names(self) -> list[str]:

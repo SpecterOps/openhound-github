@@ -4,7 +4,10 @@ from unittest.mock import MagicMock
 
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
-from openhound_github.models.workflow import Workflow
+from openhound_github.models.workflow import (
+    Workflow,
+    resolve_effective_github_token_permissions,
+)
 from openhound_github.models.workflow_job import WorkflowJob
 from openhound_github.models.workflow_step import WorkflowStep
 
@@ -55,6 +58,11 @@ jobs:
     return workflow
 
 
+def _permissions_map(permissions: list[str] | None) -> dict[str, str]:
+    assert permissions is not None
+    return dict(permission.split(":", 1) for permission in permissions)
+
+
 def test_workflow_job_rows_preserve_runs_on_selector_shape() -> None:
     workflow = _workflow_from_yaml(
         b"""jobs:
@@ -95,6 +103,183 @@ def test_workflow_job_rows_preserve_runs_on_selector_shape() -> None:
     assert rows["dynamic"]["runs_on_labels"] == ["${{ matrix.runner }}"]
     assert rows["dynamic"]["runs_on_group"] is None
     assert rows["dynamic"]["runs_on_is_dynamic"] is True
+
+
+def test_workflow_job_rows_preserve_workflow_and_job_permission_declarations() -> None:
+    workflow = _workflow_from_yaml(
+        b"""permissions:
+  contents: read
+jobs:
+  inherited:
+    runs-on: ubuntu-latest
+  overridden:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+  explicit_empty:
+    runs-on: ubuntu-latest
+    permissions: {}
+  read_all:
+    runs-on: ubuntu-latest
+    permissions: read-all
+"""
+    )
+    workflow.repository_default_workflow_permissions = "read"
+
+    rows = {row["job_key"]: row for row in workflow.workflow_job_rows()}
+    workflow._lookup = _org_reference_lookup()
+
+    assert workflow.as_node.properties.workflow_permissions == ["contents:read"]
+
+    assert rows["inherited"]["permissions"] == {"contents": "read"}
+    assert rows["inherited"]["job_permissions"] is None
+    assert _permissions_map(rows["inherited"]["effective_github_token_permissions"])[
+        "contents"
+    ] == "read"
+    assert _permissions_map(rows["inherited"]["effective_github_token_permissions"])[
+        "issues"
+    ] == "none"
+
+    assert rows["overridden"]["permissions"] == {"issues": "write"}
+    assert rows["overridden"]["job_permissions"] == {"issues": "write"}
+    assert _permissions_map(rows["overridden"]["effective_github_token_permissions"])[
+        "issues"
+    ] == "write"
+    assert _permissions_map(rows["overridden"]["effective_github_token_permissions"])[
+        "contents"
+    ] == "none"
+
+    assert rows["explicit_empty"]["permissions"] == {}
+    assert rows["explicit_empty"]["job_permissions"] == {}
+    assert set(
+        _permissions_map(
+            rows["explicit_empty"]["effective_github_token_permissions"]
+        ).values()
+    ) == {"none"}
+
+    assert rows["read_all"]["permissions"] == "read-all"
+    assert rows["read_all"]["job_permissions"] == "read-all"
+    assert _permissions_map(rows["read_all"]["effective_github_token_permissions"])[
+        "contents"
+    ] == "read"
+    assert _permissions_map(rows["read_all"]["effective_github_token_permissions"])[
+        "id-token"
+    ] == "none"
+
+    job = WorkflowJob.model_validate(rows["explicit_empty"])
+    job._lookup = _org_reference_lookup()
+
+    assert job.permissions == []
+    assert job.job_permissions == []
+    assert set(_permissions_map(job.effective_github_token_permissions).values()) == {
+        "none"
+    }
+    assert job.as_node.properties.job_permissions == []
+    assert set(
+        _permissions_map(
+            job.as_node.properties.effective_github_token_permissions
+        ).values()
+    ) == {"none"}
+
+
+def test_effective_github_token_permissions_use_repository_default_when_undeclared() -> None:
+    permissions = _permissions_map(
+        resolve_effective_github_token_permissions("read", None, None)
+    )
+
+    assert permissions["contents"] == "read"
+    assert permissions["packages"] == "read"
+    assert permissions["issues"] == "none"
+    assert permissions["id-token"] == "none"
+
+
+def test_effective_github_token_permissions_do_not_inherit_id_token_from_write_default() -> None:
+    permissions = _permissions_map(
+        resolve_effective_github_token_permissions("write", None, None)
+    )
+
+    assert permissions["contents"] == "write"
+    assert permissions["pull-requests"] == "write"
+    assert permissions["id-token"] == "none"
+
+
+def test_effective_github_token_permissions_allow_explicit_elevation_from_default() -> None:
+    permissions = _permissions_map(
+        resolve_effective_github_token_permissions(
+            "read",
+            {"contents": "read"},
+            {"issues": "write"},
+        )
+    )
+
+    assert permissions["issues"] == "write"
+    assert permissions["contents"] == "none"
+    assert permissions["packages"] == "none"
+
+
+def test_effective_github_token_permissions_expand_write_all() -> None:
+    permissions = _permissions_map(
+        resolve_effective_github_token_permissions("read", "write-all", None)
+    )
+
+    assert permissions["contents"] == "write"
+    assert permissions["id-token"] == "write"
+    assert permissions["models"] == "read"
+    assert permissions["vulnerability-alerts"] == "read"
+
+
+def test_job_permissions_override_workflow_id_token_permission() -> None:
+    workflow = _workflow_from_yaml(
+        b"""permissions:
+  id-token: write
+  contents: read
+jobs:
+  inherited:
+    runs-on: ubuntu-latest
+  overridden:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+"""
+    )
+    workflow.repository_default_workflow_permissions = "read"
+
+    rows = {row["job_key"]: row for row in workflow.workflow_job_rows()}
+
+    inherited = _permissions_map(
+        rows["inherited"]["effective_github_token_permissions"]
+    )
+    overridden = _permissions_map(
+        rows["overridden"]["effective_github_token_permissions"]
+    )
+
+    assert inherited["id-token"] == "write"
+    assert inherited["contents"] == "read"
+    assert overridden["id-token"] == "none"
+    assert overridden["contents"] == "read"
+
+
+def test_workflow_job_node_recalculates_effective_permissions_during_conversion() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="build",
+        job_key="build",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        effective_github_token_permissions=["id-token:write"],
+    )
+    lookup = _org_reference_lookup()
+    lookup.repository_workflow_permissions.return_value = ("write", False)
+    job._lookup = lookup
+
+    permissions = _permissions_map(
+        job.as_node.properties.effective_github_token_permissions
+    )
+
+    assert permissions["contents"] == "write"
+    assert permissions["id-token"] == "none"
 
 
 def test_workflow_job_group_selector_counts_as_self_hosted() -> None:
@@ -207,6 +392,7 @@ def test_pwn_request_edges_support_branch_lookup_protection_flag() -> None:
 def _org_reference_lookup() -> MagicMock:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = ORG_NODE_ID
+    lookup.repository_workflow_permissions.return_value = None
     lookup.repo_secret.return_value = None
     lookup.org_secret.return_value = ("DEPLOY_TOKEN",)
     lookup.repo_variable.return_value = None

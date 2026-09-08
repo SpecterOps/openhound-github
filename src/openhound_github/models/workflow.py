@@ -101,6 +101,137 @@ class RunsOnSelector(BaseModel):
     is_dynamic: bool = False
 
 
+GITHUB_TOKEN_PERMISSION_SCOPES = (
+    "actions",
+    "artifact-metadata",
+    "attestations",
+    "checks",
+    "code-quality",
+    "contents",
+    "deployments",
+    "discussions",
+    "id-token",
+    "issues",
+    "models",
+    "packages",
+    "pages",
+    "pull-requests",
+    "security-events",
+    "statuses",
+    "vulnerability-alerts",
+)
+READ_ONLY_GITHUB_TOKEN_PERMISSION_SCOPES = {"models", "vulnerability-alerts"}
+WRITE_ONLY_GITHUB_TOKEN_PERMISSION_SCOPES = {"id-token"}
+
+
+def normalize_permission_declaration(value: Any) -> list[str] | None:
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        return [value]
+
+    if isinstance(value, list):
+        return [str(item) for item in value]
+
+    if isinstance(value, dict):
+        return [f"{key!s}:{item!s}" for key, item in value.items()]
+
+    return [str(value)]
+
+
+def _empty_github_token_permissions() -> dict[str, str]:
+    return {scope: "none" for scope in GITHUB_TOKEN_PERMISSION_SCOPES}
+
+
+def _all_github_token_permissions(
+    access: str, *, include_id_token: bool = True
+) -> dict[str, str]:
+    permissions = _empty_github_token_permissions()
+    for scope in GITHUB_TOKEN_PERMISSION_SCOPES:
+        if scope in WRITE_ONLY_GITHUB_TOKEN_PERMISSION_SCOPES:
+            permissions[scope] = (
+                "write" if access == "write" and include_id_token else "none"
+            )
+        elif scope in READ_ONLY_GITHUB_TOKEN_PERMISSION_SCOPES:
+            permissions[scope] = "read"
+        else:
+            permissions[scope] = access
+    return permissions
+
+
+def _default_github_token_permissions(default_workflow_permissions: str | None):
+    if default_workflow_permissions is None:
+        return None
+
+    default = default_workflow_permissions.casefold()
+    if default == "read":
+        permissions = _empty_github_token_permissions()
+        permissions["contents"] = "read"
+        permissions["packages"] = "read"
+        return permissions
+    if default == "write":
+        return _all_github_token_permissions("write", include_id_token=False)
+    return None
+
+
+def _expand_permission_declaration(value: Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        declaration = value.casefold()
+        if declaration == "read-all":
+            return _all_github_token_permissions("read")
+        if declaration == "write-all":
+            return _all_github_token_permissions("write")
+        return None
+
+    if isinstance(value, list):
+        if not value:
+            return _empty_github_token_permissions()
+        if len(value) == 1 and ":" not in str(value[0]):
+            return _expand_permission_declaration(str(value[0]))
+
+        normalized: dict[str, str] = {}
+        for item in value:
+            scope, separator, access = str(item).partition(":")
+            if not separator:
+                return None
+            normalized[scope] = access
+        value = normalized
+
+    if not isinstance(value, dict):
+        return None
+
+    permissions = _empty_github_token_permissions()
+    for raw_scope, raw_access in value.items():
+        scope = str(raw_scope).casefold()
+        permissions[scope] = str(raw_access).casefold()
+    return permissions
+
+
+def resolve_effective_github_token_permissions(
+    default_workflow_permissions: str | None,
+    workflow_permissions: Any,
+    job_permissions: Any,
+) -> list[str] | None:
+    permissions = _default_github_token_permissions(default_workflow_permissions)
+
+    for declaration in (workflow_permissions, job_permissions):
+        if declaration is None:
+            continue
+        expanded = _expand_permission_declaration(declaration)
+        if expanded is None:
+            return None
+        permissions = expanded
+
+    if permissions is None:
+        return None
+
+    return [f"{scope}:{access}" for scope, access in permissions.items()]
+
+
 def parse_runs_on_selector(value: Any) -> RunsOnSelector:
     """Normalize a workflow job's runs-on declaration without losing group data."""
     if value is None:
@@ -293,6 +424,7 @@ class GHWorkflowProperties(GHNodeProperties):
         html_url: The GitHub web URL for the workflow file.
         branch: The branch where the workflow file was found.
         contents: The content of the workflow file.
+        workflow_permissions: Permissions declared at the workflow level.
         query_repository: Query for repository.
         query_jobs: Query for workflow jobs.
         query_execution: Query for workflow executions.
@@ -310,6 +442,7 @@ class GHWorkflowProperties(GHNodeProperties):
     html_url: str | None = None
     branch: str | None = None
     contents: str | None = None
+    workflow_permissions: list[str] | None = None
     triggers: list[str] | None = None
     trigger_dispatch_inputs: list[str] | None = None
     is_pwn_requestable: bool = False
@@ -373,6 +506,8 @@ class Workflow(BaseAsset):
     org_login: str
     repository_name: str
     repository_node_id: str
+    repository_default_workflow_permissions: str | None = None
+    repository_can_approve_pull_request_reviews: bool | None = None
 
     @property
     def org_node_id(self) -> str | None:
@@ -428,6 +563,13 @@ class Workflow(BaseAsset):
             return None
 
         return [str(key) for key in inputs.keys()]
+
+    @property
+    def workflow_permissions(self) -> list[str] | None:
+        document = self.document
+        if not document:
+            return None
+        return normalize_permission_declaration(document.permissions)
 
     @property
     def pull_request_target_branches(self) -> list[str] | None:
@@ -571,6 +713,12 @@ class Workflow(BaseAsset):
                     "permissions": job.permissions
                     if job.permissions is not None
                     else document.permissions,
+                    "job_permissions": job.permissions,
+                    "effective_github_token_permissions": resolve_effective_github_token_permissions(
+                        self.repository_default_workflow_permissions,
+                        document.permissions,
+                        job.permissions,
+                    ),
                     "uses_reusable": job.uses,
                     "workflow_node_id": self.node_id,
                     "repository_name": self.repository_name,
@@ -656,6 +804,7 @@ class Workflow(BaseAsset):
                 html_url=self.html_url,
                 branch=self.branch,
                 contents=self._decoded_contents,
+                workflow_permissions=self.workflow_permissions,
                 triggers=self.trigger_events,
                 trigger_dispatch_inputs=self.workflow_dispatch_inputs,
                 # is_pwn_requestable=self.is_pwn_requestable,

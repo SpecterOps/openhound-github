@@ -1,0 +1,5 @@
+{
+  "name": "GitHub: Workflow Jobs with OIDC Token Permission",
+  "query": "MATCH p=(repo:GH_Repository)-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(job:GH_WorkflowJob)\nWHERE 'id-token:write' IN job.effective_github_token_permissions\nRETURN p\nLIMIT 1000",
+  "description": "Returns workflow jobs whose calculated effective GITHUB_TOKEN permissions include id-token:write. These jobs can request GitHub OIDC tokens, though additional step analysis is needed to determine whether the token is actually used."
+}
