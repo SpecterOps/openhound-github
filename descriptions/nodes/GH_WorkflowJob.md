@@ -10,6 +10,8 @@ When present, `job_permissions` captures the job-level `permissions` declaration
 
 GH_CanAccessSecret edges identify secrets statically referenced by the job's modeled steps or job-level `env` block that the job execution context can access. GH_CanInterceptJob edges from GH_Runner nodes not explicitly marked ephemeral identify jobs whose future execution context may be exposed if that runner is controlled.
 
+When `runs_on_is_dynamic` is true, runner matching and interception status remain unresolved: the collector does not emit GH_CanInterceptJob edges for the job, so `query_interceptable_jobs` cannot match it and the absence of an edge must not be treated as evidence that the job is definitively non-interceptable.
+
 ## Properties
 
 | Property | Type | Description |
