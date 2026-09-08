@@ -49,6 +49,13 @@ def test_writable_deploy_key_surfaces_repository_write_permission() -> None:
     assert list(deploy_key.edges)[1].end.value == "REPO_1"
 
 
+def test_deploy_key_preserves_unknown_repository_permission() -> None:
+    properties = _deploy_key(read_only=None).as_node.properties
+
+    assert properties.read_only is None
+    assert properties.repository_permissions is None
+
+
 def test_deploy_key_accepts_string_added_by_login() -> None:
     deploy_key = _deploy_key(read_only=True)
     deploy_key.added_by = "alice"
