@@ -1,3 +1,5 @@
+# GH_CanPwnRequest
+
 ## General Information
 
 The traversable GH_CanPwnRequest edge indicates that a repository role can exploit a pwn-requestable workflow to execute arbitrary code with the base branch's secrets, GITHUB_TOKEN permissions, and OIDC identity. This is a computed edge that combines workflow analysis with repository access and fork policy evaluation.
@@ -42,18 +44,20 @@ An attacker who exploits a pwn request gains code execution in the workflow runn
 - **OIDC traversal requires `id-token: write`**: The attack chain from GH_CanPwnRequest through GH_CanAssumeIdentity to a cloud role is only valid if the pwn-requestable workflow (or job) explicitly declares `id-token: write` in its `permissions:` block. The `id-token` permission defaults to `none` and is never implicitly granted — even when the workflow has no `permissions:` block at all. The `permissions` property on the GH_WorkflowJob node can be inspected to verify this.
 - **GITHUB_TOKEN permissions**: The `permissions:` block controls what the `GITHUB_TOKEN` can do (e.g., push commits, create releases), but has no effect on secret access, OIDC token requests (governed separately by `id-token`), or arbitrary code execution. A workflow with `contents: read` is still fully exploitable via pwn request for secret exfiltration and lateral movement — only write-back to the repository is limited.
 
+## Edge Schema
+
+| Source | Destination | Traversable |
+| --- | --- | --- |
+| `GH_RepoRole` | `GH_Branch` | `true` |
+| `GH_RepoRole` | `GH_Repository` | `true` |
+
+## Diagram
+
 ```mermaid
 graph LR
-    role("GH_RepoRole repo-read")
-    repo("GH_Repository private-app")
-    branch("GH_Branch main")
-    wf("GH_Workflow vulnerable-ci.yml")
-    secret("GH_RepoSecret DEPLOY_KEY")
-    cloud("AWSRole deploy-prod")
-
-    role -- GH_CanPwnRequest --> repo
-    role -- GH_CanPwnRequest --> branch
-    repo -.- |GH_HasWorkflow| wf
-    repo -.- |GH_Contains| secret
-    branch -- GH_CanAssumeIdentity --> cloud
+    n0["GH_RepoRole"]
+    n1["GH_Branch"]
+    n2["GH_Repository"]
+    n0 -->|GH_CanPwnRequest| n1
+    n0 -->|GH_CanPwnRequest| n2
 ```

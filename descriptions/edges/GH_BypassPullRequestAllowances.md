@@ -1,3 +1,20 @@
+# GH_BypassPullRequestAllowances
+
 ## General Information
 
 The non-traversable GH_BypassPullRequestAllowances edge represents a per-actor allowance that bypasses the pull request review requirement on a branch protection rule. This edge identifies specific users or teams that can merge code without going through the normal PR review process. This is a significant security concern because these actors can push or merge changes directly, circumventing code review controls that protect branch integrity. Note that this bypass is suppressed when `enforce_admins` is enabled on the branch protection rule, meaning even listed actors must follow the PR review requirement.
+
+## Edge Schema
+
+| Source | Destination | Traversable |
+| --- | --- | --- |
+| `GH_User` | `GH_BranchProtectionRule` | `false` |
+
+## Diagram
+
+```mermaid
+graph LR
+    n0["GH_User"]
+    n1["GH_BranchProtectionRule"]
+    n0 -.->|GH_BypassPullRequestAllowances| n1
+```
