@@ -48,9 +48,9 @@ class GHWorkflowJobProperties(GHNodeProperties):
         is_self_hosted: Whether the job targets self-hosted runners.
         container: The optional container configuration.
         environment: The deployment environment name.
-        permissions: Permissions after workflow/job declaration precedence.
-        job_permissions: Permissions declared at the job level.
-        effective_github_token_permissions: Calculated GITHUB_TOKEN permissions.
+        permissions: Applicable declared workflow or job permissions after job-over-workflow precedence.
+        job_permissions: Optional permissions declared at the job level; absent when the job has no declaration.
+        effective_github_token_permissions: Calculated GITHUB_TOKEN permissions after repository defaults and declarations are applied.
         uses_reusable: The reusable workflow reference used by this job.
         workflow_node_id: The parent workflow node ID.
         repository_name: The containing repository name.

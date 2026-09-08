@@ -25,9 +25,9 @@ When present, `job_permissions` captures the job-level `permissions` declaration
 | `is_self_hosted` | `boolean` | Whether the job targets self-hosted runners. |
 | `container` | `string` | The optional container configuration. |
 | `environment` | `string` | The deployment environment name. |
-| `permissions` | `list[string]` | Effective job permissions. |
-| `job_permissions` | `list[string]` | Permissions declared at the job level. |
-| `effective_github_token_permissions` | `list[string]` | Calculated GITHUB_TOKEN permissions. |
+| `permissions` | `list[string]` | Applicable declared workflow or job permissions after job-over-workflow precedence. |
+| `job_permissions` | `list[string]` | Optional permissions declared at the job level; absent when the job has no declaration. |
+| `effective_github_token_permissions` | `list[string]` | Calculated GITHUB_TOKEN permissions after repository defaults and declarations are applied. |
 | `uses_reusable` | `string` | The reusable workflow reference used by this job. |
 | `workflow_node_id` | `string` | The parent workflow node ID. |
 | `repository_name` | `string` | The containing repository name. |
