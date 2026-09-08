@@ -25,8 +25,9 @@ class GHEnterpriseProperties(GHNodeProperties):
         created_at: When the enterprise was created.
         updated_at: When the enterprise was last updated.
         billing_email: The enterprise billing email.
-        security_contact_email: The enterprise security contact email.
         viewer_is_admin: Whether the authenticated viewer is an enterprise admin.
+        github_deployment_type: The GitHub deployment type, such as `ghec` or `ghes`.
+        ghes_version: The GitHub Enterprise Server version, when applicable.
         environment_name: The enterprise environment name.
         query_organizations: Query for contained organizations.
     """
@@ -41,8 +42,9 @@ class GHEnterpriseProperties(GHNodeProperties):
     created_at: str | None = None
     updated_at: str | None = None
     billing_email: str | None = None
-    security_contact_email: str | None = None
     viewer_is_admin: bool | None = None
+    github_deployment_type: str | None = None
+    ghes_version: str | None = None
     environment_name: str | None = None
     query_organizations: str | None = None
 
@@ -70,10 +72,9 @@ class Enterprise(BaseAsset):
     created_at: str | None = Field(alias="createdAt", default=None)
     updated_at: str | None = Field(alias="updatedAt", default=None)
     billing_email: str | None = Field(alias="billingEmail", default=None)
-    security_contact_email: str | None = Field(
-        alias="securityContactEmail", default=None
-    )
     viewer_is_admin: bool | None = Field(alias="viewerIsAdmin", default=None)
+    github_deployment_type: str | None = None
+    ghes_version: str | None = None
     organizations: dict | None = Field(default_factory=dict)
 
     @property
@@ -99,8 +100,9 @@ class Enterprise(BaseAsset):
                 created_at=self.created_at,
                 updated_at=self.updated_at,
                 billing_email=self.billing_email,
-                security_contact_email=self.security_contact_email,
                 viewer_is_admin=self.viewer_is_admin,
+                github_deployment_type=self.github_deployment_type,
+                ghes_version=self.ghes_version,
                 query_organizations=f"MATCH p=(:GH_Enterprise {{node_id:'{self.node_id}'}})-[:GH_Contains]->(:GH_Organization) RETURN p",
             ),
         )
