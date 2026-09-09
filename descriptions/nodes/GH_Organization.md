@@ -13,6 +13,7 @@ Represents a GitHub organization. This is the root node of the graph and serves 
 | `environmentid` | `string` | The identifier of the GitHub environment where this node was collected. |
 | `last_seen` | `datetime` | The timestamp when this node was last observed during collection. |
 | `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
+| `database_id` | `integer` | The organization's numeric GitHub database ID used in immutable OIDC subjects. |
 | `login` | `string` | The organization's login handle (URL slug). |
 | `org_name` | `string` | The organization's display name (from the `name` field in the GitHub API). |
 | `description` | `string` | The organization's description. |

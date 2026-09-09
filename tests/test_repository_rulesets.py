@@ -10,6 +10,7 @@ from openhound_github.models.repository import Repository
 from openhound_github.resources.organization import (
     OrgContext,
     SourceContext,
+    repositories,
     repositories_graphql,
 )
 
@@ -31,6 +32,35 @@ class _FakeClient:
         if isinstance(response, BaseException):
             raise response
         return response
+
+
+class _FakeRepositoryRESTClient:
+    def __init__(self) -> None:
+        self.get_calls: list[str] = []
+        self.paginate_calls: list[str] = []
+
+    def get(self, path: str):
+        self.get_calls.append(path)
+        return type(
+            "Response",
+            (),
+            {"json": lambda _self: {"enabled_repositories": "all"}},
+        )()
+
+    def paginate(self, path: str, **_kwargs):
+        self.paginate_calls.append(path)
+        return iter(
+            [
+                [
+                    {
+                        "id": 1296269,
+                        "node_id": "R_1",
+                        "name": "repo",
+                        "full_name": "org/repo",
+                    }
+                ]
+            ]
+        )
 
 
 def _repository_page_data(
@@ -98,16 +128,17 @@ def _request_pages(client: _FakeClient) -> list[tuple[object, object]]:
 
 def _make_repository() -> Repository:
     return Repository(
-        id=1,
+        id=1296269,
         node_id="R_1",
         name="repo",
         full_name="org/repo",
+        database_id=1296269,
         private=False,
         size=0,
         owner={
-            "login": "octocat",
-            "id": 1,
-            "node_id": "U_1",
+            "login": "org",
+            "id": 123456,
+            "node_id": "O_1",
             "avatar_url": "",
             "gravatar_id": "",
             "url": "",
@@ -161,6 +192,29 @@ def test_repositories_graphql_flattens_repository_counts() -> None:
             "branch_count": 7,
             "environment_count": 3,
             "deploy_key_count": 2,
+            "org_login": "org",
+        }
+    ]
+
+
+def test_repositories_preserve_numeric_database_id_from_rest_payload() -> None:
+    client = _FakeRepositoryRESTClient()
+    ctx = SourceContext(
+        client=client,
+        organizations=[OrgContext(client=client, org_name="org")],
+    )
+
+    rows = list(repositories.__wrapped__(ctx))
+
+    assert rows == [
+        {
+            "id": 1296269,
+            "node_id": "R_1",
+            "name": "repo",
+            "full_name": "org/repo",
+            "database_id": 1296269,
+            "actions_enabled": True,
+            "self_hosted_runners_enabled": True,
             "org_login": "org",
         }
     ]
@@ -425,6 +479,13 @@ def test_repository_node_surfaces_branch_ruleset_presence() -> None:
     assert node.properties.default_workflow_permissions == "read"
     assert node.properties.can_approve_pull_request_reviews is False
     assert node.properties.size == 0
+    assert node.properties.database_id == 1296269
+    assert node.properties.owner_database_id == 123456
+    assert node.properties.node_id == "R_1"
+    assert node.properties.owner_id == "O_1"
+    assert [(edge.start.value, edge.end.value) for edge in repo.edges] == [
+        ("O_1", "R_1")
+    ]
     lookup.repository_branch_ruleset_count.assert_called_once_with("R_1")
     lookup.repository_graphql_counts.assert_called_once_with("R_1")
     lookup.repository_workflow_permissions.assert_called_once_with("R_1")

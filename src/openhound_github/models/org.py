@@ -15,6 +15,7 @@ class GHOrganizationProperties(GHNodeProperties):
     """Organization-specific properties and accordion panel queries.
     
     Attributes:
+        database_id: The organization's numeric GitHub database ID used in immutable OIDC subjects.
         login: The organization's login handle (URL slug).
         org_name: The organization's display name (from the `name` field in the GitHub API).
         description: The organization's description.
@@ -88,6 +89,7 @@ class GHOrganizationProperties(GHNodeProperties):
         collected: The collected property.
     """
 
+    database_id: int | None = None
     login: str | None = None
     org_name: str | None = None
     description: str | None = None
@@ -176,6 +178,7 @@ class Organization(BaseAsset):
 
     node_id: str
     login: str
+    database_id: int | None = None
     name: str | None = None
     description: str | None = None
     company: str | None = None
@@ -245,6 +248,7 @@ class Organization(BaseAsset):
                 name=self.login,
                 displayname=self.name or self.login,
                 node_id=oid,
+                database_id=self.database_id,
                 login=self.login,
                 org_name=self.name or "",
                 description=self.description,

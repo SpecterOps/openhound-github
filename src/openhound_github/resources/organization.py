@@ -510,6 +510,7 @@ def organizations(ctx: SourceContext):
             org_data["can_approve_pull_request_reviews"] = workflow_perms.get(
                 "can_approve_pull_request_reviews"
             )
+            org_data["database_id"] = org_data.get("id")
             org_data["github_deployment_type"] = ctx.deployment_type
             org_data["ghes_version"] = ctx.ghes_version
 
@@ -1008,6 +1009,7 @@ def repositories(ctx: SourceContext):
                     )
                     yield {
                         **repo,
+                        "database_id": repo.get("id"),
                         "actions_enabled": actions_enabled,
                         "self_hosted_runners_enabled": self_hosted_runners_enabled,
                         "org_login": org_name,
