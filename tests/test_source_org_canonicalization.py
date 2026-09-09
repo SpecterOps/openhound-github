@@ -60,6 +60,7 @@ def test_organizations_reuses_preflight_org_response() -> None:
     client = _FakeClient(
         {
             "/orgs/spectertst": {
+                "id": 123456,
                 "login": "SpecterTst",
                 "node_id": "O_kgDOCoV2OQ",
             },
@@ -78,9 +79,12 @@ def test_organizations_reuses_preflight_org_response() -> None:
     rows = list(inspect.unwrap(organizations._pipe.gen)(ctx))
 
     assert rows[0]["login"] == "SpecterTst"
+    assert rows[0]["database_id"] == 123456
     assert rows[0]["github_deployment_type"] == "ghes"
     assert rows[0]["ghes_version"] == "3.22.1"
     node = Organization(**rows[0]).as_node
+    assert node.properties.database_id == 123456
+    assert node.properties.node_id == "O_kgDOCoV2OQ"
     assert node.properties.github_deployment_type == "ghes"
     assert node.properties.ghes_version == "3.22.1"
     assert client.get_calls == [
