@@ -65,9 +65,9 @@ def _workflow_runner_lookup() -> GithubLookup:
     )
     connection.execute(
         """INSERT INTO github.org_runners VALUES
-        (11, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', false, 'acme'),
         (12, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"ARM64"}]', true, 'acme'),
-        (13, '[{"name":"self-hosted"},{"name":"Windows"},{"name":"X64"}]', NULL, 'acme')"""
+        (13, '[{"name":"self-hosted"},{"name":"Windows"},{"name":"X64"}]', NULL, 'acme'),
+        (11, '[{"name":"self-hosted"},{"name":"Linux"},{"name":"X64"}]', false, 'acme')"""
     )
     connection.execute(
         """INSERT INTO github.org_runner_group_access VALUES
@@ -77,7 +77,7 @@ def _workflow_runner_lookup() -> GithubLookup:
         (4, 'enterprise-prod', 'selected', true, false, true, '["REPO_1"]', 'acme')"""
     )
     connection.execute(
-        "INSERT INTO github.org_runner_group_memberships VALUES (1, 11, 'acme'), (1, 12, 'acme'), (1, 13, 'acme'), (2, 11, 'acme'), (2, 12, 'acme'), (3, 11, 'acme')"
+        "INSERT INTO github.org_runner_group_memberships VALUES (1, 13, 'acme'), (1, 12, 'acme'), (1, 11, 'acme'), (2, 12, 'acme'), (2, 11, 'acme'), (3, 11, 'acme')"
     )
     connection.execute(
         "INSERT INTO github.enterprise_organizations VALUES ('ORG_1', 'ENT_1')"

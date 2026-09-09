@@ -82,6 +82,10 @@ def _cross_org_enterprise_runner_lookup() -> GithubLookup:
         "(name VARCHAR, repository_node_id VARCHAR, environment_name VARCHAR)"
     )
     connection.execute(
+        "CREATE TABLE github.environments "
+        "(name VARCHAR, repository_node_id VARCHAR)"
+    )
+    connection.execute(
         "INSERT INTO github.organizations VALUES "
         "('attacker', 'ORG_A'), ('victim', 'ORG_B')"
     )
@@ -121,6 +125,9 @@ def _cross_org_enterprise_runner_lookup() -> GithubLookup:
     )
     connection.execute(
         "INSERT INTO github.repository_secrets VALUES ('DEPLOY_TOKEN', 'REPO_B')"
+    )
+    connection.execute(
+        "INSERT INTO github.environments VALUES ('prod', 'REPO_B')"
     )
     return GithubLookup(connection)
 
@@ -171,6 +178,8 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
         repository_node_id="REPO_B",
         org_login="victim",
         runs_on={"group": "enterprise-prod", "labels": ["self-hosted", "linux"]},
+        environment="prod",
+        permissions={"id-token": "write"},
     )
     victim_job._lookup = lookup
     victim_step = WorkflowStep(
@@ -209,15 +218,27 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
     can_intercept = _find_edge(
         job_edges, ek.CAN_INTERCEPT_JOB, "ENT_1_runner_31", "JOB_B"
     )
+    deploys_to = _find_edge(job_edges, ek.DEPLOYS_TO, "JOB_B")
     contains_step = _find_edge(job_edges + step_edges, ek.CONTAINS, "JOB_B", "STEP_B")
     uses_secret = _find_edge(step_edges, ek.USES_SECRET, "STEP_B")
     can_access_secret = _find_edge(job_edges, ek.CAN_ACCESS_SECRET, "JOB_B")
+    can_request_oidc_token = _find_edge(
+        job_edges, ek.CAN_REQUEST_OIDC_TOKEN_FOR, "JOB_B"
+    )
 
     assert [
         edge.properties.traversable
-        for edge in [can_use, inherited_from, has_runner, can_intercept, can_access_secret]
-    ] == [True, True, True, True, True]
+        for edge in [
+            can_use,
+            inherited_from,
+            has_runner,
+            can_intercept,
+            can_access_secret,
+            can_request_oidc_token,
+        ]
+    ] == [True, True, True, True, True, True]
     assert runs_on.properties.traversable is False
+    assert deploys_to.properties.traversable is False
     assert contains_step.properties.traversable is False
     assert uses_secret.properties.traversable is False
     assert uses_secret.end.kind == nk.REPO_SECRET
@@ -227,6 +248,20 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
         for matcher in can_access_secret.end.property_matchers
     } == {
         "name": "DEPLOY_TOKEN",
+        "repository_id": "REPO_B",
+    }
+    assert can_request_oidc_token.end.kind == nk.ENVIRONMENT
+    assert {
+        matcher.key: matcher.value
+        for matcher in can_request_oidc_token.end.property_matchers
+    } == {
+        "name": "prod",
+        "repository_id": "REPO_B",
+    }
+    assert {
+        matcher.key: matcher.value for matcher in deploys_to.end.property_matchers
+    } == {
+        "name": "prod",
         "repository_id": "REPO_B",
     }
 

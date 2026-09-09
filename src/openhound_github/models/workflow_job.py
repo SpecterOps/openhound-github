@@ -198,6 +198,13 @@ class GHWorkflowJobProperties(GHNodeProperties):
             description="Workflow job execution context can access environment secret",
             traversable=True,
         ),
+        EdgeDef(
+            start=nk.WORKFLOW_JOB,
+            end=nk.ENVIRONMENT,
+            kind=ek.CAN_REQUEST_OIDC_TOKEN_FOR,
+            description="Workflow job has a static upper-bound capability to request an OIDC token for environment",
+            traversable=True,
+        ),
     ],
 )
 class WorkflowJob(BaseAsset):
@@ -419,7 +426,10 @@ class WorkflowJob(BaseAsset):
     @property
     def _environment_edges(self):
         if self.environment and not TEMPLATE_RE.search(self.environment):
-            if self._lookup.environment(self.environment, self.repository_node_id):
+            persisted_environment_name = self._lookup.environment(
+                self.environment, self.repository_node_id
+            )
+            if persisted_environment_name:
                 yield Edge(
                     kind=ek.DEPLOYS_TO,
                     start=EdgePath(value=self.node_id, match_by="id"),
@@ -429,11 +439,38 @@ class WorkflowJob(BaseAsset):
                             PropertyMatch(
                                 key="repository_id", value=self.repository_node_id
                             ),
-                            PropertyMatch(key="name", value=self.environment.upper()),
+                            PropertyMatch(key="name", value=persisted_environment_name),
                         ],
                     ),
                     properties=EdgeProperties(traversable=False),
                 )
+
+    def _can_request_oidc_token_for_query(self) -> str:
+        return (
+            f"MATCH p=(job:GH_WorkflowJob {{node_id:'{self.node_id}'}})"
+            "-[:GH_DeploysTo]->(:GH_Environment) "
+            "WHERE 'id-token:write' IN job.effective_github_token_permissions "
+            "RETURN p"
+        )
+
+    @property
+    def _can_request_oidc_token_for_edges(self):
+        if "id-token:write" not in (
+            self.calculated_effective_github_token_permissions or []
+        ):
+            return
+
+        for environment_edge in self._environment_edges:
+            yield Edge(
+                kind=ek.CAN_REQUEST_OIDC_TOKEN_FOR,
+                start=environment_edge.start,
+                end=environment_edge.end,
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    query_composition=self._can_request_oidc_token_for_query(),
+                ),
+            )
 
     @property
     def _calls_workflows_edge(self):
@@ -573,3 +610,4 @@ class WorkflowJob(BaseAsset):
         yield from self._runs_on_edges
         yield from self._can_intercept_job_edges
         yield from self._can_access_secret_edges
+        yield from self._can_request_oidc_token_for_edges

@@ -1056,6 +1056,11 @@
       "is_traversable": true
     },
     {
+      "name": "GH_CanRequestOIDCTokenFor",
+      "description": "[Computed] Workflow job has a static upper-bound capability to request a GitHub OIDC token for its deployment environment — GH_WorkflowJob → GH_Environment",
+      "is_traversable": true
+    },
+    {
       "name": "GH_UsesVariable",
       "description": "[Workflow] Job or step references a variable by name — GH_WorkflowJob / GH_WorkflowStep → GH_RepoVariable / GH_OrgVariable / GH_EnvironmentVariable (scope match)",
       "is_traversable": false

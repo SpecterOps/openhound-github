@@ -443,7 +443,8 @@ def test_repository_workflow_permissions_lookup_returns_collected_policy() -> No
         "CREATE TABLE github.workflows (repository_node_id VARCHAR, repository_default_workflow_permissions VARCHAR, repository_can_approve_pull_request_reviews BOOLEAN)"
     )
     connection.execute(
-        "INSERT INTO github.workflows VALUES ('R_1', 'read', false), ('R_2', NULL, NULL)"
+        "INSERT INTO github.workflows VALUES "
+        "('R_1', NULL, NULL), ('R_1', 'read', false), ('R_2', NULL, NULL)"
     )
 
     lookup = GithubLookup(connection)

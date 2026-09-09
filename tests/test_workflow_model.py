@@ -476,6 +476,134 @@ def test_workflow_job_emits_can_access_secret_edges_for_step_references() -> Non
     assert "GH_UsesSecret" in edges[0].properties.query_composition
 
 
+def test_workflow_job_emits_can_request_oidc_token_for_environment_without_oidc_step() -> None:
+    job = WorkflowJob(
+        node_id="JOB_1",
+        name="deploy",
+        job_key="deploy",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        environment="prod",
+        permissions={"id-token": "write"},
+    )
+    lookup = _org_reference_lookup()
+    lookup.environment.return_value = "prod"
+    job._lookup = lookup
+
+    environment_edges = list(job._environment_edges)
+    edges = list(job._can_request_oidc_token_for_edges)
+
+    assert len(environment_edges) == 1
+    assert _matcher_values(environment_edges[0]) == {
+        "repository_id": "REPO_1",
+        "name": "prod",
+    }
+    assert len(edges) == 1
+    assert edges[0].kind == ek.CAN_REQUEST_OIDC_TOKEN_FOR
+    assert edges[0].start.value == "JOB_1"
+    assert edges[0].end.kind == nk.ENVIRONMENT
+    assert _matcher_values(edges[0]) == {
+        "repository_id": "REPO_1",
+        "name": "prod",
+    }
+    assert edges[0].properties.traversable is True
+    assert edges[0].properties.composed is True
+    assert edges[0].properties.query_composition == (
+        "MATCH p=(job:GH_WorkflowJob {node_id:'JOB_1'})"
+        "-[:GH_DeploysTo]->(:GH_Environment) "
+        "WHERE 'id-token:write' IN job.effective_github_token_permissions "
+        "RETURN p"
+    )
+
+
+def test_workflow_job_can_request_oidc_token_for_requires_permission_and_environment() -> None:
+    no_permission = WorkflowJob(
+        node_id="JOB_NO_PERMISSION",
+        name="deploy",
+        job_key="deploy",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        environment="prod",
+        permissions={"contents": "read"},
+    )
+    no_environment = WorkflowJob(
+        node_id="JOB_NO_ENVIRONMENT",
+        name="deploy",
+        job_key="deploy",
+        workflow_node_id="WORKFLOW_1",
+        repository_name="repo",
+        repository_node_id="REPO_1",
+        org_login="github",
+        permissions={"id-token": "write"},
+    )
+    lookup = _org_reference_lookup()
+    lookup.environment.return_value = "prod"
+    no_permission._lookup = lookup
+    no_environment._lookup = lookup
+
+    assert list(no_permission._can_request_oidc_token_for_edges) == []
+    assert list(no_environment._can_request_oidc_token_for_edges) == []
+
+
+def test_workflow_job_can_request_oidc_token_for_edges_are_per_job_and_idempotent() -> None:
+    jobs = [
+        WorkflowJob(
+            node_id="JOB_1",
+            name="deploy",
+            job_key="deploy",
+            workflow_node_id="WORKFLOW_1",
+            repository_name="repo",
+            repository_node_id="REPO_1",
+            org_login="github",
+            environment="prod",
+            permissions={"id-token": "write"},
+        ),
+        WorkflowJob(
+            node_id="JOB_2",
+            name="publish",
+            job_key="publish",
+            workflow_node_id="WORKFLOW_1",
+            repository_name="repo",
+            repository_node_id="REPO_1",
+            org_login="github",
+            environment="prod",
+            permissions={"id-token": "write"},
+        ),
+        WorkflowJob(
+            node_id="JOB_3",
+            name="build",
+            job_key="build",
+            workflow_node_id="WORKFLOW_1",
+            repository_name="repo",
+            repository_node_id="REPO_1",
+            org_login="github",
+            environment="prod",
+            permissions={"contents": "read"},
+        ),
+    ]
+    lookup = _org_reference_lookup()
+    lookup.environment.return_value = "prod"
+    for job in jobs:
+        job._lookup = lookup
+
+    edges = [
+        edge
+        for job in jobs
+        for edge in job.edges
+        if edge.kind == ek.CAN_REQUEST_OIDC_TOKEN_FOR
+    ]
+
+    assert [(edge.start.value, _matcher_values(edge)) for edge in edges] == [
+        ("JOB_1", {"repository_id": "REPO_1", "name": "prod"}),
+        ("JOB_2", {"repository_id": "REPO_1", "name": "prod"}),
+    ]
+    assert len(list(jobs[0]._can_request_oidc_token_for_edges)) == 1
+
+
 def test_workflow_job_can_access_secret_edges_deduplicate_step_references() -> None:
     job = WorkflowJob(
         node_id="JOB_1",
@@ -592,6 +720,7 @@ def _org_reference_lookup() -> MagicMock:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = ORG_NODE_ID
     lookup.repository_workflow_permissions.return_value = None
+    lookup.environment.return_value = None
     lookup.workflow_step_secret_reference_names.return_value = []
     lookup.repo_secret.return_value = None
     lookup.org_secret.return_value = ("DEPLOY_TOKEN",)
