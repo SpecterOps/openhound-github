@@ -38,7 +38,7 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
         organization_permissions: Organization-scoped permissions in `scope:access` form.
         repository_permissions: Repository-scoped permissions in `scope:access` form.
         token_last_used_at: The ISO 8601 timestamp of when the token was last used.
-        access_granted_at: The ISO 8601 timestamp of when the token was granted to the organization. |
+        access_granted_at: The ISO 8601 timestamp of when the token was granted to the organization.
         token_name: The user-assigned display name of the token.
         owner_login: The login handle of the user who owns the token.
         repository_selection: Whether the token has access to `all`, `subset`, or `none` of the organization's repositories.

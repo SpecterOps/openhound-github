@@ -20,7 +20,7 @@ The granted permissions are stored separately as `organization_permissions` and 
 | `owner_node_id` | `string` | The GraphQL node ID of the token owner. |
 | `token_expires_at` | `datetime` | The ISO 8601 timestamp of when the token expires. |
 | `token_last_used_at` | `datetime` | The ISO 8601 timestamp of when the token was last used. |
-| `access_granted_at` | `datetime` | The ISO 8601 timestamp of when the token was granted to the organization. |. |
+| `access_granted_at` | `datetime` | The ISO 8601 timestamp of when the token was granted to the organization. |
 | `organization_permissions` | `list[string]` | Organization-scoped permissions in `scope:access` form. |
 | `repository_permissions` | `list[string]` | Repository-scoped permissions in `scope:access` form. |
 | `token_name` | `string` | The user-assigned display name of the token. |
