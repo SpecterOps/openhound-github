@@ -5,6 +5,7 @@ import pytest
 from openhound_github.resources.organization import (
     OrgContext,
     SourceContext,
+    environments,
     environment_branch_policies,
     environment_secrets,
     environment_variables,
@@ -39,6 +40,41 @@ def _environment(name: str) -> SimpleNamespace:
         required_reviewers=False,
         prevent_self_review=False,
     )
+
+
+def _repository(environment_count: int | None) -> SimpleNamespace:
+    return SimpleNamespace(
+        id="REPO_1",
+        name="repo",
+        org_login="acme",
+        environment_count=environment_count,
+    )
+
+
+@pytest.mark.parametrize("environment_count", [1, None])
+def test_environments_queries_when_repository_may_have_environments(
+    environment_count: int | None,
+) -> None:
+    client = _FakeClient()
+
+    rows = list(environments.__wrapped__(_repository(environment_count), _ctx(client)))
+
+    assert rows == []
+    assert client.paginate_calls == [
+        (
+            "/repos/acme/repo/environments",
+            {"params": {"per_page": 100}, "data_selector": "environments"},
+        )
+    ]
+
+
+def test_environments_skips_query_when_repository_has_no_environments() -> None:
+    client = _FakeClient()
+
+    rows = list(environments.__wrapped__(_repository(0), _ctx(client)))
+
+    assert rows == []
+    assert client.paginate_calls == []
 
 
 @pytest.mark.parametrize(

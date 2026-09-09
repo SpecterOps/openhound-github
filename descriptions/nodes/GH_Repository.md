@@ -6,6 +6,8 @@ Represents a GitHub repository within the organization. Repository nodes capture
 
 For repositories with active workflows, the collector records the applicable default workflow permissions and whether workflows may approve pull request reviews. These properties preserve the repository-level policy input later used to derive effective GITHUB_TOKEN permissions for GH_WorkflowJob nodes.
 
+The `branch_count` and `environment_count` properties preserve GitHub-reported totals from the repository GraphQL response. These values can be compared to collected GH_Branch and GH_Environment children to identify incomplete collection before relying on branch- or environment-dependent analysis.
+
 ## Properties
 
 | Property | Type | Description |
@@ -44,6 +46,8 @@ For repositories with active workflows, the collector records the applicable def
 | `secret_scanning` | `string` | Status of secret scanning (e.g., `enabled`, `disabled`). |
 | `branch_ruleset_count` | `integer` | Number of branch-targeted rulesets that apply to this repository. |
 | `has_branch_rulesets` | `boolean` | Whether at least one branch-targeted ruleset applies to this repository. |
+| `branch_count` | `integer` | Number of branch refs reported by GitHub for this repository. |
+| `environment_count` | `integer` | Number of deployment environments reported by GitHub for this repository. |
 | `query_branches` | `string` | Query for branches. |
 | `query_protected_branches` | `string` | Query for protected branches. |
 | `query_branch_protection_rules` | `string` | Query for branch protection rules. |
