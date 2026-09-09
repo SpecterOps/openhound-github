@@ -201,7 +201,7 @@ class OrgRole(BaseAsset):
 
     # node_id: int = Field(alias="id")
     id: int
-    name: str  # full: "my-org/owners"
+    name: str  # role-only name from the API, e.g. "owners" or "Custom Role Manager"
     created_at: datetime
     updated_at: datetime | None = None
     organization: Organization | None = None
@@ -221,11 +221,12 @@ class OrgRole(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        qualified_name = f"{self.org_login}/{self.name}"
         return GHNode(
             kinds=[nk.ORG_ROLE, "GH_Role"],
             properties=GHOrgRoleProperties(
-                name=self.name,
-                displayname=f"{self.org_login}/{self.name}",
+                name=qualified_name,
+                displayname=qualified_name,
                 node_id=self.node_id,
                 short_name=self.name,
                 type=self.type,
