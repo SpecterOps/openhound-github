@@ -283,6 +283,9 @@ query RepoRefs($login: String!, $count: Int!, $after: String) {
                 environments(first: 1) {
                     totalCount
                 }
+                deployKeys(first: 1) {
+                    totalCount
+                }
             }
             pageInfo { endCursor hasNextPage }
         }

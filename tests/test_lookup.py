@@ -117,6 +117,57 @@ def test_scim_group_id_for_team_external_group_skips_org_only_context() -> None:
     assert lookup.scim_group_id_for_team_external_group("acme", "Engineering") is None
 
 
+def test_user_node_id_for_login_is_case_insensitive_and_scoped_to_org() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github_test")
+    connection.execute(
+        "CREATE TABLE github_test.users (id VARCHAR, login VARCHAR, org_login VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github_test.enterprise (id VARCHAR, slug VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github_test.enterprise_organizations "
+        "(login VARCHAR, enterprise_node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github_test.enterprise_users "
+        "(id VARCHAR, login VARCHAR, enterprise_slug VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO github_test.users VALUES "
+        "('USER_1', 'Alice', 'Acme'), "
+        "('USER_2', 'Alice', 'Other')"
+    )
+
+    lookup = GithubLookup(connection, schema="github_test")
+
+    assert lookup.user_node_id_for_login("acme", "alice") == "USER_1"
+    assert lookup.user_node_id_for_login("other", "ALICE") == "USER_2"
+
+
+def test_user_node_id_for_login_falls_back_to_enterprise_user_for_org() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github_test")
+    ensure_optional_input_tables(connection, schema="github_test")
+    connection.execute("INSERT INTO github_test.enterprise VALUES ('ENT_1', 'acme-ent')")
+    connection.execute(
+        "INSERT INTO github_test.enterprise_organizations "
+        "(login, enterprise_node_id) VALUES "
+        "('acme', 'ENT_1'), ('other', 'ENT_2')"
+    )
+    connection.execute(
+        "INSERT INTO github_test.enterprise_users VALUES "
+        "('USER_1', 'Alice', 'acme-ent'), "
+        "('USER_2', 'Alice', 'other-ent')"
+    )
+
+    lookup = GithubLookup(connection, schema="github_test")
+
+    assert lookup.user_node_id_for_login("acme", "alice") == "USER_1"
+    assert lookup.user_node_id_for_login("other", "alice") is None
+
+
 def test_workflow_step_secret_reference_names_deduplicates_across_steps() -> None:
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github_test")

@@ -27,6 +27,7 @@ The non-traversable GH_Contains edge represents structural containment within th
 | `GH_Organization` | `GH_SecretScanningAlert` | `false` |
 | `GH_Repository` | `GH_Branch` | `false` |
 | `GH_Repository` | `GH_BranchProtectionRule` | `false` |
+| `GH_Repository` | `GH_DeployKey` | `false` |
 | `GH_Repository` | `GH_Environment` | `false` |
 | `GH_Repository` | `GH_RepoRunner` | `false` |
 | `GH_Repository` | `GH_RepoSecret` | `false` |
@@ -62,12 +63,13 @@ graph LR
     n19["GH_Repository"]
     n20["GH_Branch"]
     n21["GH_BranchProtectionRule"]
-    n22["GH_RepoRunner"]
-    n23["GH_RepoSecret"]
-    n24["GH_RepoVariable"]
-    n25["GH_Workflow"]
-    n26["GH_WorkflowJob"]
-    n27["GH_WorkflowStep"]
+    n22["GH_DeployKey"]
+    n23["GH_RepoRunner"]
+    n24["GH_RepoSecret"]
+    n25["GH_RepoVariable"]
+    n26["GH_Workflow"]
+    n27["GH_WorkflowJob"]
+    n28["GH_WorkflowStep"]
     n0 -.->|GH_Contains| n1
     n0 -.->|GH_Contains| n2
     n0 -.->|GH_Contains| n3
@@ -87,12 +89,13 @@ graph LR
     n4 -.->|GH_Contains| n18
     n19 -.->|GH_Contains| n20
     n19 -.->|GH_Contains| n21
-    n19 -.->|GH_Contains| n6
     n19 -.->|GH_Contains| n22
+    n19 -.->|GH_Contains| n6
     n19 -.->|GH_Contains| n23
     n19 -.->|GH_Contains| n24
-    n19 -.->|GH_Contains| n18
     n19 -.->|GH_Contains| n25
-    n25 -.->|GH_Contains| n26
+    n19 -.->|GH_Contains| n18
+    n19 -.->|GH_Contains| n26
     n26 -.->|GH_Contains| n27
+    n27 -.->|GH_Contains| n28
 ```

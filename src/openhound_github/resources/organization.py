@@ -39,6 +39,7 @@ from openhound_github.models import (
     BaseRepoRole,
     Branch,
     BranchProtectionRule,
+    DeployKey,
     Environment,
     EnvironmentBranchPolicy,
     EnvironmentSecret,
@@ -1225,6 +1226,7 @@ def repositories_graphql(ctx: SourceContext):
                     repo_record = {**repo}
                     branch_rulesets = repo_record.pop("branchRulesets", None) or {}
                     environments = repo_record.pop("environments", None) or {}
+                    deploy_keys = repo_record.pop("deployKeys", None) or {}
                     refs = repo_record.get("refs") or {}
                     emitted_repositories += 1
                     yield {
@@ -1232,6 +1234,7 @@ def repositories_graphql(ctx: SourceContext):
                         "branch_ruleset_count": branch_rulesets.get("totalCount"),
                         "branch_count": refs.get("totalCount"),
                         "environment_count": environments.get("totalCount"),
+                        "deploy_key_count": deploy_keys.get("totalCount"),
                         "org_login": org_name,
                     }
 
@@ -1924,6 +1927,33 @@ def repository_variables(repo: Repository, ctx: SourceContext):
             }
 
 
+@app.transformer(name="repository_deploy_keys", columns=DeployKey, parallelized=True)
+def repository_deploy_keys(repo: RepositoryQL, ctx: SourceContext):
+    """Fetch repository deploy keys, including keys disabled by organization policy."""
+    if repo.deploy_key_count == 0:
+        return
+
+    client = _client_for_org(ctx, repo.org_login)
+    full_name = f"{repo.org_login}/{repo.name}"
+
+    try:
+        for page in client.paginate(
+            f"/repos/{full_name}/keys", params={"per_page": 100}
+        ):
+            for deploy_key in page:
+                yield {
+                    **deploy_key,
+                    "org_login": repo.org_login,
+                    "repository_name": full_name,
+                    "repository_node_id": repo.id,
+                }
+    except Exception as e:
+        logger.error(
+            f"Error in resource 'repository_deploy_keys' processing repository '{full_name}': {e}",
+            extra={"resource": "repository_deploy_keys", "phase": "resource_iteration"},
+        )
+
+
 @app.resource(
     name="secret_scanning_alerts", columns=SecretScanningAlert, parallelized=True
 )
@@ -2383,6 +2413,7 @@ def organization_resources(ctx: SourceContext):
         teams_resource | team_repo_role_assignments(ctx, repo_roles_base),
         org_scim_organizations_resource | scim_users(ctx),
         repositories_graphql_resource,
+        repositories_graphql_resource | repository_deploy_keys(ctx),
         repositories_graphql_resource | branches(ctx),
         branch_prot_rules_resource,
         secret_scanning_alerts(ctx),

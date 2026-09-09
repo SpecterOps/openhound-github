@@ -87,6 +87,7 @@ HAS_PERSONAL_ACCESS_TOKEN_REQUEST = "GH_HasPersonalAccessTokenRequest"
 # Secret and variable edges
 HAS_SECRET = "GH_HasSecret"
 HAS_VARIABLE = "GH_HasVariable"
+ADDED_DEPLOY_KEY = "GH_AddedDeployKey"
 
 # App installation edges
 INSTALLED_AS = "GH_InstalledAs"
