@@ -12,6 +12,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.permissions import normalize_permission_declaration
 
 
 @dataclass
@@ -28,7 +29,7 @@ class GHAppInstallationProperties(GHNodeProperties):
         repositories_url: API URL to list repositories accessible to this installation.
         repository_selection: Whether the app has access to `all` repositories or `selected` repositories.
         target_type: The target type of the installation (e.g., `Organization`).
-        permissions: JSON string of the permissions granted to the app (e.g., `{"contents": "read", "metadata": "read"}`).
+        permissions: Permissions granted to the installation in `scope:access` form.
         events: JSON string of the webhook events the app subscribes to.
         created_at: When the app was installed.
         updated_at: When the installation was last updated.
@@ -47,7 +48,7 @@ class GHAppInstallationProperties(GHNodeProperties):
     repositories_url: str | None = None
     repository_selection: str | None = None
     target_type: str | None = None
-    permissions: str | None = None
+    permissions: list[str] | None = None
     events: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -141,7 +142,7 @@ class AppInstallation(BaseAsset):
                 repositories_url=self.repositories_url,
                 repository_selection=self.repository_selection,
                 target_type=self.target_type,
-                permissions=json.dumps(self.permissions) if self.permissions else None,
+                permissions=normalize_permission_declaration(self.permissions),
                 events=json.dumps(self.events) if self.events else None,
                 created_at=self.created_at,
                 updated_at=self.updated_at,

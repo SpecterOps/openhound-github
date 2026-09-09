@@ -175,7 +175,12 @@ def extract_general_information(path: Path) -> str | None:
         text = text[match.end() :].strip()
     else:
         text = re.sub(r"^# .+?\n+", "", text, count=1).strip()
-    text = re.split(r"^## Diagram\s*$", text, maxsplit=1, flags=re.MULTILINE)[0].strip()
+    text = re.split(
+        r"^## (?:Properties|Edge Schema|Diagram)\s*$",
+        text,
+        maxsplit=1,
+        flags=re.MULTILINE,
+    )[0].strip()
     text = re.sub(r"\n```mermaid\n.*?\n```\s*$", "", text, flags=re.DOTALL).strip()
     return text or None
 

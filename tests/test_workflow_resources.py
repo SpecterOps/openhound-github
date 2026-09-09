@@ -1,6 +1,10 @@
 import inspect
 from types import SimpleNamespace
 
+import pytest
+from dlt.sources.helpers import requests
+from requests.exceptions import JSONDecodeError
+
 from openhound_github.resources.organization import OrgContext, SourceContext, workflows
 
 
@@ -20,11 +24,13 @@ class _FakeClient:
         default_workflow_permissions: str = "read",
         can_approve_pull_request_reviews: bool = False,
         workflow_permission_responses: dict[str, dict] | None = None,
+        workflow_permission_errors: dict[str, BaseException] | None = None,
     ):
         self.workflow_pages = workflow_pages
         self.default_workflow_permissions = default_workflow_permissions
         self.can_approve_pull_request_reviews = can_approve_pull_request_reviews
         self.workflow_permission_responses = workflow_permission_responses or {}
+        self.workflow_permission_errors = workflow_permission_errors or {}
         self.get_calls: list[tuple[str, dict]] = []
         self.paginate_calls: list[tuple[str, dict]] = []
 
@@ -35,6 +41,8 @@ class _FakeClient:
     def get(self, path: str, **kwargs):
         self.get_calls.append((path, kwargs))
         if path.endswith("/actions/permissions/workflow"):
+            if path in self.workflow_permission_errors:
+                raise self.workflow_permission_errors[path]
             if path in self.workflow_permission_responses:
                 return _FakeResponse(self.workflow_permission_responses[path])
             return _FakeResponse(
@@ -211,3 +219,54 @@ def test_workflows_cache_repository_permissions_by_repository_within_organizatio
             "can_approve_pull_request_reviews": True,
         },
     }
+
+
+def test_workflows_continue_when_repository_permission_lookup_fails() -> None:
+    permission_path = "/repos/acme/repo/actions/permissions/workflow"
+    client = _FakeClient(
+        [[_workflow_row(1)]],
+        workflow_permission_errors={
+            permission_path: requests.HTTPError("workflow permissions unavailable")
+        },
+    )
+    ctx = _ctx(client)
+
+    rows = _collect_workflows(_repo(), ctx)
+    _collect_workflows(_repo(), ctx)
+
+    assert rows[0]["repository_default_workflow_permissions"] is None
+    assert rows[0]["repository_can_approve_pull_request_reviews"] is None
+    assert ctx.repository_workflow_permissions_cache == {"acme/repo": {}}
+    assert [
+        path for path, _kwargs in client.get_calls if path == permission_path
+    ] == [permission_path]
+
+
+def test_workflows_continue_when_repository_permission_response_is_invalid_json() -> None:
+    permission_path = "/repos/acme/repo/actions/permissions/workflow"
+    client = _FakeClient(
+        [[_workflow_row(1)]],
+        workflow_permission_errors={
+            permission_path: JSONDecodeError("invalid JSON", "", 0)
+        },
+    )
+    ctx = _ctx(client)
+
+    rows = _collect_workflows(_repo(), ctx)
+
+    assert rows[0]["repository_default_workflow_permissions"] is None
+    assert rows[0]["repository_can_approve_pull_request_reviews"] is None
+    assert ctx.repository_workflow_permissions_cache == {"acme/repo": {}}
+
+
+def test_workflows_propagate_unexpected_repository_permission_lookup_errors() -> None:
+    permission_path = "/repos/acme/repo/actions/permissions/workflow"
+    client = _FakeClient(
+        [[_workflow_row(1)]],
+        workflow_permission_errors={
+            permission_path: RuntimeError("unexpected workflow permission failure")
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected workflow permission failure"):
+        _collect_workflows(_repo(), _ctx(client))

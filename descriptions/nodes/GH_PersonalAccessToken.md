@@ -2,7 +2,9 @@
 
 ## General Information
 
-Represents a fine-grained personal access token that has been granted access to organization resources. PATs are linked to their owning user, the organization, and the repositories they can access. The permissions granted to the token are captured as a JSON string in the properties.
+Represents a fine-grained personal access token that has been granted access to organization resources. PATs are linked to their owning user, the organization, and the repositories they can access.
+
+The granted permissions are stored separately as `organization_permissions` and `repository_permissions`. Each property is a list of `scope:access` values such as `members:read` or `contents:write`, matching the permission format used on GH_WorkflowJob nodes.
 
 ## Properties
 
@@ -18,9 +20,9 @@ Represents a fine-grained personal access token that has been granted access to 
 | `owner_node_id` | `string` | The GraphQL node ID of the token owner. |
 | `token_expires_at` | `datetime` | The ISO 8601 timestamp of when the token expires. |
 | `token_last_used_at` | `datetime` | The ISO 8601 timestamp of when the token was last used. |
-| `access_granted_at` | `datetime` | The ISO 8601 timestamp of when the token was granted to the organization. |. |
-| `organization_permissions` | `string` | JSON string of the PAT's organization-scoped permissions. |
-| `repository_permissions` | `string` | JSON string of the PAT's repository-scoped permissions. |
+| `access_granted_at` | `datetime` | The ISO 8601 timestamp of when the token was granted to the organization. |
+| `organization_permissions` | `list[string]` | Organization-scoped permissions in `scope:access` form. |
+| `repository_permissions` | `list[string]` | Repository-scoped permissions in `scope:access` form. |
 | `token_name` | `string` | The user-assigned display name of the token. |
 | `owner_login` | `string` | The login handle of the user who owns the token. |
 | `repository_selection` | `string` | Whether the token has access to `all`, `subset`, or `none` of the organization's repositories. |

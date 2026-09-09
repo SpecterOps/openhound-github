@@ -31,6 +31,7 @@ graph LR
     n3["GH_WorkflowStep"]
     n0 -.->|GH_Contains| n1
     n0 -->|GH_HasSecret| n1
+    n2 -->|GH_CanAccessSecret| n1
     n2 -.->|GH_UsesSecret| n1
     n3 -.->|GH_UsesSecret| n1
 ```

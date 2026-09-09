@@ -72,6 +72,8 @@ Represents a GitHub organization. This is the root node of the graph and serves 
 | `self_hosted_runners_enabled_repositories` | `string` | Which repositories may use self-hosted runners: `all`, `selected`, or `none`. |
 | `default_workflow_permissions` | `string` | The default workflow permissions property. |
 | `can_approve_pull_request_reviews` | `boolean` | The can approve pull request reviews property. |
+| `github_deployment_type` | `string` | The GitHub deployment type, such as `ghec` or `ghes`. |
+| `ghes_version` | `string` | The GitHub Enterprise Server version, when applicable. |
 | `query_organization_roles` | `string` | Query for organization roles. |
 | `query_users` | `string` | Query for users. |
 | `query_teams` | `string` | Query for teams. |

@@ -44,9 +44,6 @@ When the runner is not explicitly marked ephemeral, GH_CanInterceptJob edges ide
 graph LR
     n0["GH_OrgRunnerGroup"]
     n1["GH_OrgRunner"]
-    n2["GH_WorkflowJob"]
     n0 -.->|GH_Contains| n1
     n0 -->|GH_HasRunner| n1
-    n2 -.->|GH_RunsOn| n1
-    n1 -->|GH_CanInterceptJob| n2
 ```

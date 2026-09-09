@@ -39,11 +39,11 @@ For repositories with active workflows, the collector records the applicable def
 | `environment_name` | `string` | The name of the environment (GitHub organization). |
 | `actions_enabled` | `boolean` | Whether GitHub Actions is enabled for this repository. |
 | `self_hosted_runners_enabled` | `boolean` | Whether the repository may use self-hosted runners. |
+| `default_workflow_permissions` | `string` | The repository's applicable default GITHUB_TOKEN workflow permissions. |
+| `can_approve_pull_request_reviews` | `boolean` | Whether workflows may approve pull request reviews. |
 | `secret_scanning` | `string` | Status of secret scanning (e.g., `enabled`, `disabled`). |
 | `branch_ruleset_count` | `integer` | Number of branch-targeted rulesets that apply to this repository. |
 | `has_branch_rulesets` | `boolean` | Whether at least one branch-targeted ruleset applies to this repository. |
-| `default_workflow_permissions` | `string` | The repository's applicable default GITHUB_TOKEN workflow permissions. |
-| `can_approve_pull_request_reviews` | `boolean` | Whether workflows may approve pull request reviews. |
 | `query_branches` | `string` | Query for branches. |
 | `query_protected_branches` | `string` | Query for protected branches. |
 | `query_branch_protection_rules` | `string` | Query for branch protection rules. |

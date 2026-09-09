@@ -33,6 +33,7 @@ graph LR
     n0 -->|GH_CanReadSecret| n1
     n2 -.->|GH_Contains| n1
     n3 -->|GH_HasSecret| n1
+    n4 -->|GH_CanAccessSecret| n1
     n4 -.->|GH_UsesSecret| n1
     n5 -.->|GH_UsesSecret| n1
 ```
