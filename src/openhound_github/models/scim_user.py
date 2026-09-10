@@ -23,6 +23,8 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.saml_helpers import detect_foreign_idp
 
+SCIM_SOURCE_KIND = "SCIM"
+
 
 def scim_organization_id(scope_node_id: str) -> str:
     return f"SCIM_Organization_{scope_node_id}"
@@ -40,7 +42,6 @@ class ScimNodeProperties(NodeProperties):
     profile_url: str | None = None
     enterprise: str | None = None
     organization: str | None = None
-    source_kind: str | None = None
 
 
 @dataclass
@@ -48,7 +49,8 @@ class ScimNode(Node):
     id: str
 
     def __post_init__(self):
-        return None
+        if SCIM_SOURCE_KIND not in self.kinds:
+            self.kinds.append(SCIM_SOURCE_KIND)
 
 
 class Name(BaseModel):
@@ -128,7 +130,6 @@ class ScimOrganization(ScimScopeAsset):
                 environmentid=self.scope_node_id,
                 enterprise=self.enterprise_slug,
                 organization=self.org_login,
-                source_kind="GitHub",
             ),
         )
 
@@ -210,7 +211,6 @@ class ScimUser(ScimScopeAsset):
                 profile_url=self.meta.location if self.meta else None,
                 enterprise=self.enterprise_slug,
                 organization=self.org_login,
-                source_kind="GitHub",
             ),
         )
 
@@ -306,7 +306,6 @@ class ScimGroup(ScimScopeAsset):
                 external_id=self.external_id,
                 enterprise=self.enterprise_slug,
                 organization=self.org_login,
-                source_kind="GitHub",
             ),
         )
 

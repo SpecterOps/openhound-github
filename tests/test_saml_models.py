@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from openhound_github.kinds import edges as ek
+from openhound_github.kinds import nodes as nk
 from openhound_github.graphql import ENTERPRISE_SAML_QUERY, SAML_IDENTITIES_QUERY
 from openhound_github.models.external_identity import ExternalIdentity
 from openhound_github.models.saml_assertion_consumer_service import (
@@ -58,6 +59,7 @@ def _saml_account_edge(identity: ExternalIdentity):
 def test_external_identity_prefers_saml_username_for_display_name() -> None:
     identity = _identity_with_lookup()
 
+    assert identity.as_node.kinds == [nk.EXTERNAL_IDENTITY, "GitHub"]
     assert identity.as_node.properties.name == "Alice@example.com"
     assert identity.as_node.properties.displayname == "Alice@example.com"
 
@@ -106,6 +108,9 @@ def test_normalized_saml_nodes_expose_contract_metadata() -> None:
     assert service_provider.as_node.id == "github:saml:sp:org:acme"
     assert issuer.as_node.id == "github:saml:trusted-issuer:org:acme"
     assert acs.as_node.id == "github:saml:acs:org:acme"
+    assert service_provider.as_node.kinds == [nk.SAML_SERVICE_PROVIDER, "SAML"]
+    assert issuer.as_node.kinds == [nk.SAML_ISSUER, "SAML"]
+    assert acs.as_node.kinds == [nk.SAML_ASSERTION_CONSUMER_SERVICE, "SAML"]
     assert sp_properties.github_deployment_id == DEFAULT_GITHUB_DEPLOYMENT_ID
     assert sp_properties.github_web_origin == DEFAULT_GITHUB_WEB_ORIGIN
     assert sp_properties.schema_contract_version == SAML_CONTRACT_VERSION
@@ -228,6 +233,7 @@ def test_saml_provider_replays_snake_case_fields_and_deployment_metadata() -> No
     assert provider.sso_url == "https://issuer.example.com/sso"
     assert provider.signature_method == "rsa-sha256"
     assert provider.idp_certificate == "certificate-data"
+    assert provider.as_node.kinds == [nk.SAML_IDENTITY_PROVIDER, "GitHub"]
     assert provider.as_node.properties.github_deployment_id == "github.example.com"
     assert provider.as_node.properties.github_web_origin == "https://github.example.com"
 

@@ -90,7 +90,7 @@ def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default(
     edges = list(user.edges)
     unmatched_edges = list(unmatched_user.edges)
 
-    assert node.kinds == [nk.SCIM_USER]
+    assert node.kinds == [nk.SCIM_USER, "SCIM"]
     assert node.properties.environmentid == "ENT_NODE_1"
     assert node.properties.external_id == "00u-okta-1"
     assert node.properties.name == "alice@example.test"
@@ -136,6 +136,7 @@ def test_scim_group_emits_membership_and_tenant_scoped_legacy_correlation() -> N
 
     edges = list(group.edges)
 
+    assert group.as_node.kinds == [nk.SCIM_GROUP, "SCIM"]
     assert [edge.kind for edge in edges] == [
         ek.SCIM_CONTAINS,
         ek.SCIM_MEMBER_OF,
@@ -180,7 +181,7 @@ def test_scim_organization_stays_within_github_environment_root() -> None:
     node = organization.as_node
 
     assert node.id == "SCIM_Organization_ENT_NODE_1"
-    assert node.kinds == [nk.SCIM_ORGANIZATION]
+    assert node.kinds == [nk.SCIM_ORGANIZATION, "SCIM"]
     assert node.properties.environmentid == "ENT_NODE_1"
 
 
