@@ -197,7 +197,7 @@ def test_org_runner_group_keeps_generic_runner_group_label() -> None:
 
     node = group.as_node
 
-    assert node.kinds == [nk.ORG_RUNNER_GROUP, nk.RUNNER_GROUP]
+    assert node.kinds == [nk.ORG_RUNNER_GROUP, nk.RUNNER_GROUP, "GitHub"]
     assert node.properties.scope == "organization"
     assert node.id == "ORG_1_runner_group_1"
 
@@ -267,22 +267,26 @@ def test_runner_groups_and_runners_use_scope_owner_prefixes_with_generic_suffixe
     )
     repo_runner._lookup = SimpleNamespace(org_id_for_login=lambda _login: "ORG_1")
 
-    assert org_runner.as_node.kinds == [nk.ORG_RUNNER, nk.RUNNER]
+    assert org_runner.as_node.kinds == [nk.ORG_RUNNER, nk.RUNNER, "GitHub"]
     assert org_runner.as_node.properties.scope == "organization"
     assert org_runner.as_node.id == "ORG_1_runner_8"
     assert org_runner.as_node.properties.name == "acme/org-runner-1"
     assert org_runner.as_node.properties.displayname == "org-runner-1"
-    assert group.as_node.kinds == [nk.ENTERPRISE_RUNNER_GROUP, nk.RUNNER_GROUP]
+    assert group.as_node.kinds == [
+        nk.ENTERPRISE_RUNNER_GROUP,
+        nk.RUNNER_GROUP,
+        "GitHub",
+    ]
     assert group.as_node.properties.scope == "enterprise"
     assert group.as_node.id == "ENT_1_runner_group_2"
 
-    assert runner.as_node.kinds == [nk.ENTERPRISE_RUNNER, nk.RUNNER]
+    assert runner.as_node.kinds == [nk.ENTERPRISE_RUNNER, nk.RUNNER, "GitHub"]
     assert runner.as_node.properties.scope == "enterprise"
     assert runner.as_node.id == "ENT_1_runner_9"
     assert runner.as_node.properties.name == "acme-enterprise/enterprise-runner-1"
     assert runner.as_node.properties.displayname == "enterprise-runner-1"
 
-    assert repo_runner.as_node.kinds == [nk.REPO_RUNNER, nk.RUNNER]
+    assert repo_runner.as_node.kinds == [nk.REPO_RUNNER, nk.RUNNER, "GitHub"]
     assert repo_runner.as_node.properties.scope == "repository"
     assert repo_runner.as_node.id == "REPO_1_runner_10"
     assert repo_runner.as_node.properties.name == "acme/repo/repo-runner-1"
