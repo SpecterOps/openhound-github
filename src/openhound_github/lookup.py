@@ -602,6 +602,61 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def canonical_scope_target_count(
+        self, org_login: str, scope_type: str, scope: str
+    ) -> int:
+        predicates = {
+            ("repository", "all"): ("repositories", "true"),
+            ("repository", "private_or_internal"): (
+                "repositories",
+                "visibility IN ('private', 'internal')",
+            ),
+            ("runner_group", "all"): (
+                "org_runner_group_access",
+                "runner_group_visibility = 'all' "
+                "AND allows_public_repositories IS NOT FALSE",
+            ),
+            ("runner_group", "private_or_internal"): (
+                "org_runner_group_access",
+                "runner_group_visibility = 'private' OR "
+                "(runner_group_visibility = 'all' "
+                "AND allows_public_repositories = false)",
+            ),
+            ("organization_secret", "all"): (
+                "organization_secrets",
+                "visibility = 'all'",
+            ),
+            ("organization_secret", "private_or_internal"): (
+                "organization_secrets",
+                "visibility = 'private'",
+            ),
+            ("organization_variable", "all"): (
+                "organization_variables",
+                "visibility = 'all'",
+            ),
+            ("organization_variable", "private_or_internal"): (
+                "organization_variables",
+                "visibility = 'private'",
+            ),
+        }
+        target = predicates.get((scope_type, scope))
+        if target is None:
+            return 0
+        table, predicate = target
+        row = self._find_single_row(
+            f"SELECT COUNT(*) FROM {self.schema}.{table} "
+            f"WHERE org_login = ? AND ({predicate})",
+            [org_login],
+        )
+        return int(row[0]) if row else 0
+
+    @lru_cache
+    def canonical_scope_has_targets(
+        self, org_login: str, scope_type: str, scope: str
+    ) -> bool:
+        return self.canonical_scope_target_count(org_login, scope_type, scope) > 0
+
+    @lru_cache
     def actions_enabled_repositories_for_org(self, org_login: str) -> str | None:
         return self._find_single_object(
             f"""SELECT actions_enabled_repositories FROM {self.schema}.organizations WHERE login = ?""",

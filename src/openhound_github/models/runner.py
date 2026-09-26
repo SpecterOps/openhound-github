@@ -11,6 +11,12 @@ from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.scope import (
+    ALL_REPOSITORIES_SCOPE,
+    PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE,
+    RUNNER_GROUP_SCOPE_TYPE,
+    scope_node_id,
+)
 from openhound_github.runner_ids import runner_group_node_id, runner_node_id
 
 
@@ -167,7 +173,7 @@ class OrgRunnerGroup(BaseAsset):
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
                 query_runners=query_runners,
-                query_repositories=f"MATCH p=(:GH_Repository)-[:GH_IsEligibleFor]->(:GH_OrgRunnerGroup {{node_id:'{gid}'}}) RETURN p",
+                query_repositories=f"MATCH p=(:GH_Repository)-[:GH_IsEligibleFor|GH_ScopedTo*1..2]->(:GH_OrgRunnerGroup {{node_id:'{gid}'}}) RETURN p",
             ),
         )
 
@@ -258,7 +264,7 @@ class EnterpriseRunnerGroup(BaseAsset):
                 environmentid=self.enterprise_node_id,
                 query_runners=f"MATCH p=(:GH_EnterpriseRunnerGroup {{node_id:'{gid}'}})-[:GH_HasRunner]->(:GH_EnterpriseRunner) RETURN p",
                 query_organizations=f"MATCH p=(:GH_Organization)-[:GH_Contains]->(:GH_OrgRunnerGroup)-[:GH_InheritedFrom]->(:GH_EnterpriseRunnerGroup {{node_id:'{gid}'}}) RETURN p",
-                query_repositories=f"MATCH p=(:GH_Repository)-[:GH_IsEligibleFor]->(:GH_OrgRunnerGroup)-[:GH_InheritedFrom]->(:GH_EnterpriseRunnerGroup {{node_id:'{gid}'}}) RETURN p",
+                query_repositories=f"MATCH p=(:GH_Repository)-[:GH_IsEligibleFor|GH_ScopedTo*1..2]->(:GH_OrgRunnerGroup)-[:GH_InheritedFrom]->(:GH_EnterpriseRunnerGroup {{node_id:'{gid}'}}) RETURN p",
             ),
         )
 
@@ -541,6 +547,16 @@ class OrgRunnerGroupAccess(BaseAsset):
         permissions = dict(zip(_ALL_REPOSITORY_CREATION_EDGE_KINDS, creation_flags))
         return any(bool(permissions.get(edge_kind)) for edge_kind in edge_kinds)
 
+    @property
+    def canonical_scope(self) -> str | None:
+        if self.runner_group_visibility == "all":
+            if self.allows_public_repositories is False:
+                return PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE
+            return ALL_REPOSITORIES_SCOPE
+        if self.runner_group_visibility == "private":
+            return PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE
+        return None
+
     def _can_create_repository_with_runner_access_query(
         self, role_node_id: str, edge_kinds: tuple[str, ...]
     ) -> str:
@@ -611,6 +627,21 @@ class OrgRunnerGroupAccess(BaseAsset):
 
     @property
     def _is_eligible_for_edges(self):
+        if self.canonical_scope:
+            yield Edge(
+                kind=ek.SCOPED_TO,
+                start=EdgePath(
+                    value=scope_node_id(
+                        self.org_node_id,
+                        RUNNER_GROUP_SCOPE_TYPE,
+                        self.canonical_scope,
+                    ),
+                    match_by="id",
+                ),
+                end=EdgePath(value=self.runner_group_node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
+            return
         for (repo_node_id,) in self.repository_node_ids:
             yield Edge(
                 kind=ek.IS_ELIGIBLE_FOR,

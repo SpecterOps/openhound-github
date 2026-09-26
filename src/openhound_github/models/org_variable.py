@@ -10,6 +10,12 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.scope import (
+    ALL_REPOSITORIES_SCOPE,
+    ORGANIZATION_VARIABLE_SCOPE_TYPE,
+    PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE,
+    scope_node_id,
+)
 
 
 @dataclass
@@ -55,6 +61,20 @@ class GHOrgVariableProperties(GHNodeProperties):
             description="Repository can access org variable",
             traversable=True,
         ),
+        EdgeDef(
+            start=nk.SCOPE,
+            end=nk.ORG_VARIABLE,
+            kind=ek.SCOPED_TO,
+            description="Organization-variable scope applies to organization variable",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.REPOSITORY,
+            end=nk.SCOPE,
+            kind=ek.HAS_VARIABLE,
+            description="Repository can access organization-variable scope",
+            traversable=True,
+        ),
     ],
 )
 class OrgVariable(BaseAsset):
@@ -94,35 +114,43 @@ class OrgVariable(BaseAsset):
                 value=self.value,
                 created_at=str(self.created_at) if self.created_at else None,
                 updated_at=str(self.updated_at) if self.updated_at else None,
-                query_visible_repositories=f"MATCH p=(:GH_OrgVariable {{node_id:'{vid}'}})<-[:GH_HasVariable]-(:GH_Repository) RETURN p",
+                query_visible_repositories=f"MATCH p=(:GH_Repository)-[:GH_HasVariable|GH_ScopedTo*1..2]->(:GH_OrgVariable {{node_id:'{vid}'}}) RETURN p",
             ),
         )
 
     @property
     def _all_repo_edges(self):
         if self.visibility == "all":
-            for repo in self._lookup.repository_node_ids_for_org(self.org_login):
-                for repo_node_id in repo:
-                    yield Edge(
-                        kind=ek.HAS_VARIABLE,
-                        start=EdgePath(value=repo_node_id, match_by="id"),
-                        end=EdgePath(value=self.node_id, match_by="id"),
-                        properties=EdgeProperties(traversable=True),
-                    )
+            yield Edge(
+                kind=ek.SCOPED_TO,
+                start=EdgePath(
+                    value=scope_node_id(
+                        self.org_node_id,
+                        ORGANIZATION_VARIABLE_SCOPE_TYPE,
+                        ALL_REPOSITORIES_SCOPE,
+                    ),
+                    match_by="id",
+                ),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
 
     @property
     def _private_repo_edges(self):
         if self.visibility == "private":
-            for repo in self._lookup.private_repository_node_ids_for_org(
-                self.org_login
-            ):
-                for repo_node_id in repo:
-                    yield Edge(
-                        kind=ek.HAS_VARIABLE,
-                        start=EdgePath(value=repo_node_id, match_by="id"),
-                        end=EdgePath(value=self.node_id, match_by="id"),
-                        properties=EdgeProperties(traversable=True),
-                    )
+            yield Edge(
+                kind=ek.SCOPED_TO,
+                start=EdgePath(
+                    value=scope_node_id(
+                        self.org_node_id,
+                        ORGANIZATION_VARIABLE_SCOPE_TYPE,
+                        PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE,
+                    ),
+                    match_by="id",
+                ),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
 
     @property
     def _contains_edge(self):

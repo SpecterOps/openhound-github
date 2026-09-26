@@ -102,7 +102,8 @@ graph LR
     n9["GH_PersonalAccessTokenRequest"]
     n10["GH_Repository"]
     n11["GH_SamlIdentityProvider"]
-    n12["GH_SecretScanningAlert"]
+    n12["GH_Scope"]
+    n13["GH_SecretScanningAlert"]
     n0 -.->|GH_Contains| n1
     n2 -.->|GH_AssignedTo| n1
     n3 -.->|GH_AddCollaborator| n1
@@ -125,5 +126,6 @@ graph LR
     n1 -->|GH_Owns| n10
     n1 -.->|GH_HasSamlIdentityProvider| n11
     n1 -.->|GH_Contains| n12
+    n1 -.->|GH_Contains| n13
     n8 -.->|GH_CanAccess| n1
 ```

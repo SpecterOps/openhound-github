@@ -29,6 +29,7 @@ PERSONAL_ACCESS_TOKEN_REQUEST = "GH_PersonalAccessTokenRequest"
 
 # Repository nodes
 REPOSITORY = "GH_Repository"
+SCOPE = "GH_Scope"
 REPO_ROLE = "GH_RepoRole"
 REPO_SECRET = "GH_RepoSecret"
 REPO_VARIABLE = "GH_RepoVariable"

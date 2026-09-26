@@ -64,6 +64,7 @@ from openhound_github.models import (
     RepoRunner,
     RepoSecret,
     Repository,
+    Scope,
     RepositoryQL,
     RepoVariable,
     SamlProvider,
@@ -2367,6 +2368,27 @@ def org_scim_organizations(org: Organization, ctx: SourceContext):
     }
 
 
+@app.transformer(
+    name="scopes",
+    columns=Scope,
+    parallelized=True,
+)
+def scopes(org: Organization):
+    for scope_type in (
+        "repository",
+        "runner_group",
+        "organization_secret",
+        "organization_variable",
+    ):
+        for scope in ("all", "private_or_internal"):
+            yield {
+                "org_login": org.login,
+                "org_node_id": org.node_id,
+                "scope_type": scope_type,
+                "scope": scope,
+            }
+
+
 def organization_resources(ctx: SourceContext):
     org_resource = organizations(ctx)
     roles_resource = org_roles(ctx)
@@ -2390,9 +2412,11 @@ def organization_resources(ctx: SourceContext):
     projected_enterprise_teams_resource = projected_enterprise_teams(ctx)
     saml_resource = saml_provider(ctx)
     org_scim_organizations_resource = org_resource | org_scim_organizations(ctx)
+    scopes_resource = org_resource | scopes()
 
     return (
         org_resource,
+        scopes_resource,
         org_resource | roles_resource,
         org_resource | roles_resource | org_role_teams(ctx),
         org_resource | roles_resource | org_role_members(ctx),

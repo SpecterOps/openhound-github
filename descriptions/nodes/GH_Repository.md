@@ -8,6 +8,14 @@ For repositories with active workflows, the collector records the applicable def
 
 The `branch_count` and `environment_count` properties preserve GitHub-reported totals from the repository GraphQL response. These values can be compared to collected GH_Branch and GH_Environment children to identify incomplete collection before relying on branch- or environment-dependent analysis.
 
+Every repository is linked from its organization's reusable repository/all GH_Scope. Private and internal repositories are also linked from repository/private_or_internal. This supports compact one- or two-hop access queries without repeating one GH_CanAccess edge per credential and repository.
+
+Repositories also point to runner_group/all GH_Scope nodes through GH_IsEligibleFor; private and internal repositories additionally point to runner_group/private_or_internal. Those scopes enumerate canonical runner groups through GH_ScopedTo, while groups with arbitrary selected repository policies remain direct.
+
+Organization secrets and variables with canonical all/private visibility are similarly reached through organization_secret and organization_variable scopes. Repository-owned, environment-owned, and arbitrarily selected organization assets remain direct targets.
+
+Runner, secret, and variable boundary edges are emitted only when the organization has a matching canonical target, so empty scopes do not add per-repository edges.
+
 ## Properties
 
 | Property | Type | Description |
@@ -87,8 +95,9 @@ graph LR
     n12["GH_RepoRunner"]
     n13["GH_RepoSecret"]
     n14["GH_RepoVariable"]
-    n15["GH_SecretScanningAlert"]
-    n16["GH_Workflow"]
+    n15["GH_Scope"]
+    n16["GH_SecretScanningAlert"]
+    n17["GH_Workflow"]
     n0 -.->|GH_CanAccess| n1
     n2 -.->|GH_CanAccess| n1
     n3 -->|GH_Owns| n1
@@ -169,6 +178,10 @@ graph LR
     n1 -->|GH_HasSecret| n13
     n1 -.->|GH_Contains| n14
     n1 -->|GH_HasVariable| n14
-    n1 -.->|GH_Contains| n15
+    n1 -->|GH_HasSecret| n15
+    n1 -->|GH_HasVariable| n15
+    n1 -.->|GH_IsEligibleFor| n15
     n1 -.->|GH_Contains| n16
+    n1 -.->|GH_Contains| n17
+    n15 -->|GH_ScopedTo| n1
 ```

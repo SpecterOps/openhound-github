@@ -10,6 +10,15 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.scope import (
+    ALL_REPOSITORIES_SCOPE,
+    ORGANIZATION_SECRET_SCOPE_TYPE,
+    ORGANIZATION_VARIABLE_SCOPE_TYPE,
+    PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE,
+    REPOSITORY_SCOPE_TYPE,
+    RUNNER_GROUP_SCOPE_TYPE,
+    scope_node_id,
+)
 
 
 @dataclass
@@ -194,6 +203,13 @@ class RepositoryQL(BaseModel):
             description="Org owns repository",
             traversable=True,
         ),
+        EdgeDef(
+            start=nk.SCOPE,
+            end=nk.REPOSITORY,
+            kind=ek.SCOPED_TO,
+            description="Repository scope applies to repository",
+            traversable=True,
+        ),
     ],
 )
 class Repository(BaseAsset):
@@ -316,8 +332,8 @@ class Repository(BaseAsset):
                     f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_CanUseRunner]->(:GH_OrgRunnerGroup)-[:GH_InheritedFrom]->(:GH_EnterpriseRunnerGroup)-[:GH_HasRunner]->(:GH_EnterpriseRunner) RETURN p"
                 ),
                 query_environments=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Environment) RETURN p",
-                query_secrets=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasSecret]->(:GH_Secret) RETURN p",
-                query_variables=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasVariable]->(:GH_Variable) RETURN p",
+                query_secrets=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasSecret|GH_ScopedTo*1..2]->(:GH_Secret) RETURN p",
+                query_variables=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_HasVariable|GH_ScopedTo*1..2]->(:GH_Variable) RETURN p",
                 query_deploy_keys=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_DeployKey) RETURN p",
                 query_secret_scanning_alerts=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_SecretScanningAlert) RETURN p",
                 query_explicit_readers=f"MATCH p=(role:GH_Role)-[:GH_HasBaseRole|GH_ReadRepoContents*1..]->(r:GH_Repository {{node_id:'{rid}'}}) MATCH p1=(:GH_User)-[:GH_HasRole]->(role) RETURN p,p1",
@@ -329,6 +345,40 @@ class Repository(BaseAsset):
 
     @property
     def edges(self):
+        scopes = [ALL_REPOSITORIES_SCOPE]
+        if self.visibility in {"private", "internal"}:
+            scopes.append(PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE)
+        for scope in scopes:
+            yield Edge(
+                kind=ek.SCOPED_TO,
+                start=EdgePath(
+                    value=scope_node_id(
+                        self.org_node_id, REPOSITORY_SCOPE_TYPE, scope
+                    ),
+                    match_by="id",
+                ),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
+            for scope_type, edge_kind, traversable in (
+                (RUNNER_GROUP_SCOPE_TYPE, ek.IS_ELIGIBLE_FOR, False),
+                (ORGANIZATION_SECRET_SCOPE_TYPE, ek.HAS_SECRET, True),
+                (ORGANIZATION_VARIABLE_SCOPE_TYPE, ek.HAS_VARIABLE, True),
+            ):
+                if self._lookup.canonical_scope_has_targets(
+                    self.org_login, scope_type, scope
+                ):
+                    yield Edge(
+                        kind=edge_kind,
+                        start=EdgePath(value=self.node_id, match_by="id"),
+                        end=EdgePath(
+                            value=scope_node_id(
+                                self.org_node_id, scope_type, scope
+                            ),
+                            match_by="id",
+                        ),
+                        properties=EdgeProperties(traversable=traversable),
+                    )
         if self.owner_id:
             yield Edge(
                 kind=ek.OWNS,
