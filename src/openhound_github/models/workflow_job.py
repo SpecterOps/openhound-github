@@ -443,7 +443,9 @@ class WorkflowJob(BaseAsset):
                             PropertyMatch(
                                 key="repository_id", value=self.repository_node_id
                             ),
-                            PropertyMatch(key="name", value=persisted_environment_name),
+                            PropertyMatch(
+                                key="short_name", value=persisted_environment_name
+                            ),
                         ],
                     ),
                     properties=EdgeProperties(traversable=False),
