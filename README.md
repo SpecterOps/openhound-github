@@ -81,8 +81,11 @@ requests the full inventory, stores every CSV row and its original field values
 in the `enterprise_credential_inventory` resource, and currently models only
 classic PAT rows. The raw resource includes GitHub's credential hashes and
 owner metadata, so treat the collected output as sensitive. The
-enterprise GitHub App needs **Enterprise credentials: read** permission. The
-CSV download is streamed, but the parsed export is held in memory as one
+enterprise GitHub App needs **Enterprise credentials: read** permission. When
+collecting with a classic PAT instead of an app installation, that token needs
+the `read:enterprise` scope.
+
+The CSV download is streamed, but the parsed export is held in memory as one
 raw record; very large enterprises may need a chunked raw-resource design.
 
 GitHub limits the number of exports an enterprise can start per day; each collection

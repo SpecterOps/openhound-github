@@ -40,7 +40,7 @@ Use the runner interception searches as a progression:
 | 1 | `active-leaked-secrets.json` | Active Leaked Secrets | Finds secret scanning alerts that are both unresolved and confirmed active. These are valid, usable credentials committed to source code and represent an immediate compromise risk. |
 | 2 | `secret-scanning-alerts.json` | Secret Scanning Alerts | Returns all repositories that have open secret scanning alerts. |
 | 3 | `pats-all-repo-access.json` | PATs with Access to All Repositories | Finds fine-grained personal access tokens scoped to all repositories. A single compromised token grants access to every repository in the organization. |
-| 4 | `expired-pats.json` | Expired Personal Access Tokens | Finds expired personal access tokens that still exist. Expired tokens should be cleaned up to reduce credential inventory and audit noise. |
+| 4 | `expired-pats.json` | Expired Personal Access Tokens | Finds expired fine-grained and classic personal access tokens that still exist. Expired tokens should be cleaned up to reduce credential inventory and audit noise. |
 | 5 | `pending-pat-requests.json` | Pending PAT Requests | Finds pending fine-grained personal access token requests awaiting approval. Review these to ensure requested permissions are appropriate before granting access. |
 
 ### :orange_circle: High &mdash; Organization Security Posture

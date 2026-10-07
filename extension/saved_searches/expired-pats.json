@@ -1,5 +1,5 @@
 {
   "name": "GitHub: Expired Personal Access Tokens",
-  "query": "MATCH p=(:GH_User)-[:GH_HasPersonalAccessToken]->(token:GH_PersonalAccessToken {token_expired: true})\nRETURN p\nLIMIT 1000",
-  "description": "Finds expired personal access tokens that still exist. Expired tokens should be cleaned up to reduce credential inventory and audit noise."
+  "query": "MATCH p=(:GH_User)-[:GH_HasPersonalAccessToken]->(token)\nWHERE (token:GH_PersonalAccessToken AND token.token_expired = true) OR (token:GH_ClassicPersonalAccessToken AND token.credential_state = 'expired')\nRETURN p\nLIMIT 1000",
+  "description": "Finds expired fine-grained and classic personal access tokens that still exist. Expired tokens should be cleaned up to reduce credential inventory and audit noise."
 }
