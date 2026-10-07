@@ -333,6 +333,7 @@ def test_classic_pat_inventory_reuses_recent_export_on_rate_limit(monkeypatch, c
     client.get.return_value = Response(
         302, headers={"Location": "https://example.test/prior.csv"}
     )
+    pat_client = MagicMock()
     monkeypatch.setattr(
         "openhound_github.resources.enterprise.requests.get",
         lambda *_, **__: Response(
@@ -340,7 +341,10 @@ def test_classic_pat_inventory_reuses_recent_export_on_rate_limit(monkeypatch, c
         ),
     )
     ctx = SourceContext(
-        client=client, enterprise_name="enterprise", deployment_type="ghec"
+        client=client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
     )
 
     inventories = list(
@@ -351,6 +355,58 @@ def test_classic_pat_inventory_reuses_recent_export_on_rate_limit(monkeypatch, c
     assert inventories[0]["as_of"] == "2026-10-05T20:00:00Z"
     assert "using prior export" in caplog.text
     client.get.assert_called_once()
+    pat_client.get.assert_not_called()
+
+
+def test_classic_pat_inventory_reuses_pat_created_export_with_pat(monkeypatch):
+    state = {}
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1000)
+    app_client = MagicMock()
+    app_client.post.side_effect = [Response(403), Response(403)]
+    pat_client = MagicMock()
+    pat_client.post.side_effect = [
+        Response(
+            202, payload={"export_id": "pat-export", "as_of": "2026-10-07T21:00:00Z"}
+        ),
+        Response(429),
+    ]
+    pat_client.get.side_effect = [
+        Response(302, headers={"Location": "https://example.test/export.csv"}),
+        Response(302, headers={"Location": "https://example.test/export.csv"}),
+    ]
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        lambda *_, **__: Response(
+            200, content=b"credential_type,credential_id\nclassic_pat,42\n"
+        ),
+    )
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    first = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    second = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+
+    assert state["last_export_created_with_fallback"] is True
+    assert first[0]["created_with_fallback"] is True
+    assert second[0]["created_with_fallback"] is True
+    assert second[0]["export_id"] == "pat-export"
+    assert second[0]["as_of"] == "2026-10-07T21:00:00Z"
+    app_client.get.assert_not_called()
+    assert pat_client.get.call_count == 2
+    assert app_client.post.call_count == 2
+    assert pat_client.post.call_count == 2
 
 
 def test_classic_pat_inventory_does_not_reuse_stale_export(monkeypatch):

@@ -151,6 +151,7 @@ def _download_enterprise_credential_inventory(
     path = f"/enterprises/{enterprise_slug}/credentials/exports"
     headers = {"X-GitHub-Api-Version": _CREDENTIAL_EXPORT_API_VERSION}
     export_metadata = {}
+    created_with_fallback = False
     if export_id is None:
         try:
             created = client.post(path, headers=headers)
@@ -191,6 +192,7 @@ def _download_enterprise_credential_inventory(
             client = fallback_client
             created = client.post(path, headers=headers)
             created.raise_for_status()
+            created_with_fallback = True
         if created.status_code != 202:
             raise ValueError(
                 f"Unexpected credential export create status: {created.status_code}"
@@ -236,6 +238,7 @@ def _download_enterprise_credential_inventory(
             return {
                 "export_id": export_id,
                 "as_of": export_metadata.get("as_of"),
+                "created_with_fallback": created_with_fallback,
                 "columns": columns,
                 "rows": rows,
             }
@@ -279,6 +282,9 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
         state["last_export_id"] = inventory["export_id"]
         state["last_export_enterprise"] = ctx.enterprise_name
         state["last_export_as_of"] = inventory["as_of"]
+        state["last_export_created_with_fallback"] = inventory.get(
+            "created_with_fallback", False
+        )
         state["last_export_downloaded_at"] = time.time()
         yield {
             **inventory,
@@ -296,11 +302,16 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
                 and 0 <= time.time() - downloaded_at <= _CREDENTIAL_EXPORT_REUSE_SECONDS
                 else None
             )
-            if previous_id:
+            previous_used_fallback = state.get(
+                "last_export_created_with_fallback", False
+            )
+            previous_client = ctx.sso_client if previous_used_fallback else ctx.client
+            if previous_id and previous_client:
                 try:
                     inventory = _download_enterprise_credential_inventory(
-                        ctx.client, ctx.enterprise_name, previous_id
+                        previous_client, ctx.enterprise_name, previous_id
                     )
+                    inventory["created_with_fallback"] = previous_used_fallback
                     inventory["as_of"] = inventory["as_of"] or state.get(
                         "last_export_as_of"
                     )
