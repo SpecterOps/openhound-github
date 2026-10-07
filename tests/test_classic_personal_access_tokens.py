@@ -1,6 +1,7 @@
 import gzip
 import io
 import json
+import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -111,6 +112,60 @@ def test_classic_pat_export_polls_one_job_and_deduplicates_org_rows(monkeypatch)
     download.assert_called_once_with(
         "https://example.test/signed.csv", timeout=120, stream=True
     )
+
+
+def test_classic_pat_parser_skips_malformed_numeric_rows(caplog):
+    inventory = {
+        "enterprise_node_id": "E_1",
+        "enterprise_name": "enterprise",
+        "rows": [
+            {"credential_type": "classic_pat", "credential_id": "invalid"},
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "bad",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "7",
+                "authorization_count": "bad",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "7",
+                "authorization_count": "1",
+                "organization": "acme",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "bad",
+                "organization": "ops",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "authorization_count": "bad",
+                "organization": "ops",
+            },
+            {"credential_type": "classic_pat", "credential_id": "43"},
+        ],
+    }
+
+    tokens = list(classic_personal_access_tokens.__wrapped__(inventory))
+
+    assert [token["credential_id"] for token in tokens] == [42, 43]
+    assert tokens[0]["owner_id"] == 7
+    assert tokens[0]["authorization_count"] == 1
+    assert tokens[0]["authorized_organizations"] == ["acme"]
+    assert [
+        int(row_number)
+        for row_number in re.findall(
+            r"Skipping classic PAT inventory row (\d+)", caplog.text
+        )
+    ] == [1, 2, 3, 5, 6]
 
 
 def test_one_export_persists_raw_rows_and_models_only_classic_pats(

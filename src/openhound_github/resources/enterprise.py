@@ -372,20 +372,36 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
 def classic_personal_access_tokens(inventory: dict[str, Any]):
     """Build classic PAT models from a stored enterprise credential inventory."""
     credentials: dict[int, dict[str, Any]] = {}
-    for row in inventory["rows"]:
+    for row_number, row in enumerate(inventory["rows"], start=1):
         if row.get("credential_type") != "classic_pat":
             continue
         credential_id = row.get("credential_id")
         if not credential_id:
-            logger.warning("Skipping classic PAT inventory row without a credential_id")
+            logger.warning(
+                "Skipping classic PAT inventory row %d without a credential_id",
+                row_number,
+            )
             continue
-        token_id = int(credential_id)
+        try:
+            token_id = int(credential_id)
+            owner_id = int(row["owner_id"]) if row.get("owner_id") else None
+            authorization_count = (
+                int(row["authorization_count"])
+                if row.get("authorization_count")
+                else None
+            )
+        except (TypeError, ValueError, OverflowError):
+            logger.warning(
+                "Skipping classic PAT inventory row %d with an invalid credential_id, owner_id, or authorization_count",
+                row_number,
+            )
+            continue
         credential = credentials.get(token_id)
         if credential is None:
             credential = {
                 "credential_id": token_id,
                 "display_name": row.get("display_name") or None,
-                "owner_id": int(row["owner_id"]) if row.get("owner_id") else None,
+                "owner_id": owner_id,
                 "owner_login": row.get("owner") or None,
                 "scopes": [
                     scope.strip()
@@ -399,11 +415,7 @@ def classic_personal_access_tokens(inventory: dict[str, Any]):
                     if row.get("enterprise_authorized")
                     else None
                 ),
-                "authorization_count": (
-                    int(row["authorization_count"])
-                    if row.get("authorization_count")
-                    else None
-                ),
+                "authorization_count": authorization_count,
                 "inventory_as_of": inventory.get("as_of"),
                 "created_at": row.get("created_at") or None,
                 "last_used_at": row.get("last_used_at") or None,
