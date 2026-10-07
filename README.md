@@ -79,28 +79,29 @@ With GitHub Enterprise Cloud credentials, the collector uses the enterprise
 credential inventory export to collect classic personal access tokens. It
 requests the full inventory, stores every CSV row and its original field values
 in the `enterprise_credential_inventory` resource, and currently models only
-classic PAT rows. The raw resource includes GitHub's credential hashes and
-owner metadata, so treat the collected output as sensitive. The
-enterprise GitHub App needs **Enterprise credentials: read** permission. When
-collecting with a classic PAT instead of an app installation, that token needs
-the `read:enterprise` scope.
+classic PAT rows. The export contains credential metadata, including owners,
+scopes, authorization details, and token hashes used for audit correlation. It
+does not contain plaintext PAT values. Limit access to the raw output to people
+who need the credential inventory.
 
-For an enterprise app configured with `credentials.pat_token`, the app
-installation remains the primary export credential. If GitHub rejects the
-app's export creation with an authorization error, the collector retries that
-creation once with the classic PAT. It does not switch credentials after an
-export has started or when GitHub reports an export or API rate limit.
+The enterprise GitHub App needs **Enterprise credentials: read** permission.
+When collecting with a classic PAT instead of an app installation, that token
+needs the `read:enterprise` scope. If an enterprise app also has
+`credentials.pat_token` configured, the app remains the primary export
+credential. The collector retries once with the PAT only when GitHub rejects
+the app's export creation for authorization. It does not switch credentials
+after an export starts or when GitHub reports a rate limit.
 
 The CSV download is streamed, but the parsed export is held in memory as one
 raw record; very large enterprises may need a chunked raw-resource design.
 
-GitHub limits the number of exports an enterprise can start per day; each collection
-starts one export and polls that job until the CSV is ready. If the daily limit
-is reached, the collector attempts to reuse its last successful export when it
-was downloaded within the past 24 hours and GitHub still serves it. The raw
-record's `as_of` value and each PAT node's `inventory_as_of` value show when
-that snapshot was taken. An unavailable or
-denied export is logged and does not stop other resources from collecting.
+GitHub limits the number of exports an enterprise can start per day. Each
+collection starts one export and polls until the CSV is ready. If the daily
+limit is reached, the collector attempts to reuse its last successful export
+when it was downloaded within the past 24 hours and GitHub still serves it.
+The raw record's `as_of` value and each PAT node's `inventory_as_of` value
+show when that snapshot was taken. An unavailable or denied export is logged
+and does not stop other resources from collecting.
 
 Classic PAT nodes include the owner, scopes, lifecycle dates, credential
 state, direct enterprise authorization, and total authorization count.
