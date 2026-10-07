@@ -40,6 +40,8 @@ class Response:
         if self.status_code >= 400:
             error_response = requests.Response()
             error_response.status_code = self.status_code
+            error_response._content = json.dumps(self.payload).encode()
+            error_response.headers.update(self.headers)
             raise requests.HTTPError(response=error_response)
 
     def close(self):
@@ -116,7 +118,7 @@ def test_one_export_persists_raw_rows_and_models_only_classic_pats(
 ):
     calls = []
 
-    def inventory_rows(client, slug):
+    def inventory_rows(client, slug, fallback_client=None):
         calls.append(slug)
         return {
             "export_id": "export-1",
@@ -181,7 +183,7 @@ def test_one_export_persists_raw_rows_and_models_only_classic_pats(
 
     fallback_calls = []
 
-    def retry_inventory(client, slug, export_id=None):
+    def retry_inventory(client, slug, export_id=None, fallback_client=None):
         fallback_calls.append((slug, export_id))
         if export_id is None:
             Response(429).raise_for_status()
@@ -210,6 +212,108 @@ def test_classic_pat_inventory_rate_limit_skips_without_starting_another_export(
     )
     assert client.post.call_count == 1
     assert "daily export limit reached" in caplog.text
+
+
+def test_classic_pat_inventory_uses_pat_only_when_app_export_creation_is_denied(
+    monkeypatch, caplog
+):
+    app_client = MagicMock()
+    app_client.post.return_value = Response(403)
+    pat_client = MagicMock()
+    pat_client.post.return_value = Response(
+        202, payload={"export_id": "export-1", "as_of": "2026-10-07T21:00:00Z"}
+    )
+    pat_client.get.return_value = Response(
+        302, headers={"Location": "https://example.test/export.csv"}
+    )
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        lambda *_, **__: Response(
+            200, content=b"credential_type,credential_id\nclassic_pat,42\n"
+        ),
+    )
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    inventory = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert len(inventory) == 1
+    assert inventory[0]["rows"][0]["credential_type"] == "classic_pat"
+    app_client.post.assert_called_once()
+    app_client.get.assert_not_called()
+    pat_client.post.assert_called_once()
+    pat_client.get.assert_called_once()
+    assert "retrying with configured classic PAT" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "response",
+    [Response(429), Response(403, payload={"message": "secondary rate limit"})],
+)
+def test_classic_pat_inventory_does_not_switch_credentials_on_rate_limit(response):
+    app_client = MagicMock()
+    app_client.post.return_value = response
+    pat_client = MagicMock()
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    pat_client.post.assert_not_called()
+
+
+def test_classic_pat_inventory_does_not_start_second_export_after_poll_failure():
+    app_client = MagicMock()
+    app_client.post.return_value = Response(202, payload={"export_id": "export-1"})
+    app_client.get.return_value = Response(403)
+    pat_client = MagicMock()
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    app_client.post.assert_called_once()
+    pat_client.post.assert_not_called()
+
+
+def test_classic_pat_inventory_does_not_retry_same_token_client():
+    token_client = MagicMock()
+    token_client.post.return_value = Response(403)
+    ctx = SourceContext(
+        client=token_client,
+        sso_client=token_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    token_client.post.assert_called_once()
 
 
 def test_classic_pat_inventory_reuses_recent_export_on_rate_limit(monkeypatch, caplog):

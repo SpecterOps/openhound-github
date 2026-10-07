@@ -85,6 +85,12 @@ enterprise GitHub App needs **Enterprise credentials: read** permission. When
 collecting with a classic PAT instead of an app installation, that token needs
 the `read:enterprise` scope.
 
+For an enterprise app configured with `credentials.pat_token`, the app
+installation remains the primary export credential. If GitHub rejects the
+app's export creation with an authorization error, the collector retries that
+creation once with the classic PAT. It does not switch credentials after an
+export has started or when GitHub reports an export or API rate limit.
+
 The CSV download is streamed, but the parsed export is held in memory as one
 raw record; very large enterprises may need a chunked raw-resource design.
 

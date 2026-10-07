@@ -142,15 +142,55 @@ def _log_enterprise_scim_failure(
 
 
 def _download_enterprise_credential_inventory(
-    client: RESTClient, enterprise_slug: str, export_id: str | None = None
+    client: RESTClient,
+    enterprise_slug: str,
+    export_id: str | None = None,
+    fallback_client: RESTClient | None = None,
 ):
     """Export all credentials and return parsed CSV values."""
     path = f"/enterprises/{enterprise_slug}/credentials/exports"
     headers = {"X-GitHub-Api-Version": _CREDENTIAL_EXPORT_API_VERSION}
     export_metadata = {}
     if export_id is None:
-        created = client.post(path, headers=headers)
-        created.raise_for_status()
+        try:
+            created = client.post(path, headers=headers)
+            created.raise_for_status()
+        except requests.HTTPError as exc:
+            response = exc.response
+            status_code = response.status_code if response is not None else None
+            retry_after = (
+                response.headers.get("Retry-After") if response is not None else None
+            )
+            remaining = (
+                response.headers.get("X-RateLimit-Remaining")
+                if response is not None
+                else None
+            )
+            try:
+                message = (
+                    str(response.json().get("message", "")).lower()
+                    if response is not None
+                    else ""
+                )
+            except ValueError:
+                message = ""
+            if (
+                fallback_client is None
+                or status_code not in {401, 403}
+                or retry_after
+                or remaining == "0"
+                or "rate limit" in message
+                or "abuse" in message
+            ):
+                raise
+            logger.warning(
+                "Enterprise app could not create credential export for '%s' (HTTP %s); retrying with configured classic PAT",
+                enterprise_slug,
+                status_code,
+            )
+            client = fallback_client
+            created = client.post(path, headers=headers)
+            created.raise_for_status()
         if created.status_code != 202:
             raise ValueError(
                 f"Unexpected credential export create status: {created.status_code}"
@@ -230,7 +270,11 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
 
     try:
         inventory = _download_enterprise_credential_inventory(
-            ctx.client, ctx.enterprise_name
+            ctx.client,
+            ctx.enterprise_name,
+            fallback_client=(
+                ctx.sso_client if ctx.sso_client is not ctx.client else None
+            ),
         )
         state["last_export_id"] = inventory["export_id"]
         state["last_export_enterprise"] = ctx.enterprise_name
