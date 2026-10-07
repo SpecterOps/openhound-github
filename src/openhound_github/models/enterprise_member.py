@@ -19,6 +19,7 @@ class BaseUser(BaseModel):
 
     typename: str = Field(alias="__typename")
     id: str
+    database_id: int | None = Field(alias="databaseId", default=None)
     login: str
     name: str | None = None
     url: str | None = None

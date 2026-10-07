@@ -4,6 +4,7 @@ from .branch import Branch
 from .branch_pr_bypass_allowance import BranchPrBypassAllowance
 from .branch_protection_rule import BranchProtectionRule, BranchProtectionRuleActor
 from .branch_push_allowance import BranchPushAllowance
+from .classic_personal_access_token import ClassicPersonalAccessToken
 from .enterprise import Enterprise
 from .enterprise_admin import EnterpriseAdmin
 from .enterprise_helpers import enterprise_role_node_id, enterprise_team_node_id
@@ -113,6 +114,7 @@ __all__ = [
     "App",
     "AppInstallationRepoAccess",
     "PersonalAccessToken",
+    "ClassicPersonalAccessToken",
     "PatRepoAccess",
     "ProjectedEnterpriseTeam",
     "SelectedOrgSecret",

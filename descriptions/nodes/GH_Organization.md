@@ -90,40 +90,42 @@ Represents a GitHub organization. This is the root node of the graph and serves 
 
 ```mermaid
 graph LR
-    n0["GH_Enterprise"]
+    n0["GH_ClassicPersonalAccessToken"]
     n1["GH_Organization"]
-    n2["GH_EnterpriseTeam"]
-    n3["GH_OrgRole"]
-    n4["GH_AppInstallation"]
-    n5["GH_OrgRunnerGroup"]
-    n6["GH_OrgSecret"]
-    n7["GH_OrgVariable"]
-    n8["GH_PersonalAccessToken"]
-    n9["GH_PersonalAccessTokenRequest"]
-    n10["GH_Repository"]
-    n11["GH_SamlIdentityProvider"]
-    n12["GH_SecretScanningAlert"]
-    n0 -.->|GH_Contains| n1
-    n2 -.->|GH_AssignedTo| n1
-    n3 -.->|GH_AddCollaborator| n1
-    n3 -.->|GH_CanCreateInternalRepositories| n1
-    n3 -.->|GH_CanCreatePrivateRepositories| n1
-    n3 -.->|GH_CanCreatePublicRepositories| n1
-    n3 -.->|GH_CanCreateRepositories| n1
-    n3 -.->|GH_CreateTeam| n1
-    n3 -.->|GH_InviteMember| n1
-    n3 -.->|GH_ResolveSecretScanningAlerts| n1
-    n3 -.->|GH_TransferRepository| n1
-    n3 -.->|GH_ViewSecretScanningAlerts| n1
-    n1 -.->|GH_Contains| n4
-    n1 -.->|GH_Contains| n3
+    n2["GH_Enterprise"]
+    n3["GH_EnterpriseTeam"]
+    n4["GH_OrgRole"]
+    n5["GH_AppInstallation"]
+    n6["GH_OrgRunnerGroup"]
+    n7["GH_OrgSecret"]
+    n8["GH_OrgVariable"]
+    n9["GH_PersonalAccessToken"]
+    n10["GH_PersonalAccessTokenRequest"]
+    n11["GH_Repository"]
+    n12["GH_SamlIdentityProvider"]
+    n13["GH_SecretScanningAlert"]
+    n0 -.->|GH_AuthorizedForOrganization| n1
+    n2 -.->|GH_Contains| n1
+    n3 -.->|GH_AssignedTo| n1
+    n4 -.->|GH_AddCollaborator| n1
+    n4 -.->|GH_CanCreateInternalRepositories| n1
+    n4 -.->|GH_CanCreatePrivateRepositories| n1
+    n4 -.->|GH_CanCreatePublicRepositories| n1
+    n4 -.->|GH_CanCreateRepositories| n1
+    n4 -.->|GH_CreateTeam| n1
+    n4 -.->|GH_InviteMember| n1
+    n4 -.->|GH_ResolveSecretScanningAlerts| n1
+    n4 -.->|GH_TransferRepository| n1
+    n4 -.->|GH_ViewSecretScanningAlerts| n1
     n1 -.->|GH_Contains| n5
+    n1 -.->|GH_Contains| n4
     n1 -.->|GH_Contains| n6
     n1 -.->|GH_Contains| n7
     n1 -.->|GH_Contains| n8
     n1 -.->|GH_Contains| n9
-    n1 -->|GH_Owns| n10
-    n1 -.->|GH_HasSamlIdentityProvider| n11
-    n1 -.->|GH_Contains| n12
-    n8 -.->|GH_CanAccess| n1
+    n1 -.->|GH_Contains| n10
+    n1 -->|GH_Owns| n11
+    n1 -.->|GH_HasSamlIdentityProvider| n12
+    n1 -.->|GH_Contains| n13
+    n9 -.->|GH_CanAccess| n1
 ```
