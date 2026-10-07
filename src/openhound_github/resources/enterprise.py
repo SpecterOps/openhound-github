@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import tempfile
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -143,7 +144,7 @@ def _log_enterprise_scim_failure(
 def _download_enterprise_credential_inventory(
     client: RESTClient, enterprise_slug: str, export_id: str | None = None
 ):
-    """Export all credentials and return the CSV values without a local file."""
+    """Export all credentials and return parsed CSV values."""
     path = f"/enterprises/{enterprise_slug}/credentials/exports"
     headers = {"X-GitHub-Api-Version": _CREDENTIAL_EXPORT_API_VERSION}
     export_metadata = {}
@@ -180,13 +181,16 @@ def _download_enterprise_credential_inventory(
             download = requests.get(download_url, timeout=120, stream=True)
             try:
                 download.raise_for_status()
-                download.raw.decode_content = True
-                with io.TextIOWrapper(
-                    download.raw, encoding="utf-8-sig", newline=""
-                ) as csv_stream:
-                    reader = csv.DictReader(csv_stream)
-                    rows = list(reader)
-                    columns = reader.fieldnames or []
+                with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as buffer:
+                    for chunk in download.iter_content(chunk_size=64 * 1024):
+                        buffer.write(chunk)
+                    buffer.seek(0)
+                    with io.TextIOWrapper(
+                        buffer, encoding="utf-8-sig", newline=""
+                    ) as csv_stream:
+                        reader = csv.DictReader(csv_stream)
+                        rows = list(reader)
+                        columns = reader.fieldnames or []
             finally:
                 download.close()
             return {
@@ -202,7 +206,7 @@ def _download_enterprise_credential_inventory(
         polled_metadata = response.json()
         export_metadata.update(polled_metadata)
         status = polled_metadata.get("status")
-        if status not in {"queued", "in_progress", "processing", "pending"}:
+        if status not in {"queued", "started", "in_progress", "processing", "pending"}:
             raise ValueError(f"Credential export did not complete: {status!r}")
         if time.monotonic() >= deadline:
             raise TimeoutError("Credential export did not complete within five minutes")

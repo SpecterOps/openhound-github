@@ -45,6 +45,10 @@ class Response:
     def close(self):
         self.raw.close()
 
+    def iter_content(self, chunk_size):
+        for offset in range(0, len(self.content), chunk_size):
+            yield self.content[offset : offset + chunk_size]
+
 
 def test_classic_pat_export_polls_one_job_and_deduplicates_org_rows(monkeypatch):
     client = MagicMock()
@@ -52,7 +56,7 @@ def test_classic_pat_export_polls_one_job_and_deduplicates_org_rows(monkeypatch)
         202, payload={"export_id": "export-1", "as_of": "2026-10-05T20:00:00Z"}
     )
     client.get.side_effect = [
-        Response(200, payload={"status": "queued"}),
+        Response(200, payload={"status": "started"}),
         Response(302, headers={"Location": "https://example.test/signed.csv"}),
     ]
     csv_content = (
