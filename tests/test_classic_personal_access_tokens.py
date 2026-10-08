@@ -240,8 +240,6 @@ def test_one_export_persists_raw_rows_and_models_only_classic_pats(
 
     def retry_inventory(client, slug, export_id=None, fallback_client=None):
         fallback_calls.append((slug, export_id))
-        if export_id is None:
-            Response(429).raise_for_status()
         return inventory_rows(client, slug)
 
     monkeypatch.setattr(
@@ -249,7 +247,7 @@ def test_one_export_persists_raw_rows_and_models_only_classic_pats(
         retry_inventory,
     )
     pipeline.run(source())
-    assert fallback_calls == [("enterprise", None), ("enterprise", "export-1")]
+    assert fallback_calls == [("enterprise", "export-1")]
 
 
 def test_classic_pat_inventory_rate_limit_skips_without_starting_another_export(caplog):
@@ -266,7 +264,30 @@ def test_classic_pat_inventory_rate_limit_skips_without_starting_another_export(
         == []
     )
     assert client.post.call_count == 1
-    assert "daily export limit reached" in caplog.text
+    assert "export creation rejected (HTTP 429)" in caplog.text
+
+
+@pytest.mark.parametrize("status_code", [403, 429])
+def test_classic_pat_inventory_secondary_limit_is_not_reported_as_daily_export_limit(
+    monkeypatch, caplog, status_code
+):
+    client = MagicMock()
+    client.post.return_value = Response(
+        status_code, payload={"message": "You have exceeded a secondary rate limit."}
+    )
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    client.get.assert_not_called()
+    assert "secondary rate limit reached" in caplog.text
+    assert "export creation rejected" not in caplog.text
 
 
 def test_classic_pat_inventory_uses_pat_only_when_app_export_creation_is_denied(
@@ -371,7 +392,7 @@ def test_classic_pat_inventory_does_not_retry_same_token_client():
     token_client.post.assert_called_once()
 
 
-def test_classic_pat_inventory_reuses_recent_export_on_rate_limit(monkeypatch, caplog):
+def test_classic_pat_inventory_reuses_recent_export_before_creating(monkeypatch):
     state = {
         "last_export_id": "prior-1",
         "last_export_enterprise": "enterprise",
@@ -408,9 +429,40 @@ def test_classic_pat_inventory_reuses_recent_export_on_rate_limit(monkeypatch, c
     assert len(inventories) == 1
     assert inventories[0]["export_id"] == "prior-1"
     assert inventories[0]["as_of"] == "2026-10-05T20:00:00Z"
-    assert "using prior export" in caplog.text
+    client.post.assert_not_called()
     client.get.assert_called_once()
     pat_client.get.assert_not_called()
+
+
+def test_classic_pat_inventory_creates_export_when_recent_one_is_gone(monkeypatch):
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: {
+            "last_export_id": "prior-1",
+            "last_export_enterprise": "enterprise",
+            "last_export_downloaded_at": 1000,
+        },
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    client.get.side_effect = [
+        Response(404),
+        Response(302, headers={"Location": "https://example.test/new.csv"}),
+    ]
+    client.post.return_value = Response(202, payload={"export_id": "new-1"})
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        lambda *_, **__: Response(200, content=b"credential_type,credential_id\n"),
+    )
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    inventories = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert inventories[0]["export_id"] == "new-1"
+    client.post.assert_called_once()
 
 
 def test_classic_pat_inventory_reuses_pat_created_export_with_pat(monkeypatch):
@@ -460,8 +512,8 @@ def test_classic_pat_inventory_reuses_pat_created_export_with_pat(monkeypatch):
     assert second[0]["as_of"] == "2026-10-07T21:00:00Z"
     app_client.get.assert_not_called()
     assert pat_client.get.call_count == 2
-    assert app_client.post.call_count == 2
-    assert pat_client.post.call_count == 2
+    app_client.post.assert_called_once()
+    pat_client.post.assert_called_once()
 
 
 def test_classic_pat_inventory_does_not_reuse_stale_export(monkeypatch):

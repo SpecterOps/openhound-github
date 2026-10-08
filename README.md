@@ -92,13 +92,16 @@ credential. The collector retries once with the PAT only when GitHub rejects
 the app's export creation for authorization. It does not switch credentials
 after an export starts or when GitHub reports a rate limit.
 
+Rate-limit retry warnings identify the affected method and API path.
+
 The CSV download is streamed, but the parsed export is held in memory as one
 raw record; very large enterprises may need a chunked raw-resource design.
 
-GitHub limits the number of exports an enterprise can start per day. Each
-collection starts one export and polls until the CSV is ready. If the daily
-limit is reached, the collector attempts to reuse its last successful export
-when it was downloaded within the past 24 hours and GitHub still serves it.
+GitHub limits the number of exports an enterprise can start per day. When the
+last successful export was downloaded within the past 24 hours, the collector
+downloads it again before trying to start a new export. If GitHub reports that
+the saved export is gone, the collector starts a new one and polls until its
+CSV is ready. GitHub may still reject a new export when its limit is reached.
 The raw record's `as_of` value and each PAT node's `inventory_as_of` value
 show when that snapshot was taken. An unavailable or denied export is logged
 and does not stop other resources from collecting.

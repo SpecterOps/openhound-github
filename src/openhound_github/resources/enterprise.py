@@ -27,6 +27,10 @@ from openhound_github.helpers import (
     graphql_client_and_path,
     scim_skip_reason,
 )
+from openhound_github.github_retry import (
+    is_primary_rate_limit_response,
+    is_secondary_rate_limit_response,
+)
 from openhound_github.main import app
 from openhound_github.models import (
     BaseUser,
@@ -271,6 +275,72 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
     except (PipelineStateNotAvailable, SourceSectionNotAvailable):
         state = {}
 
+    downloaded_at = state.get("last_export_downloaded_at")
+    previous_id = (
+        state.get("last_export_id")
+        if state.get("last_export_enterprise") == ctx.enterprise_name
+        and isinstance(downloaded_at, (int, float))
+        and 0 <= time.time() - downloaded_at <= _CREDENTIAL_EXPORT_REUSE_SECONDS
+        else None
+    )
+    if previous_id:
+        previous_used_fallback = state.get("last_export_created_with_fallback", False)
+        previous_client = ctx.sso_client if previous_used_fallback else ctx.client
+        if previous_client:
+            try:
+                inventory = _download_enterprise_credential_inventory(
+                    previous_client, ctx.enterprise_name, previous_id
+                )
+                inventory["created_with_fallback"] = previous_used_fallback
+                inventory["as_of"] = inventory["as_of"] or state.get(
+                    "last_export_as_of"
+                )
+                logger.info(
+                    "Using prior credential export %s for enterprise '%s' (as of %s)",
+                    previous_id,
+                    ctx.enterprise_name,
+                    inventory["as_of"],
+                )
+                yield {
+                    **inventory,
+                    "enterprise_node_id": enterprise_data.id,
+                    "enterprise_name": ctx.enterprise_name,
+                }
+                return
+            except requests.HTTPError as exc:
+                if exc.response is None or exc.response.status_code != 404:
+                    logger.warning(
+                        "Skipping credential inventory for enterprise '%s': prior export %s unavailable (%s)",
+                        ctx.enterprise_name,
+                        previous_id,
+                        exc,
+                    )
+                    return
+                logger.info(
+                    "Prior credential export %s is no longer available for enterprise '%s'; creating a new export",
+                    previous_id,
+                    ctx.enterprise_name,
+                )
+            except (
+                requests.RequestException,
+                ValueError,
+                TimeoutError,
+                UnicodeError,
+                csv.Error,
+            ) as exc:
+                logger.warning(
+                    "Skipping credential inventory for enterprise '%s': prior export %s unavailable (%s)",
+                    ctx.enterprise_name,
+                    previous_id,
+                    exc,
+                )
+                return
+    else:
+        logger.info(
+            "No recent credential export recorded for enterprise '%s'; creating a new export",
+            ctx.enterprise_name,
+        )
+
     try:
         inventory = _download_enterprise_credential_inventory(
             ctx.client,
@@ -292,56 +362,21 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
             "enterprise_name": ctx.enterprise_name,
         }
     except requests.HTTPError as exc:
-        status_code = exc.response.status_code if exc.response is not None else None
-        if status_code == 429:
-            downloaded_at = state.get("last_export_downloaded_at")
-            previous_id = (
-                state.get("last_export_id")
-                if state.get("last_export_enterprise") == ctx.enterprise_name
-                and isinstance(downloaded_at, (int, float))
-                and 0 <= time.time() - downloaded_at <= _CREDENTIAL_EXPORT_REUSE_SECONDS
-                else None
-            )
-            previous_used_fallback = state.get(
-                "last_export_created_with_fallback", False
-            )
-            previous_client = ctx.sso_client if previous_used_fallback else ctx.client
-            if previous_id and previous_client:
-                try:
-                    inventory = _download_enterprise_credential_inventory(
-                        previous_client, ctx.enterprise_name, previous_id
-                    )
-                    inventory["created_with_fallback"] = previous_used_fallback
-                    inventory["as_of"] = inventory["as_of"] or state.get(
-                        "last_export_as_of"
-                    )
-                    logger.warning(
-                        "Credential export limit reached for enterprise '%s'; using prior export %s (as of %s)",
-                        ctx.enterprise_name,
-                        previous_id,
-                        inventory["as_of"],
-                    )
-                    yield {
-                        **inventory,
-                        "enterprise_node_id": enterprise_data.id,
-                        "enterprise_name": ctx.enterprise_name,
-                    }
-                    return
-                except (
-                    requests.RequestException,
-                    ValueError,
-                    TimeoutError,
-                    UnicodeError,
-                    csv.Error,
-                ) as fallback_exc:
-                    logger.warning(
-                        "Prior credential export %s unavailable for enterprise '%s': %s",
-                        previous_id,
-                        ctx.enterprise_name,
-                        fallback_exc,
-                    )
+        response = exc.response
+        status_code = response.status_code if response is not None else None
+        if response is not None and is_secondary_rate_limit_response(response):
             logger.warning(
-                "Skipping credential inventory for enterprise '%s': daily export limit reached",
+                "Skipping credential inventory for enterprise '%s': secondary rate limit reached",
+                ctx.enterprise_name,
+            )
+        elif response is not None and is_primary_rate_limit_response(response):
+            logger.warning(
+                "Skipping credential inventory for enterprise '%s': primary rate limit reached",
+                ctx.enterprise_name,
+            )
+        elif status_code == 429:
+            logger.warning(
+                "Skipping credential inventory for enterprise '%s': export creation rejected (HTTP 429)",
                 ctx.enterprise_name,
             )
         else:
