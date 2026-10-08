@@ -596,6 +596,15 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def repository_node_id_for_database_id(
+        self, database_id: int, org_login: str
+    ) -> str | None:
+        return self._find_single_object(
+            f"SELECT node_id FROM {self.schema}.repositories WHERE database_id = ? AND lower(org_login) = lower(?) LIMIT 1",
+            [database_id, org_login],
+        )
+
+    @lru_cache
     def private_repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories WHERE visibility = 'private' or visibility = 'internal'""",

@@ -6,7 +6,7 @@ Represents a GitHub App installed on an organization. App installations have spe
 
 Unlike fine-grained personal access tokens, GitHub does not expose separate organization and repository permission buckets for app installations, so this property remains a single flat permission list.
 
-Each installation is linked to its parent GH_App via a GH_InstalledAs edge. For installations with `repository_selection` set to `all`, GH_CanAccess edges are created to every repository in the organization. For installations with `repository_selection` set to `selected`, repository-level edges cannot be enumerated with a PAT (requires app installation token authentication).
+Each installation is linked to its parent GH_App via a GH_InstalledAs edge. For installations with `repository_selection` set to `all`, GH_CanAccess edges are created to every collected repository in the organization. For installations with `repository_selection` set to `selected`, the collector uses the enterprise organization-installation repositories API to enumerate the granted repositories when the enterprise installation has `Enterprise organization installations: read` or `Enterprise organization installation repositories: read`. If that permission is unavailable, selected repository edges are skipped.
 
 ## Properties
 

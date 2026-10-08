@@ -23,6 +23,10 @@ from openhound_github.graphql import (
     TEAM_MEMBERS_OVERFLOW_QUERY,
     TEAMS_QUERY,
 )
+from openhound_github.github_retry import (
+    is_primary_rate_limit_response,
+    is_secondary_rate_limit_response,
+)
 from openhound_github.helpers import (
     AdaptiveGraphQLPageError,
     DEFAULT_GITHUB_REST_API_URL,
@@ -36,6 +40,7 @@ from openhound_github.models import (
     ActionPermission,
     App,
     AppInstallation,
+    AppInstallationRepoAccess,
     BaseRepoRole,
     Branch,
     BranchProtectionRule,
@@ -117,6 +122,7 @@ class SourceContext:
     deployment_type: str = "unknown"
     ghes_version: str | None = None
     enterprise_version_header: str | None = None
+    selected_installation_repo_access_stopped: bool = False
     cache_lock: Lock = field(default_factory=Lock)
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -653,6 +659,82 @@ def app_installations(ctx: SourceContext):
                 extra={"resource": "app_installations", "phase": "resource_iteration"},
             )
             continue
+
+
+@app.transformer(
+    name="app_installation_repo_access",
+    columns=AppInstallationRepoAccess,
+    parallelized=False,
+)
+def app_installation_repo_access(app_install: AppInstallation, ctx: SourceContext):
+    """List the repositories granted to a selected organization installation."""
+    if (
+        app_install.repository_selection != "selected"
+        or not ctx.client
+        or not ctx.enterprise_name
+        or ctx.deployment_type == "ghes"
+        or ctx.selected_installation_repo_access_stopped
+    ):
+        return
+
+    path = (
+        f"/enterprises/{ctx.enterprise_name}/apps/organizations/"
+        f"{app_install.org_login}/installations/{app_install.id}/repositories"
+    )
+    try:
+        # Read every page before yielding so a failed page cannot create partial access.
+        repositories = [
+            repository
+            for page in ctx.client.paginate(
+                path,
+                params={"per_page": 100},
+                headers={"X-GitHub-Api-Version": "2026-03-10"},
+            )
+            for repository in page
+        ]
+    except requests.HTTPError as exc:
+        response = exc.response
+        if response is not None and (
+            response.status_code == 429
+            or is_primary_rate_limit_response(response)
+            or is_secondary_rate_limit_response(response)
+            or (response.status_code == 403 and response.headers.get("Retry-After"))
+        ):
+            ctx.selected_installation_repo_access_stopped = True
+            logger.warning(
+                "GitHub rate-limited selected app installation repository access; "
+                "skipping remaining installations in this collection"
+            )
+            return
+        logger.warning(
+            "Skipping repository access for app installation %s in organization '%s': %s",
+            app_install.id,
+            app_install.org_login,
+            exc,
+        )
+        return
+    except Exception as exc:
+        logger.warning(
+            "Skipping repository access for app installation %s in organization '%s': %s",
+            app_install.id,
+            app_install.org_login,
+            exc,
+        )
+        return
+
+    for repository in repositories:
+        if repository.get("id") is None:
+            logger.warning(
+                "Skipping repository without an id for app installation %s",
+                app_install.id,
+            )
+            continue
+        yield {
+            "installation_node_id": app_install.node_id,
+            "repository_database_id": repository["id"],
+            "repo_full_name": repository.get("full_name"),
+            "org_login": app_install.org_login,
+        }
 
 
 @app.transformer(name="applications", columns=App, parallelized=True)
@@ -2397,6 +2479,7 @@ def organization_resources(ctx: SourceContext):
         org_resource | roles_resource | org_role_teams(ctx),
         org_resource | roles_resource | org_role_members(ctx),
         app_installs_resource,
+        app_installs_resource | app_installation_repo_access(ctx),
         app_installs_resource | applications(ctx),
         users(ctx),
         actions_permissions(ctx),
