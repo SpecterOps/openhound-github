@@ -73,6 +73,22 @@ The collector runs successfully with the documented read-only permission set. So
 
 If these optional permissions are not granted, OpenHound skips the affected resources and continues collecting the rest of the GitHub environment.
 
+### Selected GitHub App installation repositories
+
+For organization installations limited to selected repositories, the collector
+uses the enterprise installation's read-only organization-installation
+repositories API to create exact `GH_CanAccess` edges. Grant the enterprise
+installation **Enterprise organization installations: read** or **Enterprise
+organization installation repositories: read**. Without either permission,
+selected-repository edges are skipped; installations set to `all` continue to
+use the collected organization repository inventory.
+
+Installation discovery still uses each organization's API and requires
+**Organization administration: read** on that organization's credential. The
+enterprise permission alone does not discover installations.
+The selected-repository lookup runs one installation at a time and stops for
+the rest of a collection if GitHub rate-limits it after retries.
+
 ### Classic personal access token inventory
 
 With GitHub Enterprise Cloud credentials, the collector uses the enterprise

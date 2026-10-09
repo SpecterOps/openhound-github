@@ -320,7 +320,9 @@ class AppInstallationRepoAccess(BaseAsset):
     """One record from `app_installation_repo_access` → GH_CanAccess edge. No node."""
 
     installation_node_id: str
-    repo_node_id: str
+    repository_database_id: int
+    repo_full_name: str | None = None
+    org_login: str
 
     @property
     def as_node(self):
@@ -328,11 +330,17 @@ class AppInstallationRepoAccess(BaseAsset):
 
     @property
     def edges(self) -> list[Edge]:
+        """Link the installation to a collected repository when it resolves."""
+        repo_node_id = self._lookup.repository_node_id_for_database_id(
+            self.repository_database_id, self.org_login
+        )
+        if not repo_node_id:
+            return []
         return [
             Edge(
                 kind=ek.CAN_ACCESS,
                 start=EdgePath(value=self.installation_node_id, match_by="id"),
-                end=EdgePath(value=self.repo_node_id, match_by="id"),
+                end=EdgePath(value=repo_node_id, match_by="id"),
                 properties=EdgeProperties(traversable=False),
             )
         ]

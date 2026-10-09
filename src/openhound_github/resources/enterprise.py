@@ -73,6 +73,14 @@ _CREDENTIAL_EXPORT_TIMEOUT_SECONDS = 300
 _CREDENTIAL_EXPORT_REUSE_SECONDS = 24 * 60 * 60
 
 
+class _CredentialExportFailed(ValueError):
+    """The export job reported a terminal failed status."""
+
+
+class _CredentialExportNotFound(requests.HTTPError):
+    """The export-status endpoint no longer recognizes a saved export ID."""
+
+
 @dataclass
 class SourceContext:
     """Shared context for GitHub API access."""
@@ -215,8 +223,13 @@ def _download_enterprise_credential_inventory(
     deadline = time.monotonic() + _CREDENTIAL_EXPORT_TIMEOUT_SECONDS
     export_path = f"{path}/{export_id}"
     while True:
-        response = client.get(export_path, headers=headers, allow_redirects=False)
-        response.raise_for_status()
+        try:
+            response = client.get(export_path, headers=headers, allow_redirects=False)
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                raise _CredentialExportNotFound(response=exc.response) from exc
+            raise
         if response.status_code == 302:
             download_url = response.headers.get("Location")
             parsed_url = urlparse(download_url or "")
@@ -259,6 +272,10 @@ def _download_enterprise_credential_inventory(
         polled_metadata = response.json()
         export_metadata.update(polled_metadata)
         status = polled_metadata.get("status")
+        if status == "failed":
+            raise _CredentialExportFailed(
+                "Credential export did not complete: 'failed'"
+            )
         if status not in {"queued", "started", "in_progress", "processing", "pending"}:
             raise ValueError(f"Credential export did not complete: {status!r}")
         if time.monotonic() >= deadline:
@@ -316,7 +333,7 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
                 }
                 return
             except requests.HTTPError as exc:
-                if exc.response is None or exc.response.status_code != 404:
+                if not isinstance(exc, _CredentialExportNotFound):
                     logger.warning(
                         "Skipping credential inventory for enterprise '%s': prior export %s unavailable (HTTP %s)",
                         ctx.enterprise_name,
@@ -326,11 +343,20 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
                         else "unknown",
                     )
                     return
+                state.pop("last_export_id", None)
                 logger.info(
                     "Prior credential export %s is no longer available for enterprise '%s'; creating a new export",
                     previous_id,
                     ctx.enterprise_name,
                 )
+            except _CredentialExportFailed:
+                state.pop("last_export_id", None)
+                logger.warning(
+                    "Skipping credential inventory for enterprise '%s': prior export %s failed",
+                    ctx.enterprise_name,
+                    previous_id,
+                )
+                return
             except (
                 requests.RequestException,
                 ValueError,

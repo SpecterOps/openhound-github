@@ -170,6 +170,7 @@ class SourceContext:
     deployment_type: str = "unknown"
     ghes_version: str | None = None
     enterprise_version_header: str | None = None
+    selected_installation_repo_access_stopped: bool = False
     cache_lock: Lock = field(default_factory=Lock)
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
