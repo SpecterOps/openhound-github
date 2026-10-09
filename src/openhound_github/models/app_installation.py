@@ -330,6 +330,7 @@ class AppInstallationRepoAccess(BaseAsset):
 
     @property
     def edges(self) -> list[Edge]:
+        """Link the installation to a collected repository when it resolves."""
         repo_node_id = self._lookup.repository_node_id_for_database_id(
             self.repository_database_id, self.org_login
         )

@@ -2450,6 +2450,7 @@ def org_scim_organizations(org: Organization, ctx: SourceContext):
 
 
 def organization_resources(ctx: SourceContext):
+    """Assemble organization resources, including selected installation access."""
     org_resource = organizations(ctx)
     roles_resource = org_roles(ctx)
     repo_roles_base = RepositoryRoleCache(ctx)

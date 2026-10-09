@@ -601,6 +601,7 @@ class GithubLookup(LookupManager):
     def repository_node_id_for_database_id(
         self, database_id: int, org_login: str
     ) -> str | None:
+        """Resolve a repository node by database ID within its organization."""
         return self._find_single_object(
             f"SELECT node_id FROM {self.schema}.repositories WHERE database_id = ? AND lower(org_login) = lower(?) LIMIT 1",
             [database_id, org_login],

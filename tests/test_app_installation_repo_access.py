@@ -13,6 +13,7 @@ from openhound_github.resources.organization import (
 
 
 def _installation(selection="selected"):
+    """Build a minimal installation for repository access tests."""
     return SimpleNamespace(
         id=42,
         node_id="GH_AppInstallation_42",
@@ -22,6 +23,7 @@ def _installation(selection="selected"):
 
 
 def test_selected_installation_lists_all_pages_with_enterprise_client():
+    """Collect every page of repositories granted to a selected installation."""
     client = MagicMock()
     client.paginate.return_value = [
         [{"id": 101, "name": "one", "full_name": "example-org/one"}],
@@ -56,6 +58,7 @@ def test_selected_installation_lists_all_pages_with_enterprise_client():
 
 
 def test_all_repositories_do_not_need_extra_request():
+    """Skip the repository lookup when an installation already selects all."""
     client = MagicMock()
     ctx = SourceContext(
         client=client, enterprise_name="enterprise", deployment_type="ghec"
@@ -66,9 +69,11 @@ def test_all_repositories_do_not_need_extra_request():
 
 
 def test_failed_later_page_does_not_emit_partial_access(caplog):
+    """Discard earlier pages if a later page fails."""
     client = MagicMock()
 
     def pages(*args, **kwargs):
+        """Yield one page before simulating a pagination failure."""
         yield [{"id": 101, "full_name": "example-org/one"}]
         raise PermissionError("403 Forbidden")
 
@@ -82,6 +87,7 @@ def test_failed_later_page_does_not_emit_partial_access(caplog):
 
 
 def test_rate_limit_stops_remaining_selected_installation_requests(caplog):
+    """Stop further selected-installation lookups after a rate limit."""
     response = Response()
     response.status_code = 429
     error = HTTPError("429 Too Many Requests", response=response)
@@ -100,6 +106,7 @@ def test_rate_limit_stops_remaining_selected_installation_requests(caplog):
 
 
 def test_selected_repository_id_resolves_to_access_edge():
+    """Resolve repository access within the installation organization."""
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github")
     connection.execute(
