@@ -444,7 +444,10 @@ def test_classic_pat_inventory_resumes_export_after_download_failure(
         app_client.get.assert_not_called()
 
 
-def test_classic_pat_cached_export_error_does_not_log_download_url(monkeypatch, caplog):
+@pytest.mark.parametrize("status_code", [404, 503])
+def test_classic_pat_cached_export_error_does_not_log_download_url(
+    monkeypatch, caplog, status_code
+):
     """Keep signed download URLs out of cached-export error logs."""
     state = {
         "last_export_id": "prior-1",
@@ -460,7 +463,7 @@ def test_classic_pat_cached_export_error_does_not_log_download_url(monkeypatch, 
     signed_url = "https://example.test/export.csv?secret=signed-download-token"
     client.get.return_value = Response(302, headers={"Location": signed_url})
     failed_response = requests.Response()
-    failed_response.status_code = 503
+    failed_response.status_code = status_code
     failed_response.url = signed_url
     failed_response._content = b""
     monkeypatch.setattr(
@@ -477,8 +480,9 @@ def test_classic_pat_cached_export_error_does_not_log_download_url(monkeypatch, 
         )
         == []
     )
-    assert "HTTP 503" in caplog.text
+    assert f"HTTP {status_code}" in caplog.text
     assert "signed-download-token" not in caplog.text
+    assert state["last_export_id"] == "prior-1"
     client.post.assert_not_called()
 
 
@@ -596,13 +600,14 @@ def test_classic_pat_inventory_reuses_recent_export_before_creating(monkeypatch)
 
 
 def test_classic_pat_inventory_creates_export_when_recent_one_is_gone(monkeypatch):
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_downloaded_at": 1000,
+    }
     monkeypatch.setattr(
         "openhound_github.resources.enterprise.dlt.current.resource_state",
-        lambda _: {
-            "last_export_id": "prior-1",
-            "last_export_enterprise": "enterprise",
-            "last_export_downloaded_at": 1000,
-        },
+        lambda _: state,
     )
     monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
     client = MagicMock()
@@ -623,7 +628,66 @@ def test_classic_pat_inventory_creates_export_when_recent_one_is_gone(monkeypatc
         enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
     )
     assert inventories[0]["export_id"] == "new-1"
+    assert state["last_export_id"] == "new-1"
     client.post.assert_called_once()
+
+
+def test_classic_pat_inventory_discards_missing_prior_export(monkeypatch):
+    """Clear a missing export ID even if creating its replacement fails."""
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_created_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    client.get.return_value = Response(404)
+    client.post.return_value = Response(429)
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert "last_export_id" not in state
+    client.post.assert_called_once()
+
+
+@pytest.mark.parametrize("status", ["failed", "unknown"])
+def test_classic_pat_inventory_only_discards_failed_prior_export(monkeypatch, status):
+    """Keep a saved ID for unexpected statuses but discard a failed export."""
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_created_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    client.get.return_value = Response(200, payload={"status": status})
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert state.get("last_export_id") == (None if status == "failed" else "prior-1")
+    client.post.assert_not_called()
 
 
 def test_classic_pat_inventory_reuses_pat_created_export_with_pat(monkeypatch):
@@ -747,7 +811,7 @@ def test_classic_pat_failed_export_produces_no_partial_inventory(caplog):
         )
         == []
     )
-    assert "ValueError" in caplog.text
+    assert "CredentialExportFailed" in caplog.text
     client.post.assert_called_once()
 
 
