@@ -173,8 +173,10 @@ def test_one_export_persists_raw_rows_and_models_only_classic_pats(
 ):
     calls = []
 
-    def inventory_rows(client, slug, fallback_client=None):
+    def inventory_rows(client, slug, fallback_client=None, on_export_created=None):
         calls.append(slug)
+        if on_export_created is not None:
+            on_export_created("export-1", "2026-10-05T20:00:00Z", False)
         return {
             "export_id": "export-1",
             "as_of": "2026-10-05T20:00:00Z",
@@ -238,7 +240,9 @@ def test_one_export_persists_raw_rows_and_models_only_classic_pats(
 
     fallback_calls = []
 
-    def retry_inventory(client, slug, export_id=None, fallback_client=None):
+    def retry_inventory(
+        client, slug, export_id=None, fallback_client=None, on_export_created=None
+    ):
         fallback_calls.append((slug, export_id))
         return inventory_rows(client, slug)
 
@@ -371,6 +375,163 @@ def test_classic_pat_inventory_does_not_start_second_export_after_poll_failure()
     )
     app_client.post.assert_called_once()
     pat_client.post.assert_not_called()
+
+
+@pytest.mark.parametrize("use_fallback", [False, True])
+def test_classic_pat_inventory_resumes_export_after_download_failure(
+    monkeypatch, caplog, use_fallback
+):
+    """Resume a failed download with the credential that created its export."""
+    state = {}
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1000)
+    signed_url = "https://example.test/export.csv?secret=signed-download-token"
+    app_client = MagicMock()
+    pat_client = MagicMock()
+    if use_fallback:
+        app_client.post.return_value = Response(403)
+        creator = pat_client
+    else:
+        creator = app_client
+    creator.post.return_value = Response(
+        202, payload={"export_id": "export-1", "as_of": "2026-10-07T21:00:00Z"}
+    )
+    creator.get.return_value = Response(302, headers={"Location": signed_url})
+    failed_response = requests.Response()
+    failed_response.status_code = 503
+    failed_response.url = signed_url
+    failed_response._content = b""
+    download = MagicMock(side_effect=requests.HTTPError(response=failed_response))
+    monkeypatch.setattr("openhound_github.resources.enterprise.requests.get", download)
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert state["last_export_id"] == "export-1"
+    assert state["last_export_enterprise"] == "enterprise"
+    assert state["last_export_as_of"] == "2026-10-07T21:00:00Z"
+    assert state["last_export_created_at"] == 1000
+    assert state["last_export_created_with_fallback"] is use_fallback
+    assert "last_export_downloaded_at" not in state
+    assert "signed-download-token" not in caplog.text
+
+    download.side_effect = None
+    download.return_value = Response(
+        200, content=b"credential_type,credential_id\nclassic_pat,42\n"
+    )
+    inventories = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert len(inventories) == 1
+    assert inventories[0]["export_id"] == "export-1"
+    assert inventories[0]["as_of"] == "2026-10-07T21:00:00Z"
+    assert inventories[0]["created_with_fallback"] is use_fallback
+    creator.post.assert_called_once()
+    assert creator.get.call_count == 2
+    if use_fallback:
+        app_client.get.assert_not_called()
+
+
+def test_classic_pat_cached_export_error_does_not_log_download_url(monkeypatch, caplog):
+    """Keep signed download URLs out of cached-export error logs."""
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_created_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    signed_url = "https://example.test/export.csv?secret=signed-download-token"
+    client.get.return_value = Response(302, headers={"Location": signed_url})
+    failed_response = requests.Response()
+    failed_response.status_code = 503
+    failed_response.url = signed_url
+    failed_response._content = b""
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        MagicMock(side_effect=requests.HTTPError(response=failed_response)),
+    )
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert "HTTP 503" in caplog.text
+    assert "signed-download-token" not in caplog.text
+    client.post.assert_not_called()
+
+
+def test_classic_pat_accepted_export_survives_pipeline_run_without_inventory(
+    monkeypatch, tmp_path
+):
+    """Persist an accepted export even when its first run emits no inventory."""
+    client = MagicMock()
+    client.post.return_value = Response(202, payload={"export_id": "export-1"})
+    client.get.return_value = Response(
+        302, headers={"Location": "https://example.test/export.csv"}
+    )
+    download = MagicMock(
+        side_effect=[
+            requests.ConnectionError("temporary download failure"),
+            Response(200, content=b"credential_type,credential_id\nclassic_pat,42\n"),
+        ]
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.requests.get", download)
+
+    @dlt.resource(name="probe_enterprise", columns=Enterprise)
+    def parent():
+        """Provide the enterprise for the test pipeline."""
+        yield Enterprise(id="E_1", slug="enterprise")
+
+    @dlt.source
+    def source():
+        """Collect the enterprise and its credential inventory."""
+        enterprise = parent()
+        return [
+            enterprise,
+            enterprise
+            | enterprise_credential_inventory(
+                SourceContext(
+                    client=client,
+                    enterprise_name="enterprise",
+                    deployment_type="ghec",
+                )
+            ),
+        ]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="credential_export_resume_test",
+        destination=filesystem(bucket_url=str(tmp_path / "output")),
+        dataset_name="github_test",
+        pipelines_dir=str(tmp_path / "pipelines"),
+    )
+    pipeline.run(source())
+    pipeline.run(source())
+
+    client.post.assert_called_once()
+    assert client.get.call_count == 2
+    assert download.call_count == 2
 
 
 def test_classic_pat_inventory_does_not_retry_same_token_client():
@@ -586,7 +747,7 @@ def test_classic_pat_failed_export_produces_no_partial_inventory(caplog):
         )
         == []
     )
-    assert "Credential export did not complete" in caplog.text
+    assert "ValueError" in caplog.text
     client.post.assert_called_once()
 
 

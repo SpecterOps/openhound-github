@@ -391,6 +391,7 @@ def _is_graphql_response(response: requests.Response) -> bool:
 
 
 def _response_request_label(response: requests.Response) -> str:
+    """Identify a request by method and path without logging its query string."""
     request = response.request
     if request is None or not request.url:
         return "unknown request"
@@ -398,6 +399,7 @@ def _response_request_label(response: requests.Response) -> str:
 
 
 def _is_credential_export_creation_response(response: requests.Response) -> bool:
+    """Identify a POST that starts an enterprise credential export."""
     request = response.request
     if request is None or request.method != "POST" or not request.url:
         return False

@@ -106,10 +106,12 @@ class ClassicPersonalAccessToken(BaseAsset):
 
     @property
     def node_id(self) -> str:
+        """Return an enterprise-scoped graph ID for this classic PAT."""
         return f"GH_CLASSIC_PAT_{self.enterprise_node_id}_{self.credential_id}"
 
     @property
     def as_node(self) -> GHNode:
+        """Build the graph node with credential inventory metadata."""
         name = self.display_name or f"Classic PAT {self.credential_id}"
         return GHNode(
             kinds=[nk.CLASSIC_PERSONAL_ACCESS_TOKEN],
@@ -138,6 +140,7 @@ class ClassicPersonalAccessToken(BaseAsset):
 
     @property
     def edges(self):
+        """Link the token to its enterprise, owner, and authorized organizations."""
         yield Edge(
             kind=ek.CONTAINS,
             start=EdgePath(value=self.enterprise_node_id, match_by="id"),
