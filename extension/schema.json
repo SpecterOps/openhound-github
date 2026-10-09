@@ -76,6 +76,13 @@
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Enterprise {objectid: '%s'})-[:GH_HasSamlIdentityProvider]->(idp:GH_SamlIdentityProvider)\\nOPTIONAL MATCH p1 = (idp)-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)-[:GH_MapsToUser]->(:GH_User)\\nRETURN p, p1\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the identity provider and mapped users for this enterprise in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
+        },
+        "classic_personal_access_tokens": {
+          "title": "Classic Personal Access Tokens",
+          "position": 10,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Enterprise {objectid: '%s'})-[:GH_Contains]->(:GH_ClassicPersonalAccessToken)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View classic personal access tokens in this enterprise in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
         }
       }
     },
@@ -304,6 +311,13 @@
           "position": 8,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Organization {objectid: '%s'})-[:GH_HasSamlIdentityProvider]->(idp:GH_SamlIdentityProvider)\\nOPTIONAL MATCH p1 = (idp)-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)-[:GH_MapsToUser]->(:GH_User)\\nRETURN p, p1\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the identity provider and mapped users for this organization in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "classic_pat_authorizations": {
+          "title": "Classic PAT Authorizations",
+          "position": 9,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_ClassicPersonalAccessToken)-[:GH_AuthorizedForOrganization]->(selected:GH_Organization {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View classic PATs authorized for this organization in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1805,6 +1819,51 @@
       }
     },
     {
+      "name": "GH_ClassicPersonalAccessToken",
+      "display_name": "GitHub Classic Personal Access Token",
+      "description": "A classic personal access token found in the enterprise credential inventory",
+      "is_display_kind": true,
+      "icon": "key",
+      "color": "#F5A623",
+      "info": {
+        "description": {
+          "title": "Description",
+          "position": 1,
+          "markdown": {
+            "content": "## Overview\n\nRepresents a classic personal access token reported by the enterprise credential inventory. Organization edges record authorizations, while token scopes and owner permissions determine what the credential can do. Repository access is not enumerated by the inventory."
+          }
+        },
+        "inbound_traversable_relationships": {
+          "title": "Inbound Traversable GH Relationships",
+          "position": 2,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_ClassicPersonalAccessToken {objectid: '%s'})\\nWHERE false\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "outbound_traversable_relationships": {
+          "title": "Outbound Traversable GH Relationships",
+          "position": 3,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_ClassicPersonalAccessToken {objectid: '%s'})\\nWHERE false\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "owner": {
+          "title": "Owner",
+          "position": 4,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_User)-[:GH_HasPersonalAccessToken]->(selected:GH_ClassicPersonalAccessToken {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the owner of this personal access token in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "organization_scope": {
+          "title": "Organization Scope",
+          "position": 5,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_ClassicPersonalAccessToken {objectid: '%s'})-[:GH_AuthorizedForOrganization]->(:GH_Organization)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View organizations authorizing this token in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        }
+      }
+    },
+    {
       "name": "GH_PersonalAccessToken",
       "display_name": "GitHub Personal Access Token",
       "description": "A fine-grained personal access token granted access to organization resources",
@@ -2552,7 +2611,7 @@
     },
     {
       "name": "GH_HasPersonalAccessToken",
-      "description": "User owns this personal access token that has been granted access to the organization",
+      "description": "User owns a personal access token reported by GitHub",
       "is_traversable": false
     },
     {
@@ -2564,6 +2623,11 @@
       "name": "GH_InstalledAs",
       "description": "GitHub App is installed as this app installation on an organization",
       "is_traversable": true
+    },
+    {
+      "name": "GH_AuthorizedForOrganization",
+      "description": "Classic personal access token has a recorded authorization for this organization",
+      "is_traversable": false
     },
     {
       "name": "GH_CanAccess",

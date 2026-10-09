@@ -24,6 +24,7 @@ ORG_SECRET = "GH_OrgSecret"
 ORG_VARIABLE = "GH_OrgVariable"
 
 # Personal access token nodes
+CLASSIC_PERSONAL_ACCESS_TOKEN = "GH_ClassicPersonalAccessToken"
 PERSONAL_ACCESS_TOKEN = "GH_PersonalAccessToken"
 PERSONAL_ACCESS_TOKEN_REQUEST = "GH_PersonalAccessTokenRequest"
 

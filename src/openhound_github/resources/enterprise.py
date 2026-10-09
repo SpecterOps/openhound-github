@@ -1,7 +1,16 @@
+import csv
+import io
 import logging
+import tempfile
+import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
+from urllib.parse import urlparse
 
+import dlt
+import requests
+
+from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
 
@@ -18,9 +27,14 @@ from openhound_github.helpers import (
     graphql_client_and_path,
     scim_skip_reason,
 )
+from openhound_github.github_retry import (
+    is_primary_rate_limit_response,
+    is_secondary_rate_limit_response,
+)
 from openhound_github.main import app
 from openhound_github.models import (
     BaseUser,
+    ClassicPersonalAccessToken,
     Enterprise,
     EnterpriseAdmin,
     EnterpriseManagedUser,
@@ -52,6 +66,19 @@ from openhound_github.models.saml_helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+_CREDENTIAL_EXPORT_API_VERSION = "2026-03-10"
+_CREDENTIAL_EXPORT_POLL_SECONDS = 5
+_CREDENTIAL_EXPORT_TIMEOUT_SECONDS = 300
+_CREDENTIAL_EXPORT_REUSE_SECONDS = 24 * 60 * 60
+
+
+class _CredentialExportFailed(ValueError):
+    """The export job reported a terminal failed status."""
+
+
+class _CredentialExportNotFound(requests.HTTPError):
+    """The export-status endpoint no longer recognizes a saved export ID."""
 
 
 @dataclass
@@ -106,7 +133,10 @@ def iter_enterprise_scim_resources(
         yield from page
 
 
-def _log_enterprise_scim_failure(resource: str, enterprise_name: str, exception: BaseException):
+def _log_enterprise_scim_failure(
+    resource: str, enterprise_name: str, exception: BaseException
+):
+    """Log a concise skip reason for an enterprise SCIM resource failure."""
     skip_reason = scim_skip_reason(exception)
     if skip_reason:
         logger.warning(
@@ -122,6 +152,359 @@ def _log_enterprise_scim_failure(resource: str, enterprise_name: str, exception:
         f"Error in resource '{resource}' processing enterprise '{enterprise_name}': {exception}",
         extra={"resource": resource, "phase": "resource_iteration"},
     )
+
+
+def _download_enterprise_credential_inventory(
+    client: RESTClient,
+    enterprise_slug: str,
+    export_id: str | None = None,
+    fallback_client: RESTClient | None = None,
+    on_export_created: Callable[[str, str | None, bool], None] | None = None,
+):
+    """Return parsed CSV values, recording a newly accepted export before polling."""
+    path = f"/enterprises/{enterprise_slug}/credentials/exports"
+    headers = {"X-GitHub-Api-Version": _CREDENTIAL_EXPORT_API_VERSION}
+    export_metadata = {}
+    created_with_fallback = False
+    if export_id is None:
+        try:
+            created = client.post(path, headers=headers)
+            created.raise_for_status()
+        except requests.HTTPError as exc:
+            response = exc.response
+            status_code = response.status_code if response is not None else None
+            retry_after = (
+                response.headers.get("Retry-After") if response is not None else None
+            )
+            remaining = (
+                response.headers.get("X-RateLimit-Remaining")
+                if response is not None
+                else None
+            )
+            try:
+                message = (
+                    str(response.json().get("message", "")).lower()
+                    if response is not None
+                    else ""
+                )
+            except ValueError:
+                message = ""
+            if (
+                fallback_client is None
+                or status_code not in {401, 403}
+                or retry_after
+                or remaining == "0"
+                or "rate limit" in message
+                or "abuse" in message
+            ):
+                raise
+            logger.warning(
+                "Enterprise app could not create credential export for '%s' (HTTP %s); retrying with configured classic PAT",
+                enterprise_slug,
+                status_code,
+            )
+            client = fallback_client
+            created = client.post(path, headers=headers)
+            created.raise_for_status()
+            created_with_fallback = True
+        if created.status_code != 202:
+            raise ValueError(
+                f"Unexpected credential export create status: {created.status_code}"
+            )
+        export_metadata = created.json()
+        export_id = export_metadata.get("export_id")
+        if not export_id or not isinstance(export_id, str):
+            raise ValueError("Credential export response did not include an export_id")
+        if on_export_created is not None:
+            on_export_created(
+                export_id, export_metadata.get("as_of"), created_with_fallback
+            )
+
+    deadline = time.monotonic() + _CREDENTIAL_EXPORT_TIMEOUT_SECONDS
+    export_path = f"{path}/{export_id}"
+    while True:
+        try:
+            response = client.get(export_path, headers=headers, allow_redirects=False)
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                raise _CredentialExportNotFound(response=exc.response) from exc
+            raise
+        if response.status_code == 302:
+            download_url = response.headers.get("Location")
+            parsed_url = urlparse(download_url or "")
+            if (
+                parsed_url.scheme != "https"
+                or not parsed_url.hostname
+                or parsed_url.username
+                or parsed_url.password
+            ):
+                raise ValueError(
+                    "Credential export returned an invalid HTTPS download URL"
+                )
+            # The signed URL is fetched without the GitHub installation credential.
+            download = requests.get(download_url, timeout=120, stream=True)
+            try:
+                download.raise_for_status()
+                with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as buffer:
+                    for chunk in download.iter_content(chunk_size=64 * 1024):
+                        buffer.write(chunk)
+                    buffer.seek(0)
+                    with io.TextIOWrapper(
+                        buffer, encoding="utf-8-sig", newline=""
+                    ) as csv_stream:
+                        reader = csv.DictReader(csv_stream)
+                        rows = list(reader)
+                        columns = reader.fieldnames or []
+            finally:
+                download.close()
+            return {
+                "export_id": export_id,
+                "as_of": export_metadata.get("as_of"),
+                "created_with_fallback": created_with_fallback,
+                "columns": columns,
+                "rows": rows,
+            }
+        if response.status_code != 200:
+            raise ValueError(
+                f"Unexpected credential export status: {response.status_code}"
+            )
+        polled_metadata = response.json()
+        export_metadata.update(polled_metadata)
+        status = polled_metadata.get("status")
+        if status == "failed":
+            raise _CredentialExportFailed(
+                "Credential export did not complete: 'failed'"
+            )
+        if status not in {"queued", "started", "in_progress", "processing", "pending"}:
+            raise ValueError(f"Credential export did not complete: {status!r}")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Credential export did not complete within five minutes")
+        time.sleep(_CREDENTIAL_EXPORT_POLL_SECONDS)
+
+
+@app.transformer(
+    name="enterprise_credential_inventory",
+    columns={"columns": {"data_type": "json"}, "rows": {"data_type": "json"}},
+    parallelized=True,
+)
+def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceContext):
+    """Persist the full enterprise credential inventory for later parsing."""
+    if ctx.deployment_type == "ghes" or not ctx.client or not ctx.enterprise_name:
+        return
+
+    try:
+        state = dlt.current.resource_state("enterprise_credential_inventory")
+    except (PipelineStateNotAvailable, SourceSectionNotAvailable):
+        state = {}
+
+    export_recorded_at = state.get(
+        "last_export_created_at", state.get("last_export_downloaded_at")
+    )
+    previous_id = (
+        state.get("last_export_id")
+        if state.get("last_export_enterprise") == ctx.enterprise_name
+        and isinstance(export_recorded_at, (int, float))
+        and 0 <= time.time() - export_recorded_at <= _CREDENTIAL_EXPORT_REUSE_SECONDS
+        else None
+    )
+    if previous_id:
+        previous_used_fallback = state.get("last_export_created_with_fallback", False)
+        previous_client = ctx.sso_client if previous_used_fallback else ctx.client
+        if previous_client:
+            try:
+                inventory = _download_enterprise_credential_inventory(
+                    previous_client, ctx.enterprise_name, previous_id
+                )
+                inventory["created_with_fallback"] = previous_used_fallback
+                inventory["as_of"] = inventory["as_of"] or state.get(
+                    "last_export_as_of"
+                )
+                logger.info(
+                    "Using prior credential export %s for enterprise '%s' (as of %s)",
+                    previous_id,
+                    ctx.enterprise_name,
+                    inventory["as_of"],
+                )
+                yield {
+                    **inventory,
+                    "enterprise_node_id": enterprise_data.id,
+                    "enterprise_name": ctx.enterprise_name,
+                }
+                return
+            except requests.HTTPError as exc:
+                if not isinstance(exc, _CredentialExportNotFound):
+                    logger.warning(
+                        "Skipping credential inventory for enterprise '%s': prior export %s unavailable (HTTP %s)",
+                        ctx.enterprise_name,
+                        previous_id,
+                        exc.response.status_code
+                        if exc.response is not None
+                        else "unknown",
+                    )
+                    return
+                state.pop("last_export_id", None)
+                logger.info(
+                    "Prior credential export %s is no longer available for enterprise '%s'; creating a new export",
+                    previous_id,
+                    ctx.enterprise_name,
+                )
+            except _CredentialExportFailed:
+                state.pop("last_export_id", None)
+                logger.warning(
+                    "Skipping credential inventory for enterprise '%s': prior export %s failed",
+                    ctx.enterprise_name,
+                    previous_id,
+                )
+                return
+            except (
+                requests.RequestException,
+                ValueError,
+                TimeoutError,
+                UnicodeError,
+                csv.Error,
+            ) as exc:
+                logger.warning(
+                    "Skipping credential inventory for enterprise '%s': prior export %s unavailable (%s)",
+                    ctx.enterprise_name,
+                    previous_id,
+                    type(exc).__name__,
+                )
+                return
+    else:
+        logger.info(
+            "No recent credential export recorded for enterprise '%s'; creating a new export",
+            ctx.enterprise_name,
+        )
+
+    def record_export_created(
+        export_id: str, as_of: str | None, created_with_fallback: bool
+    ) -> None:
+        """Save an accepted export so a later run can resume it."""
+        state["last_export_id"] = export_id
+        state["last_export_enterprise"] = ctx.enterprise_name
+        state["last_export_as_of"] = as_of
+        state["last_export_created_with_fallback"] = created_with_fallback
+        state["last_export_created_at"] = time.time()
+
+    try:
+        inventory = _download_enterprise_credential_inventory(
+            ctx.client,
+            ctx.enterprise_name,
+            fallback_client=(
+                ctx.sso_client if ctx.sso_client is not ctx.client else None
+            ),
+            on_export_created=record_export_created,
+        )
+        state["last_export_downloaded_at"] = time.time()
+        yield {
+            **inventory,
+            "enterprise_node_id": enterprise_data.id,
+            "enterprise_name": ctx.enterprise_name,
+        }
+    except requests.HTTPError as exc:
+        response = exc.response
+        status_code = response.status_code if response is not None else None
+        if response is not None and is_secondary_rate_limit_response(response):
+            logger.warning(
+                "Skipping credential inventory for enterprise '%s': secondary rate limit reached",
+                ctx.enterprise_name,
+            )
+        elif response is not None and is_primary_rate_limit_response(response):
+            logger.warning(
+                "Skipping credential inventory for enterprise '%s': primary rate limit reached",
+                ctx.enterprise_name,
+            )
+        elif status_code == 429:
+            logger.warning(
+                "Skipping credential inventory for enterprise '%s': export creation rejected (HTTP 429)",
+                ctx.enterprise_name,
+            )
+        else:
+            logger.warning(
+                "Skipping credential inventory for enterprise '%s': HTTP %s",
+                ctx.enterprise_name,
+                status_code,
+            )
+    except (
+        requests.RequestException,
+        ValueError,
+        TimeoutError,
+        UnicodeError,
+        csv.Error,
+    ) as exc:
+        logger.warning(
+            "Skipping credential inventory for enterprise '%s': %s",
+            ctx.enterprise_name,
+            type(exc).__name__,
+        )
+
+
+@app.transformer(
+    name="classic_personal_access_tokens",
+    columns=ClassicPersonalAccessToken,
+    parallelized=True,
+)
+def classic_personal_access_tokens(inventory: dict[str, Any]):
+    """Build classic PAT models from a stored enterprise credential inventory."""
+    credentials: dict[int, dict[str, Any]] = {}
+    for row_number, row in enumerate(inventory["rows"], start=1):
+        if row.get("credential_type") != "classic_pat":
+            continue
+        credential_id = row.get("credential_id")
+        if not credential_id:
+            logger.warning(
+                "Skipping classic PAT inventory row %d without a credential_id",
+                row_number,
+            )
+            continue
+        try:
+            token_id = int(credential_id)
+            owner_id = int(row["owner_id"]) if row.get("owner_id") else None
+            authorization_count = (
+                int(row["authorization_count"])
+                if row.get("authorization_count")
+                else None
+            )
+        except (TypeError, ValueError, OverflowError):
+            logger.warning(
+                "Skipping classic PAT inventory row %d with an invalid credential_id, owner_id, or authorization_count",
+                row_number,
+            )
+            continue
+        credential = credentials.get(token_id)
+        if credential is None:
+            credential = {
+                "credential_id": token_id,
+                "display_name": row.get("display_name") or None,
+                "owner_id": owner_id,
+                "owner_login": row.get("owner") or None,
+                "scopes": [
+                    scope.strip()
+                    for scope in (row.get("scopes") or "").split(";")
+                    if scope.strip()
+                ],
+                "credential_state": row.get("credential_state") or None,
+                "expiry_status": row.get("expiry_status") or None,
+                "enterprise_authorized": (
+                    row["enterprise_authorized"].lower() == "true"
+                    if row.get("enterprise_authorized")
+                    else None
+                ),
+                "authorization_count": authorization_count,
+                "inventory_as_of": inventory.get("as_of"),
+                "created_at": row.get("created_at") or None,
+                "last_used_at": row.get("last_used_at") or None,
+                "expires_at": row.get("expires_at") or None,
+                "authorized_organizations": [],
+                "enterprise_node_id": inventory["enterprise_node_id"],
+                "enterprise_name": inventory["enterprise_name"],
+            }
+            credentials[token_id] = credential
+        org_login = row.get("organization")
+        if org_login and org_login not in credential["authorized_organizations"]:
+            credential["authorized_organizations"].append(org_login)
+    yield from credentials.values()
 
 
 @app.resource(name="enterprise", columns=Enterprise, parallelized=True)
@@ -185,7 +568,10 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
     except Exception as e:
         logger.error(
             f"Error in resource 'enterprise_organizations' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_organizations", "phase": "resource_iteration"},
+            extra={
+                "resource": "enterprise_organizations",
+                "phase": "resource_iteration",
+            },
         )
         return
 
@@ -197,7 +583,9 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
 )
 def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
     if not ctx.client or not ctx.enterprise_name:
-        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+        raise ValueError(
+            "Enterprise SCIM collection requires a client and enterprise slug"
+        )
 
     try:
         next(
@@ -232,7 +620,9 @@ def enterprise_scim_users(
     scim_organization: EnterpriseScimOrganization, ctx: SourceContext
 ):
     if not ctx.client or not ctx.enterprise_name:
-        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+        raise ValueError(
+            "Enterprise SCIM collection requires a client and enterprise slug"
+        )
     try:
         for user in iter_enterprise_scim_resources(
             ctx.client,
@@ -259,7 +649,9 @@ def enterprise_scim_groups(
     scim_organization: EnterpriseScimOrganization, ctx: SourceContext
 ):
     if not ctx.client or not ctx.enterprise_name:
-        raise ValueError("Enterprise SCIM collection requires a client and enterprise slug")
+        raise ValueError(
+            "Enterprise SCIM collection requires a client and enterprise slug"
+        )
     try:
         for group in iter_enterprise_scim_resources(
             ctx.client,
@@ -389,7 +781,10 @@ def enterprise_runner_groups(enterprise_data: Enterprise, ctx: SourceContext):
     except Exception as e:
         logger.error(
             f"Error in resource 'enterprise_runner_groups' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_runner_groups", "phase": "resource_iteration"},
+            extra={
+                "resource": "enterprise_runner_groups",
+                "phase": "resource_iteration",
+            },
         )
         return
 
@@ -727,7 +1122,9 @@ def _enterprise_admins_from_owner_info(
             es_data = enterprise_object.get("enterprise", {})
             owner_info = es_data.get("ownerInfo") or {}
             for edge in (owner_info.get("admins") or {}).get("edges") or []:
-                row = _enterprise_admin_row(edge.get("node") or {}, enterprise_data, ctx)
+                row = _enterprise_admin_row(
+                    edge.get("node") or {}, enterprise_data, ctx
+                )
                 if row:
                     yield row
 
@@ -787,7 +1184,7 @@ def _enterprise_admins_from_organizations(
     name="enterprise_saml_provider",
     table_name="saml_provider",
     columns=SamlProvider,
-    parallelized=True
+    parallelized=True,
 )
 def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
     client, graphql_path = _sso_graphql_client(ctx)
@@ -808,7 +1205,10 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
     except Exception as e:
         logger.error(
             f"Error in resource 'enterprise_saml_provider' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_saml_provider", "phase": "resource_iteration"},
+            extra={
+                "resource": "enterprise_saml_provider",
+                "phase": "resource_iteration",
+            },
         )
         return
 
@@ -820,7 +1220,9 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         )
         return
 
-    saml_provider = (enterprise_object.get("ownerInfo") or {}).get("samlIdentityProvider")
+    saml_provider = (enterprise_object.get("ownerInfo") or {}).get(
+        "samlIdentityProvider"
+    )
     if not saml_provider:
         logger.warning(
             "No enterprise SAML provider returned for enterprise '%s'",
@@ -838,11 +1240,12 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
         "github_web_origin": ctx.github_web_origin,
     }
 
+
 @app.transformer(
     name="enterprise_saml_service_provider",
     table_name="saml_service_provider",
     columns=SamlServiceProvider,
-    parallelized=True
+    parallelized=True,
 )
 def enterprise_saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
     yield {
@@ -855,6 +1258,7 @@ def enterprise_saml_service_provider(saml_provider: SamlProvider, ctx: SourceCon
         "github_deployment_id": saml_provider.get("github_deployment_id"),
         "github_web_origin": saml_provider.get("github_web_origin"),
     }
+
 
 @app.transformer(
     name="enterprise_saml_assertion_consumer_service",
@@ -874,11 +1278,12 @@ def enterprise_saml_assertion_consumer_service(
         "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
+
 @app.transformer(
     name="enterprise_saml_issuer",
     table_name="saml_issuer",
     columns=SamlIssuer,
-    parallelized=True
+    parallelized=True,
 )
 def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
     issuer = saml_provider.get("issuer")
@@ -895,15 +1300,15 @@ def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
         "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
+
 @app.transformer(
     name="enterprise_external_identity",
     table_name="external_identities",
     columns=ExternalIdentity,
     parallelized=True,
 )
-def enterprise_external_identity(
-    saml_provider: SamlProvider, ctx: SourceContext
-):
+def enterprise_external_identity(saml_provider: SamlProvider, ctx: SourceContext):
+    """Collect enterprise SAML identities from the configured SSO client."""
     client, graphql_path = _sso_graphql_client(ctx)
     if not client:
         logger.info(
@@ -956,7 +1361,10 @@ def enterprise_external_identity(
     except Exception as e:
         logger.error(
             f"Error in resource 'enterprise_external_identity' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={"resource": "enterprise_external_identity", "phase": "resource_iteration"},
+            extra={
+                "resource": "enterprise_external_identity",
+                "phase": "resource_iteration",
+            },
         )
         return
 
@@ -968,9 +1376,16 @@ def enterprise_resources(ctx: SourceContext):
     teams_resource = enterprise_teams(ctx)
     roles_resource = enterprise_roles(ctx)
     runner_groups_resource = enterprise_runner_groups(ctx)
-    scim_organizations_resource = enterprise_resource | enterprise_scim_organizations(ctx)
+    scim_organizations_resource = enterprise_resource | enterprise_scim_organizations(
+        ctx
+    )
+    credential_inventory_resource = (
+        enterprise_resource | enterprise_credential_inventory(ctx)
+    )
     resources = [
         enterprise_resource,
+        credential_inventory_resource,
+        credential_inventory_resource | classic_personal_access_tokens(),
         enterprise_resource | organizations_resource,
         enterprise_resource | members_resource | enterprise_users(ctx),
         enterprise_resource | members_resource | enterprise_managed_users(ctx),
@@ -990,8 +1405,12 @@ def enterprise_resources(ctx: SourceContext):
         resources.extend(
             [
                 enterprise_resource | saml_resource,
-                enterprise_resource | saml_resource | enterprise_saml_service_provider(ctx),
-                enterprise_resource | saml_resource | enterprise_saml_assertion_consumer_service(ctx),
+                enterprise_resource
+                | saml_resource
+                | enterprise_saml_service_provider(ctx),
+                enterprise_resource
+                | saml_resource
+                | enterprise_saml_assertion_consumer_service(ctx),
                 enterprise_resource | saml_resource | enterprise_saml_issuer(ctx),
                 enterprise_resource | saml_resource | enterprise_external_identity(ctx),
                 enterprise_resource | runner_groups_resource,

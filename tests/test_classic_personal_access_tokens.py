@@ -1,0 +1,874 @@
+import gzip
+import io
+import json
+import re
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import dlt
+import pytest
+import requests
+import duckdb
+from dlt.destinations import filesystem
+
+from openhound_github.kinds import edges as ek
+from openhound_github.lookup import GithubLookup
+from openhound_github.models.classic_personal_access_token import (
+    ClassicPersonalAccessToken,
+)
+from openhound_github.models.enterprise_member import BaseUser
+from openhound_github.models.enterprise import Enterprise
+from openhound_github.resources.enterprise import (
+    SourceContext,
+    _download_enterprise_credential_inventory,
+    classic_personal_access_tokens,
+    enterprise_credential_inventory,
+)
+
+
+class Response:
+    def __init__(self, status_code, *, payload=None, content=b"", headers=None):
+        self.status_code = status_code
+        self.payload = payload or {}
+        self.content = content
+        self.raw = io.BytesIO(content)
+        self.headers = headers or {}
+
+    def json(self):
+        return self.payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            error_response = requests.Response()
+            error_response.status_code = self.status_code
+            error_response._content = json.dumps(self.payload).encode()
+            error_response.headers.update(self.headers)
+            raise requests.HTTPError(response=error_response)
+
+    def close(self):
+        self.raw.close()
+
+    def iter_content(self, chunk_size):
+        for offset in range(0, len(self.content), chunk_size):
+            yield self.content[offset : offset + chunk_size]
+
+
+def test_classic_pat_export_polls_one_job_and_deduplicates_org_rows(monkeypatch):
+    client = MagicMock()
+    client.post.return_value = Response(
+        202, payload={"export_id": "export-1", "as_of": "2026-10-05T20:00:00Z"}
+    )
+    client.get.side_effect = [
+        Response(200, payload={"status": "started"}),
+        Response(302, headers={"Location": "https://example.test/signed.csv"}),
+    ]
+    csv_content = (
+        "credential_type,credential_id,hashed_token,display_name,owner_id,owner,scopes,"
+        "credential_state,expiry_status,enterprise_authorized,authorization_count,organization,created_at\n"
+        'classic_pat,42,hash-42,"CI, deploy",7,octocat,"repo; read:org",active,expires,true,3,acme,2026-01-01T00:00:00Z\n'
+        'classic_pat,42,hash-42,"CI, deploy",7,octocat,"repo; read:org",active,expires,true,3,ops,2026-01-01T00:00:00Z\n'
+        "classic_pat,43,hash-43,Personal,8,hubot,repo,expired,expires,false,0,,2026-01-01T00:00:00Z\n"
+        "fine_grained_pat,42,hash-fg,Other,8,hubot,,active,never,false,1,acme,2026-01-01T00:00:00Z\n"
+    )
+    download = MagicMock(return_value=Response(200, content=csv_content.encode()))
+    monkeypatch.setattr("openhound_github.resources.enterprise.requests.get", download)
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.time.sleep", lambda _: None
+    )
+
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+    inventories = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert len(inventories) == 1
+    inventory = inventories[0]
+    assert inventory["export_id"] == "export-1"
+    assert inventory["as_of"] == "2026-10-05T20:00:00Z"
+    assert len(inventory["rows"]) == 4
+    assert inventory["rows"][3]["credential_type"] == "fine_grained_pat"
+    assert inventory["rows"][3]["hashed_token"] == "hash-fg"
+    assert "hashed_token" in inventory["columns"]
+    rows = list(classic_personal_access_tokens.__wrapped__(inventory))
+
+    assert len(rows) == 2
+    assert rows[0]["credential_id"] == 42
+    assert rows[0]["display_name"] == "CI, deploy"
+    assert rows[0]["scopes"] == ["repo", "read:org"]
+    assert rows[0]["enterprise_authorized"] is True
+    assert rows[0]["authorization_count"] == 3
+    assert rows[0]["inventory_as_of"] == "2026-10-05T20:00:00Z"
+    assert rows[0]["authorized_organizations"] == ["acme", "ops"]
+    assert rows[1]["authorized_organizations"] == []
+    assert rows[1]["enterprise_authorized"] is False
+    assert rows[1]["credential_state"] == "expired"
+    client.post.assert_called_once_with(
+        "/enterprises/enterprise/credentials/exports",
+        headers={"X-GitHub-Api-Version": "2026-03-10"},
+    )
+    assert client.get.call_count == 2
+    assert client.get.call_args.kwargs["allow_redirects"] is False
+    download.assert_called_once_with(
+        "https://example.test/signed.csv", timeout=120, stream=True
+    )
+
+
+def test_classic_pat_parser_skips_malformed_numeric_rows(caplog):
+    inventory = {
+        "enterprise_node_id": "E_1",
+        "enterprise_name": "enterprise",
+        "rows": [
+            {"credential_type": "classic_pat", "credential_id": "invalid"},
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "bad",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "7",
+                "authorization_count": "bad",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "7",
+                "authorization_count": "1",
+                "organization": "acme",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "owner_id": "bad",
+                "organization": "ops",
+            },
+            {
+                "credential_type": "classic_pat",
+                "credential_id": "42",
+                "authorization_count": "bad",
+                "organization": "ops",
+            },
+            {"credential_type": "classic_pat", "credential_id": "43"},
+        ],
+    }
+
+    tokens = list(classic_personal_access_tokens.__wrapped__(inventory))
+
+    assert [token["credential_id"] for token in tokens] == [42, 43]
+    assert tokens[0]["owner_id"] == 7
+    assert tokens[0]["authorization_count"] == 1
+    assert tokens[0]["authorized_organizations"] == ["acme"]
+    assert [
+        int(row_number)
+        for row_number in re.findall(
+            r"Skipping classic PAT inventory row (\d+)", caplog.text
+        )
+    ] == [1, 2, 3, 5, 6]
+
+
+def test_one_export_persists_raw_rows_and_models_only_classic_pats(
+    monkeypatch, tmp_path
+):
+    calls = []
+
+    def inventory_rows(client, slug, fallback_client=None, on_export_created=None):
+        calls.append(slug)
+        if on_export_created is not None:
+            on_export_created("export-1", "2026-10-05T20:00:00Z", False)
+        return {
+            "export_id": "export-1",
+            "as_of": "2026-10-05T20:00:00Z",
+            "columns": ["credential_type", "credential_id", "hashed_token"],
+            "rows": [
+                {
+                    "credential_type": "classic_pat",
+                    "credential_id": "42",
+                    "hashed_token": "hash-classic",
+                },
+                {
+                    "credential_type": "oauth_app_user_token",
+                    "credential_id": "42",
+                    "hashed_token": "hash-oauth",
+                },
+            ],
+        }
+
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise._download_enterprise_credential_inventory",
+        inventory_rows,
+    )
+
+    @dlt.resource(name="probe_enterprise", columns=Enterprise)
+    def parent():
+        yield Enterprise(id="E_1", slug="enterprise")
+
+    @dlt.source
+    def source():
+        enterprise = parent()
+        inventory = enterprise | enterprise_credential_inventory(
+            SourceContext(
+                client=object(), enterprise_name="enterprise", deployment_type="ghec"
+            )
+        )
+        return [enterprise, inventory, inventory | classic_personal_access_tokens()]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="credential_inventory_test",
+        destination=filesystem(bucket_url=str(tmp_path / "output")),
+        dataset_name="github_test",
+        pipelines_dir=str(tmp_path / "pipelines"),
+    )
+    pipeline.run(source())
+
+    def stored_rows(table):
+        rows = []
+        for path in (tmp_path / "output" / "github_test" / table).glob("*.gz"):
+            with gzip.open(path, "rt") as file:
+                rows.extend(json.loads(line) for line in file)
+        return rows
+
+    raw = stored_rows("enterprise_credential_inventory")
+    modeled = stored_rows("classic_personal_access_tokens")
+    assert calls == ["enterprise"]
+    assert len(raw) == 1
+    assert raw[0]["rows"][1]["credential_type"] == "oauth_app_user_token"
+    assert raw[0]["rows"][1]["hashed_token"] == "hash-oauth"
+    assert len(modeled) == 1
+    assert modeled[0]["credential_id"] == 42
+
+    fallback_calls = []
+
+    def retry_inventory(
+        client, slug, export_id=None, fallback_client=None, on_export_created=None
+    ):
+        fallback_calls.append((slug, export_id))
+        return inventory_rows(client, slug)
+
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise._download_enterprise_credential_inventory",
+        retry_inventory,
+    )
+    pipeline.run(source())
+    assert fallback_calls == [("enterprise", "export-1")]
+
+
+def test_classic_pat_inventory_rate_limit_skips_without_starting_another_export(caplog):
+    client = MagicMock()
+    client.post.return_value = Response(429)
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert client.post.call_count == 1
+    assert "export creation rejected (HTTP 429)" in caplog.text
+
+
+@pytest.mark.parametrize("status_code", [403, 429])
+def test_classic_pat_inventory_secondary_limit_is_not_reported_as_daily_export_limit(
+    monkeypatch, caplog, status_code
+):
+    client = MagicMock()
+    client.post.return_value = Response(
+        status_code, payload={"message": "You have exceeded a secondary rate limit."}
+    )
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    client.get.assert_not_called()
+    assert "secondary rate limit reached" in caplog.text
+    assert "export creation rejected" not in caplog.text
+
+
+def test_classic_pat_inventory_uses_pat_only_when_app_export_creation_is_denied(
+    monkeypatch, caplog
+):
+    app_client = MagicMock()
+    app_client.post.return_value = Response(403)
+    pat_client = MagicMock()
+    pat_client.post.return_value = Response(
+        202, payload={"export_id": "export-1", "as_of": "2026-10-07T21:00:00Z"}
+    )
+    pat_client.get.return_value = Response(
+        302, headers={"Location": "https://example.test/export.csv"}
+    )
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        lambda *_, **__: Response(
+            200, content=b"credential_type,credential_id\nclassic_pat,42\n"
+        ),
+    )
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    inventory = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert len(inventory) == 1
+    assert inventory[0]["rows"][0]["credential_type"] == "classic_pat"
+    app_client.post.assert_called_once()
+    app_client.get.assert_not_called()
+    pat_client.post.assert_called_once()
+    pat_client.get.assert_called_once()
+    assert "retrying with configured classic PAT" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "response",
+    [Response(429), Response(403, payload={"message": "secondary rate limit"})],
+)
+def test_classic_pat_inventory_does_not_switch_credentials_on_rate_limit(response):
+    app_client = MagicMock()
+    app_client.post.return_value = response
+    pat_client = MagicMock()
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    pat_client.post.assert_not_called()
+
+
+def test_classic_pat_inventory_does_not_start_second_export_after_poll_failure():
+    app_client = MagicMock()
+    app_client.post.return_value = Response(202, payload={"export_id": "export-1"})
+    app_client.get.return_value = Response(403)
+    pat_client = MagicMock()
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    app_client.post.assert_called_once()
+    pat_client.post.assert_not_called()
+
+
+@pytest.mark.parametrize("use_fallback", [False, True])
+def test_classic_pat_inventory_resumes_export_after_download_failure(
+    monkeypatch, caplog, use_fallback
+):
+    """Resume a failed download with the credential that created its export."""
+    state = {}
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1000)
+    signed_url = "https://example.test/export.csv?secret=signed-download-token"
+    app_client = MagicMock()
+    pat_client = MagicMock()
+    if use_fallback:
+        app_client.post.return_value = Response(403)
+        creator = pat_client
+    else:
+        creator = app_client
+    creator.post.return_value = Response(
+        202, payload={"export_id": "export-1", "as_of": "2026-10-07T21:00:00Z"}
+    )
+    creator.get.return_value = Response(302, headers={"Location": signed_url})
+    failed_response = requests.Response()
+    failed_response.status_code = 503
+    failed_response.url = signed_url
+    failed_response._content = b""
+    download = MagicMock(side_effect=requests.HTTPError(response=failed_response))
+    monkeypatch.setattr("openhound_github.resources.enterprise.requests.get", download)
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert state["last_export_id"] == "export-1"
+    assert state["last_export_enterprise"] == "enterprise"
+    assert state["last_export_as_of"] == "2026-10-07T21:00:00Z"
+    assert state["last_export_created_at"] == 1000
+    assert state["last_export_created_with_fallback"] is use_fallback
+    assert "last_export_downloaded_at" not in state
+    assert "signed-download-token" not in caplog.text
+
+    download.side_effect = None
+    download.return_value = Response(
+        200, content=b"credential_type,credential_id\nclassic_pat,42\n"
+    )
+    inventories = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert len(inventories) == 1
+    assert inventories[0]["export_id"] == "export-1"
+    assert inventories[0]["as_of"] == "2026-10-07T21:00:00Z"
+    assert inventories[0]["created_with_fallback"] is use_fallback
+    creator.post.assert_called_once()
+    assert creator.get.call_count == 2
+    if use_fallback:
+        app_client.get.assert_not_called()
+
+
+@pytest.mark.parametrize("status_code", [404, 503])
+def test_classic_pat_cached_export_error_does_not_log_download_url(
+    monkeypatch, caplog, status_code
+):
+    """Keep signed download URLs out of cached-export error logs."""
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_created_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    signed_url = "https://example.test/export.csv?secret=signed-download-token"
+    client.get.return_value = Response(302, headers={"Location": signed_url})
+    failed_response = requests.Response()
+    failed_response.status_code = status_code
+    failed_response.url = signed_url
+    failed_response._content = b""
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        MagicMock(side_effect=requests.HTTPError(response=failed_response)),
+    )
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert f"HTTP {status_code}" in caplog.text
+    assert "signed-download-token" not in caplog.text
+    assert state["last_export_id"] == "prior-1"
+    client.post.assert_not_called()
+
+
+def test_classic_pat_accepted_export_survives_pipeline_run_without_inventory(
+    monkeypatch, tmp_path
+):
+    """Persist an accepted export even when its first run emits no inventory."""
+    client = MagicMock()
+    client.post.return_value = Response(202, payload={"export_id": "export-1"})
+    client.get.return_value = Response(
+        302, headers={"Location": "https://example.test/export.csv"}
+    )
+    download = MagicMock(
+        side_effect=[
+            requests.ConnectionError("temporary download failure"),
+            Response(200, content=b"credential_type,credential_id\nclassic_pat,42\n"),
+        ]
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.requests.get", download)
+
+    @dlt.resource(name="probe_enterprise", columns=Enterprise)
+    def parent():
+        """Provide the enterprise for the test pipeline."""
+        yield Enterprise(id="E_1", slug="enterprise")
+
+    @dlt.source
+    def source():
+        """Collect the enterprise and its credential inventory."""
+        enterprise = parent()
+        return [
+            enterprise,
+            enterprise
+            | enterprise_credential_inventory(
+                SourceContext(
+                    client=client,
+                    enterprise_name="enterprise",
+                    deployment_type="ghec",
+                )
+            ),
+        ]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="credential_export_resume_test",
+        destination=filesystem(bucket_url=str(tmp_path / "output")),
+        dataset_name="github_test",
+        pipelines_dir=str(tmp_path / "pipelines"),
+    )
+    pipeline.run(source())
+    pipeline.run(source())
+
+    client.post.assert_called_once()
+    assert client.get.call_count == 2
+    assert download.call_count == 2
+
+
+def test_classic_pat_inventory_does_not_retry_same_token_client():
+    token_client = MagicMock()
+    token_client.post.return_value = Response(403)
+    ctx = SourceContext(
+        client=token_client,
+        sso_client=token_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    token_client.post.assert_called_once()
+
+
+def test_classic_pat_inventory_reuses_recent_export_before_creating(monkeypatch):
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_as_of": "2026-10-05T20:00:00Z",
+        "last_export_downloaded_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    client.post.return_value = Response(429)
+    client.get.return_value = Response(
+        302, headers={"Location": "https://example.test/prior.csv"}
+    )
+    pat_client = MagicMock()
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        lambda *_, **__: Response(
+            200, content=b"credential_type,credential_id\nclassic_pat,42\n"
+        ),
+    )
+    ctx = SourceContext(
+        client=client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    inventories = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert len(inventories) == 1
+    assert inventories[0]["export_id"] == "prior-1"
+    assert inventories[0]["as_of"] == "2026-10-05T20:00:00Z"
+    client.post.assert_not_called()
+    client.get.assert_called_once()
+    pat_client.get.assert_not_called()
+
+
+def test_classic_pat_inventory_creates_export_when_recent_one_is_gone(monkeypatch):
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_downloaded_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    client.get.side_effect = [
+        Response(404),
+        Response(302, headers={"Location": "https://example.test/new.csv"}),
+    ]
+    client.post.return_value = Response(202, payload={"export_id": "new-1"})
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        lambda *_, **__: Response(200, content=b"credential_type,credential_id\n"),
+    )
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    inventories = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert inventories[0]["export_id"] == "new-1"
+    assert state["last_export_id"] == "new-1"
+    client.post.assert_called_once()
+
+
+def test_classic_pat_inventory_discards_missing_prior_export(monkeypatch):
+    """Clear a missing export ID even if creating its replacement fails."""
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_created_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    client.get.return_value = Response(404)
+    client.post.return_value = Response(429)
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert "last_export_id" not in state
+    client.post.assert_called_once()
+
+
+@pytest.mark.parametrize("status", ["failed", "unknown"])
+def test_classic_pat_inventory_only_discards_failed_prior_export(monkeypatch, status):
+    """Keep a saved ID for unexpected statuses but discard a failed export."""
+    state = {
+        "last_export_id": "prior-1",
+        "last_export_enterprise": "enterprise",
+        "last_export_created_at": 1000,
+    }
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1001)
+    client = MagicMock()
+    client.get.return_value = Response(200, payload={"status": status})
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert state.get("last_export_id") == (None if status == "failed" else "prior-1")
+    client.post.assert_not_called()
+
+
+def test_classic_pat_inventory_reuses_pat_created_export_with_pat(monkeypatch):
+    state = {}
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: state,
+    )
+    monkeypatch.setattr("openhound_github.resources.enterprise.time.time", lambda: 1000)
+    app_client = MagicMock()
+    app_client.post.side_effect = [Response(403), Response(403)]
+    pat_client = MagicMock()
+    pat_client.post.side_effect = [
+        Response(
+            202, payload={"export_id": "pat-export", "as_of": "2026-10-07T21:00:00Z"}
+        ),
+        Response(429),
+    ]
+    pat_client.get.side_effect = [
+        Response(302, headers={"Location": "https://example.test/export.csv"}),
+        Response(302, headers={"Location": "https://example.test/export.csv"}),
+    ]
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.requests.get",
+        lambda *_, **__: Response(
+            200, content=b"credential_type,credential_id\nclassic_pat,42\n"
+        ),
+    )
+    ctx = SourceContext(
+        client=app_client,
+        sso_client=pat_client,
+        enterprise_name="enterprise",
+        deployment_type="ghec",
+    )
+
+    first = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    second = list(
+        enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+
+    assert state["last_export_created_with_fallback"] is True
+    assert first[0]["created_with_fallback"] is True
+    assert second[0]["created_with_fallback"] is True
+    assert second[0]["export_id"] == "pat-export"
+    assert second[0]["as_of"] == "2026-10-07T21:00:00Z"
+    app_client.get.assert_not_called()
+    assert pat_client.get.call_count == 2
+    app_client.post.assert_called_once()
+    pat_client.post.assert_called_once()
+
+
+def test_classic_pat_inventory_does_not_reuse_stale_export(monkeypatch):
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.dlt.current.resource_state",
+        lambda _: {
+            "last_export_id": "prior-1",
+            "last_export_enterprise": "enterprise",
+            "last_export_downloaded_at": 1000,
+        },
+    )
+    monkeypatch.setattr(
+        "openhound_github.resources.enterprise.time.time", lambda: 1000 + 86401
+    )
+    client = MagicMock()
+    client.post.return_value = Response(429)
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    client.get.assert_not_called()
+
+
+def test_classic_pat_collection_skips_ghes():
+    client = MagicMock()
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghes"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    client.post.assert_not_called()
+
+
+def test_classic_pat_export_rejects_non_https_download(monkeypatch):
+    client = MagicMock()
+    client.post.return_value = Response(202, payload={"export_id": "export-1"})
+    client.get.return_value = Response(
+        302, headers={"Location": "http://example.test/file.csv"}
+    )
+    download = MagicMock()
+    monkeypatch.setattr("openhound_github.resources.enterprise.requests.get", download)
+
+    with pytest.raises(ValueError, match="invalid HTTPS download URL"):
+        _download_enterprise_credential_inventory(client, "enterprise")
+    download.assert_not_called()
+
+
+def test_classic_pat_failed_export_produces_no_partial_inventory(caplog):
+    client = MagicMock()
+    client.post.return_value = Response(202, payload={"export_id": "export-1"})
+    client.get.return_value = Response(200, payload={"status": "failed"})
+    ctx = SourceContext(
+        client=client, enterprise_name="enterprise", deployment_type="ghec"
+    )
+
+    assert (
+        list(
+            enterprise_credential_inventory.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+        )
+        == []
+    )
+    assert "CredentialExportFailed" in caplog.text
+    client.post.assert_called_once()
+
+
+def test_classic_pat_model_emits_owner_and_authorization_edges():
+    token = ClassicPersonalAccessToken(
+        credential_id=42,
+        display_name="CI deploy",
+        owner_id=7,
+        owner_login="octocat",
+        scopes=["repo"],
+        credential_state="active",
+        authorized_organizations=["acme", "ops"],
+        enterprise_node_id="E_1",
+        enterprise_name="enterprise",
+    )
+    lookup = MagicMock()
+    lookup.enterprise_user_id_for_database_id.return_value = "U_1"
+    lookup.enterprise_organization_id_for_login.side_effect = ["O_1", None]
+    token._lookup = lookup
+
+    assert token.as_node.properties.node_id == "GH_CLASSIC_PAT_E_1_42"
+    edges = list(token.edges)
+    assert [edge.kind for edge in edges] == [
+        ek.CONTAINS,
+        ek.HAS_PERSONAL_ACCESS_TOKEN,
+        ek.AUTHORIZED_FOR_ORGANIZATION,
+    ]
+    assert edges[1].start.value == "U_1"
+    assert edges[2].end.value == "O_1"
+
+
+def test_inventory_owner_and_organization_resolve_to_graph_ids():
+    member = BaseUser.model_validate(
+        {
+            "__typename": "User",
+            "id": "U_1",
+            "databaseId": 7,
+            "login": "octocat",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z",
+        }
+    )
+    assert member.model_dump()["database_id"] == 7
+
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    connection.execute(
+        "CREATE TABLE github.enterprise_users (id VARCHAR, database_id BIGINT)"
+    )
+    connection.execute("INSERT INTO github.enterprise_users VALUES ('U_1', 7)")
+    connection.execute(
+        "CREATE TABLE github.enterprise_organizations (id VARCHAR, login VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO github.enterprise_organizations VALUES ('O_1', 'Acme')"
+    )
+    lookup = GithubLookup(connection)
+
+    assert lookup.enterprise_user_id_for_database_id(7) == "U_1"
+    assert lookup.enterprise_organization_id_for_login("acme") == "O_1"

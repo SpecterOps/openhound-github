@@ -255,13 +255,13 @@ def test_cross_org_enterprise_runner_interception_path_is_traversable() -> None:
         matcher.key: matcher.value
         for matcher in can_request_oidc_token.end.property_matchers
     } == {
-        "name": "prod",
+        "short_name": "prod",
         "repository_id": "REPO_B",
     }
     assert {
         matcher.key: matcher.value for matcher in deploys_to.end.property_matchers
     } == {
-        "name": "prod",
+        "short_name": "prod",
         "repository_id": "REPO_B",
     }
 

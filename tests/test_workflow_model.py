@@ -527,7 +527,7 @@ def test_workflow_job_emits_can_request_oidc_token_for_environment_without_oidc_
     assert len(environment_edges) == 1
     assert _matcher_values(environment_edges[0]) == {
         "repository_id": "REPO_1",
-        "name": "prod",
+        "short_name": "prod",
     }
     assert len(edges) == 1
     assert edges[0].kind == ek.CAN_REQUEST_OIDC_TOKEN_FOR
@@ -535,7 +535,7 @@ def test_workflow_job_emits_can_request_oidc_token_for_environment_without_oidc_
     assert edges[0].end.kind == nk.ENVIRONMENT
     assert _matcher_values(edges[0]) == {
         "repository_id": "REPO_1",
-        "name": "prod",
+        "short_name": "prod",
     }
     assert edges[0].properties.traversable is True
     assert edges[0].properties.composed is True
@@ -627,8 +627,8 @@ def test_workflow_job_can_request_oidc_token_for_edges_are_per_job_and_idempoten
     ]
 
     assert [(edge.start.value, _matcher_values(edge)) for edge in edges] == [
-        ("JOB_1", {"repository_id": "REPO_1", "name": "prod"}),
-        ("JOB_2", {"repository_id": "REPO_1", "name": "prod"}),
+        ("JOB_1", {"repository_id": "REPO_1", "short_name": "prod"}),
+        ("JOB_2", {"repository_id": "REPO_1", "short_name": "prod"}),
     ]
     assert len(list(jobs[0]._can_request_oidc_token_for_edges)) == 1
 

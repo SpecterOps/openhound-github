@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Tuple
 
 from dlt.extract.source import DltSource
@@ -9,6 +10,12 @@ from .lookup import GithubLookup
 from .transforms import transforms
 
 app = OpenHound("github", help="OpenGraph collector for GitHub")
+
+
+def _reset_lookup_database(output_file: Path) -> None:
+    """Remove derived lookup artifacts so each preprocess run starts clean."""
+    output_file.unlink(missing_ok=True)
+    Path(f"{output_file}.wal").unlink(missing_ok=True)
 
 
 @app.collect()
@@ -49,6 +56,7 @@ def preproc(ctx: PreProcContext):
     Run before convert:
         openhound preproc github <input_path> lookup.duckdb
     """
+    _reset_lookup_database(ctx.pipeline.output_file)
     return {
         "organizations": "organizations",
         "repositories": "repositories",

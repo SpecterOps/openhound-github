@@ -296,7 +296,7 @@ class Environment(BaseAsset):
         return GHNode(
             kinds=[nk.ENVIRONMENT],
             properties=GHEnvironmentProperties(
-                name=self.name,
+                name=f"{self.repository_full_name}/{self.name}",
                 displayname=self.name,
                 node_id=eid,
                 short_name=self.name,

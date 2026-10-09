@@ -141,6 +141,9 @@ def test_environment_node_surfaces_protection_rule_properties() -> None:
 
     node = env.as_node
 
+    assert node.properties.name == "github/hello-world/staging"
+    assert node.properties.displayname == "staging"
+    assert node.properties.short_name == "staging"
     assert node.properties.wait_timer == 30
     assert node.properties.prevent_self_review is False
     assert node.properties.reviewer_count == 2

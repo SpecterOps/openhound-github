@@ -2,12 +2,13 @@
 
 ## General Information
 
-The non-traversable GH_HasPersonalAccessToken edge represents the relationship between a user and their fine-grained personal access tokens that have been granted access to the organization. This edge links each approved token back to the user who created it. Fine-grained personal access tokens are security-significant because they provide programmatic access to organization resources with specific scoped permissions. Tracking token ownership is essential for understanding which users have standing API access and for identifying tokens that may need revocation.
+The non-traversable GH_HasPersonalAccessToken edge links a user to a personal access token they own. Fine-grained token ownership comes from organization approvals; classic token ownership comes from the enterprise credential inventory. The edge identifies the owner but does not by itself grant access to any organization or repository.
 
 ## Edge Schema
 
 | Source | Destination | Traversable |
 | --- | --- | --- |
+| `GH_User` | `GH_ClassicPersonalAccessToken` | `false` |
 | `GH_User` | `GH_PersonalAccessToken` | `false` |
 
 ## Diagram
@@ -15,6 +16,8 @@ The non-traversable GH_HasPersonalAccessToken edge represents the relationship b
 ```mermaid
 graph LR
     n0["GH_User"]
-    n1["GH_PersonalAccessToken"]
+    n1["GH_ClassicPersonalAccessToken"]
+    n2["GH_PersonalAccessToken"]
     n0 -.->|GH_HasPersonalAccessToken| n1
+    n0 -.->|GH_HasPersonalAccessToken| n2
 ```

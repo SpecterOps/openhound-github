@@ -96,6 +96,22 @@ class GithubLookup(LookupManager):
         return res
 
     @lru_cache
+    def enterprise_user_id_for_database_id(self, database_id: int) -> str | None:
+        """Resolve an enterprise user's node ID from its GitHub database ID."""
+        return self._find_single_object(
+            f"SELECT id FROM {self.schema}.enterprise_users WHERE database_id = ? LIMIT 1",
+            [database_id],
+        )
+
+    @lru_cache
+    def enterprise_organization_id_for_login(self, login: str) -> str | None:
+        """Resolve an enterprise organization's node ID from its login."""
+        return self._find_single_object(
+            f"SELECT id FROM {self.schema}.enterprise_organizations WHERE lower(login) = lower(?) LIMIT 1",
+            [login],
+        )
+
+    @lru_cache
     def enterprise_organization_node_ids(self, enterprise_node_id: str):
         return self._find_all_objects(
             f"""SELECT id FROM {self.schema}.enterprise_organizations WHERE enterprise_node_id = ?""",
@@ -579,6 +595,16 @@ class GithubLookup(LookupManager):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories WHERE org_login = ?""",
             [org_login],
+        )
+
+    @lru_cache
+    def repository_node_id_for_database_id(
+        self, database_id: int, org_login: str
+    ) -> str | None:
+        """Resolve a repository node by database ID within its organization."""
+        return self._find_single_object(
+            f"SELECT node_id FROM {self.schema}.repositories WHERE database_id = ? AND lower(org_login) = lower(?) LIMIT 1",
+            [database_id, org_login],
         )
 
     @lru_cache

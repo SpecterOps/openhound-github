@@ -73,6 +73,65 @@ The collector runs successfully with the documented read-only permission set. So
 
 If these optional permissions are not granted, OpenHound skips the affected resources and continues collecting the rest of the GitHub environment.
 
+### Selected GitHub App installation repositories
+
+For organization installations limited to selected repositories, the collector
+uses the enterprise installation's read-only organization-installation
+repositories API to create exact `GH_CanAccess` edges. Grant the enterprise
+installation **Enterprise organization installations: read** or **Enterprise
+organization installation repositories: read**. Without either permission,
+selected-repository edges are skipped; installations set to `all` continue to
+use the collected organization repository inventory.
+
+Installation discovery still uses each organization's API and requires
+**Organization administration: read** on that organization's credential. The
+enterprise permission alone does not discover installations.
+The selected-repository lookup runs one installation at a time and stops for
+the rest of a collection if GitHub rate-limits it after retries.
+
+### Classic personal access token inventory
+
+With GitHub Enterprise Cloud credentials, the collector uses the enterprise
+credential inventory export to collect classic personal access tokens. It
+requests the full inventory, stores every CSV row and its original field values
+in the `enterprise_credential_inventory` resource, and currently models only
+classic PAT rows. The export contains credential metadata, including owners,
+scopes, authorization details, and token hashes used for audit correlation. It
+does not contain plaintext PAT values. Limit access to the raw output to people
+who need the credential inventory.
+
+The enterprise GitHub App needs **Enterprise credentials: read** permission.
+When collecting with a classic PAT instead of an app installation, that token
+needs the `read:enterprise` scope. If an enterprise app also has
+`credentials.pat_token` configured, the app remains the primary export
+credential. The collector retries once with the PAT only when GitHub rejects
+the app's export creation for authorization. It does not switch credentials
+after an export starts or when GitHub reports a rate limit.
+
+Rate-limit retry warnings identify the affected method and API path.
+
+The CSV download is streamed, but the parsed export is held in memory as one
+raw record; very large enterprises may need a chunked raw-resource design.
+
+GitHub limits the number of exports an enterprise can start per day. When the
+last successful export was downloaded within the past 24 hours, the collector
+downloads it again before trying to start a new export. If GitHub reports that
+the saved export is gone, the collector starts a new one and polls until its
+CSV is ready. GitHub may still reject a new export when its limit is reached.
+The raw record's `as_of` value and each PAT node's `inventory_as_of` value
+show when that snapshot was taken. An unavailable or denied export is logged
+and does not stop other resources from collecting.
+
+Classic PAT nodes include the owner, scopes, lifecycle dates, credential
+state, direct enterprise authorization, and total authorization count.
+Organization edges record authorizations reported in the export. The
+export does not enumerate repositories accessible to a classic PAT, so this
+collection does not emit classic PAT-to-repository access edges. Potential
+repository access can be derived from the token owner's repository roles and
+the token's scopes, subject to organization policy and SSO authorization; it
+is not a direct grant reported by the export. GitHub Enterprise Server and
+organization-only configurations skip this resource.
+
 [![Python Version](https://img.shields.io/badge/Python-3.13-brightgreen.svg)](#about)
 
 ## Getting Started

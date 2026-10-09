@@ -19,6 +19,7 @@ MEMBER_OF = "GH_MemberOf"
 
 # Access and capability edges
 CAN_ACCESS = "GH_CanAccess"
+AUTHORIZED_FOR_ORGANIZATION = "GH_AuthorizedForOrganization"
 CAN_USE_RUNNER = "GH_CanUseRunner"
 RUNS_ON = "GH_RunsOn"
 CAN_INTERCEPT_JOB = "GH_CanInterceptJob"
