@@ -108,7 +108,8 @@ class User(BaseAsset):
                 environmentid=org_node_id,
                 query_personal_access_tokens=(
                     f"MATCH p=(:GH_User {{node_id: '{uid}'}})-[]->(token) "
-                    f"WHERE token:GH_PersonalAccessToken OR token:GH_PersonalAccessTokenRequest RETURN p"
+                    f"WHERE token:GH_PersonalAccessToken OR token:GH_ClassicPersonalAccessToken "
+                    f"OR token:GH_PersonalAccessTokenRequest RETURN p"
                 ),
                 query_roles=(
                     f"MATCH p=(t:GH_User {{node_id:'{uid}'}})"

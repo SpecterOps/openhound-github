@@ -100,3 +100,36 @@ def test_retry_client_recovers_from_malformed_graphql_json(monkeypatch) -> None:
 
     assert response.json() == {"data": {"organization": {"repositories": {}}}}
     assert len(requests_seen) == 2
+
+
+def test_rate_limit_warning_logs_path_without_query(caplog) -> None:
+    response = graphql_response(
+        url="https://api.github.com/enterprises/example/credentials/exports?token=private",
+        body={"message": "You have exceeded a secondary rate limit"},
+    )
+    response.status_code = 403
+
+    should_retry = github_retry_policy(BearerTokenAuth(token="static-token"))(
+        response, None
+    )
+
+    assert should_retry is False
+    assert "POST /enterprises/example/credentials/exports" in caplog.text
+    assert "skipping export creation retry" in caplog.text
+    assert "token=private" not in caplog.text
+
+
+def test_credential_export_429_is_not_retried(caplog) -> None:
+    response = graphql_response(
+        url="https://api.github.com/enterprises/example/credentials/exports",
+        body={"message": "Too many requests"},
+        headers={"Retry-After": "60"},
+    )
+    response.status_code = 429
+
+    should_retry = github_retry_policy(BearerTokenAuth(token="static-token"))(
+        response, None
+    )
+
+    assert should_retry is False
+    assert "POST /enterprises/example/credentials/exports" in caplog.text

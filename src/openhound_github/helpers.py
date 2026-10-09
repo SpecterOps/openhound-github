@@ -390,6 +390,23 @@ def _is_graphql_response(response: requests.Response) -> bool:
     return urlparse(request.url).path.rstrip("/").endswith("/graphql")
 
 
+def _response_request_label(response: requests.Response) -> str:
+    """Identify a request by method and path without logging its query string."""
+    request = response.request
+    if request is None or not request.url:
+        return "unknown request"
+    return f"{request.method or 'UNKNOWN'} {urlparse(request.url).path}"
+
+
+def _is_credential_export_creation_response(response: requests.Response) -> bool:
+    """Identify a POST that starts an enterprise credential export."""
+    request = response.request
+    if request is None or request.method != "POST" or not request.url:
+        return False
+    path = urlparse(request.url).path.rstrip("/")
+    return "/enterprises/" in path and path.endswith("/credentials/exports")
+
+
 def github_retry_policy(auth: AuthConfigBase):
     def retry_policy(
         response: Optional[requests.Response], exception: Optional[BaseException]
@@ -435,7 +452,9 @@ def github_retry_policy(auth: AuthConfigBase):
                 delay = int(reset_at) - now if reset_at else 0
                 headers["Retry-After"] = str(delay)
                 logger.warning(
-                    "Primary rate limit reached, retrying in %s seconds", delay
+                    "Primary rate limit reached for %s, retrying in %s seconds",
+                    _response_request_label(response),
+                    delay,
                 )
                 return True
             return False
@@ -443,15 +462,34 @@ def github_retry_policy(auth: AuthConfigBase):
         if response.status_code not in (403, 429):
             return False
 
+        if _is_credential_export_creation_response(response) and (
+            response.status_code == 429
+            or bool(headers.get("Retry-After"))
+            or is_primary_rate_limit_response(response)
+            or is_secondary_rate_limit_response(response)
+        ):
+            logger.warning(
+                "Rate limit reached for %s; skipping export creation retry",
+                _response_request_label(response),
+            )
+            return False
+
         if is_primary_rate_limit_response(response):
             reset_at = headers.get("x-ratelimit-reset")
             delay = int(reset_at) - now if reset_at else 0
             headers["Retry-After"] = str(delay)
-            logger.warning("Primary rate limit reached, retrying in %s seconds", delay)
+            logger.warning(
+                "Primary rate limit reached for %s, retrying in %s seconds",
+                _response_request_label(response),
+                delay,
+            )
             return True
 
         if is_secondary_rate_limit_response(response):
-            logger.warning("Secondary rate limit reached, retrying in 60 seconds")
+            logger.warning(
+                "Secondary rate limit reached for %s, retrying in 60 seconds",
+                _response_request_label(response),
+            )
             headers["Retry-After"] = "60"
             return True
 

@@ -316,7 +316,12 @@ class Organization(BaseAsset):
                 query_users=f"MATCH (n:GH_User {{environmentid:'{oid}'}}) RETURN n",
                 query_teams=f"MATCH (n:GH_Team {{environmentid:'{oid}'}}) RETURN n",
                 query_repositories=f"MATCH (n:GH_Repository {{environmentid:'{oid}'}}) RETURN n",
-                query_personal_access_tokens=f"MATCH p=(:GH_Organization {{node_id: '{oid}'}})-[:GH_Contains]->(token) WHERE token:GH_PersonalAccessToken OR token:GH_PersonalAccessTokenRequest RETURN p",
+                query_personal_access_tokens=(
+                    f"MATCH p=(:GH_Organization {{node_id: '{oid}'}})-[:GH_Contains]->(token) "
+                    "WHERE token:GH_PersonalAccessToken OR token:GH_PersonalAccessTokenRequest RETURN p "
+                    f"UNION MATCH p=(:GH_ClassicPersonalAccessToken)-[:GH_AuthorizedForOrganization]->"
+                    f"(:GH_Organization {{node_id: '{oid}'}}) RETURN p"
+                ),
                 query_secret_scanning_alerts=f"MATCH p=(:GH_Organization {{node_id: '{oid}'}})-[:GH_Contains]->(alert:GH_SecretScanningAlert) RETURN p",
                 query_identity_provider=f"MATCH p=(OIP:GH_SamlIdentityProvider)-[:GH_HasExternalIdentity]->(EI:GH_ExternalIdentity) MATCH p1=(OIP)<-[:GH_HasSamlIdentityProvider]-(:GH_Organization {{node_id:'{oid}'}}) MATCH p2=(EI)-[:GH_MapsToUser]->() RETURN p,p1,p2",
                 query_app_installations=f"MATCH p=(:GH_Organization {{node_id:'{oid}'}})-[:GH_Contains]->(:GH_AppInstallation) RETURN p",
