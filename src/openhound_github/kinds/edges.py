@@ -1,5 +1,7 @@
 # Generic
 CONTAINS = "GH_Contains"
+SCOPED_TO = "GH_ScopedTo"
+REQUESTS_ACCESS_TO = "GH_RequestsAccessTo"
 ASSIGNED_TO = "GH_AssignedTo"
 INHERITED_FROM = "GH_InheritedFrom"
 

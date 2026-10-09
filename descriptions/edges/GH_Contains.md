@@ -2,7 +2,7 @@
 
 ## General Information
 
-The non-traversable GH_Contains edge represents structural containment within the GitHub resource hierarchy. The enterprise contains enterprise teams, roles, managed users, classic personal access tokens, runner groups, and enterprise runners through their groups. The organization serves as a top-level container for users, teams, repositories, roles, secrets, app installations, fine-grained personal access tokens, and organization runner groups. Native organization runner groups contain organization runners. Repositories contain branches, workflows, branch protection rules, environments, repo-level secrets and variables, and repository-scoped runners. Environments contain environment branch policies, environment-scoped secrets, and environment-scoped variables. This edge is created by the collector to establish the resource hierarchy and is not traversable because containment alone does not imply privilege escalation.
+The non-traversable GH_Contains edge represents structural containment within the GitHub resource hierarchy. The enterprise contains enterprise teams, roles, managed users, classic personal access tokens, runner groups, and enterprise runners through their groups. The organization serves as a top-level container for users, teams, repositories, roles, scopes, secrets, app installations, fine-grained personal access tokens, and organization runner groups. Native organization runner groups contain organization runners. Repositories contain branches, workflows, branch protection rules, environments, repo-level secrets and variables, and repository-scoped runners. Environments contain environment branch policies, environment-scoped secrets, and environment-scoped variables. This edge is created by the collector to establish the resource hierarchy and is not traversable because containment alone does not imply privilege escalation.
 
 ## Edge Schema
 
@@ -25,6 +25,7 @@ The non-traversable GH_Contains edge represents structural containment within th
 | `GH_Organization` | `GH_OrgVariable` | `false` |
 | `GH_Organization` | `GH_PersonalAccessToken` | `false` |
 | `GH_Organization` | `GH_PersonalAccessTokenRequest` | `false` |
+| `GH_Organization` | `GH_Scope` | `false` |
 | `GH_Organization` | `GH_SecretScanningAlert` | `false` |
 | `GH_Repository` | `GH_Branch` | `false` |
 | `GH_Repository` | `GH_BranchProtectionRule` | `false` |
@@ -61,17 +62,18 @@ graph LR
     n16["GH_OrgVariable"]
     n17["GH_PersonalAccessToken"]
     n18["GH_PersonalAccessTokenRequest"]
-    n19["GH_SecretScanningAlert"]
-    n20["GH_Repository"]
-    n21["GH_Branch"]
-    n22["GH_BranchProtectionRule"]
-    n23["GH_DeployKey"]
-    n24["GH_RepoRunner"]
-    n25["GH_RepoSecret"]
-    n26["GH_RepoVariable"]
-    n27["GH_Workflow"]
-    n28["GH_WorkflowJob"]
-    n29["GH_WorkflowStep"]
+    n19["GH_Scope"]
+    n20["GH_SecretScanningAlert"]
+    n21["GH_Repository"]
+    n22["GH_Branch"]
+    n23["GH_BranchProtectionRule"]
+    n24["GH_DeployKey"]
+    n25["GH_RepoRunner"]
+    n26["GH_RepoSecret"]
+    n27["GH_RepoVariable"]
+    n28["GH_Workflow"]
+    n29["GH_WorkflowJob"]
+    n30["GH_WorkflowStep"]
     n0 -.->|GH_Contains| n1
     n0 -.->|GH_Contains| n2
     n0 -.->|GH_Contains| n3
@@ -90,15 +92,16 @@ graph LR
     n5 -.->|GH_Contains| n17
     n5 -.->|GH_Contains| n18
     n5 -.->|GH_Contains| n19
-    n20 -.->|GH_Contains| n21
-    n20 -.->|GH_Contains| n22
-    n20 -.->|GH_Contains| n23
-    n20 -.->|GH_Contains| n7
-    n20 -.->|GH_Contains| n24
-    n20 -.->|GH_Contains| n25
-    n20 -.->|GH_Contains| n26
-    n20 -.->|GH_Contains| n19
-    n20 -.->|GH_Contains| n27
-    n27 -.->|GH_Contains| n28
+    n5 -.->|GH_Contains| n20
+    n21 -.->|GH_Contains| n22
+    n21 -.->|GH_Contains| n23
+    n21 -.->|GH_Contains| n24
+    n21 -.->|GH_Contains| n7
+    n21 -.->|GH_Contains| n25
+    n21 -.->|GH_Contains| n26
+    n21 -.->|GH_Contains| n27
+    n21 -.->|GH_Contains| n20
+    n21 -.->|GH_Contains| n28
     n28 -.->|GH_Contains| n29
+    n29 -.->|GH_Contains| n30
 ```

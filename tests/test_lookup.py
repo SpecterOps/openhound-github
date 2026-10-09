@@ -29,6 +29,50 @@ def test_github_lookup_rejects_untrusted_schema_identifiers() -> None:
         GithubLookup(connection, schema="github; DROP SCHEMA github")
 
 
+def test_canonical_scope_activation_requires_matching_target() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github_test")
+    connection.execute(
+        "CREATE TABLE github_test.organization_secrets "
+        "(org_login VARCHAR, visibility VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github_test.organization_variables "
+        "(org_login VARCHAR, visibility VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github_test.org_runner_group_access "
+        "(org_login VARCHAR, runner_group_visibility VARCHAR, "
+        "allows_public_repositories BOOLEAN)"
+    )
+    connection.execute(
+        "INSERT INTO github_test.organization_secrets VALUES ('acme', 'all')"
+    )
+    connection.execute(
+        "INSERT INTO github_test.organization_variables VALUES ('acme', 'private')"
+    )
+    connection.execute(
+        "INSERT INTO github_test.org_runner_group_access VALUES "
+        "('acme', 'all', false)"
+    )
+    lookup = GithubLookup(connection, schema="github_test")
+
+    assert lookup.canonical_scope_has_targets("acme", "organization_secret", "all")
+    assert lookup.canonical_scope_target_count(
+        "acme", "organization_secret", "all"
+    ) == 1
+    assert not lookup.canonical_scope_has_targets(
+        "acme", "organization_secret", "private_or_internal"
+    )
+    assert lookup.canonical_scope_has_targets(
+        "acme", "organization_variable", "private_or_internal"
+    )
+    assert not lookup.canonical_scope_has_targets("acme", "runner_group", "all")
+    assert lookup.canonical_scope_has_targets(
+        "acme", "runner_group", "private_or_internal"
+    )
+
+
 def test_external_group_for_team_is_scoped_to_org_login() -> None:
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github_test")

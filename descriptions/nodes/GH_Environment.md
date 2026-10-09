@@ -58,5 +58,6 @@ graph LR
     n7 -->|GH_CanDeployToEnvironment| n1
     n8 -.->|GH_ApprovesDeploymentTo| n1
     n8 -->|GH_CanDeployToEnvironment| n1
+    n9 -->|GH_CanRequestOIDCTokenFor| n1
     n9 -.->|GH_DeploysTo| n1
 ```

@@ -484,6 +484,10 @@ def test_repository_node_surfaces_branch_ruleset_presence() -> None:
     assert node.properties.node_id == "R_1"
     assert node.properties.owner_id == "O_1"
     assert [(edge.start.value, edge.end.value) for edge in repo.edges] == [
+        ("GH_Scope_O_1_repository_all", "R_1"),
+        ("R_1", "GH_Scope_O_1_runner_group_all"),
+        ("R_1", "GH_Scope_O_1_organization_secret_all"),
+        ("R_1", "GH_Scope_O_1_organization_variable_all"),
         ("O_1", "R_1")
     ]
     lookup.repository_branch_ruleset_count.assert_called_once_with("R_1")

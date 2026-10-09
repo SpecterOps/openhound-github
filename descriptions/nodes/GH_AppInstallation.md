@@ -6,7 +6,7 @@ Represents a GitHub App installed on an organization. App installations have spe
 
 Unlike fine-grained personal access tokens, GitHub does not expose separate organization and repository permission buckets for app installations, so this property remains a single flat permission list.
 
-Each installation is linked to its parent GH_App via a GH_InstalledAs edge. For installations with `repository_selection` set to `all`, GH_CanAccess edges are created to every collected repository in the organization. For installations with `repository_selection` set to `selected`, the collector uses the enterprise organization-installation repositories API to enumerate the granted repositories when the enterprise installation has `Enterprise organization installations: read` or `Enterprise organization installation repositories: read`. If that permission is unavailable, selected repository edges are skipped.
+Each installation is linked to its parent GH_App via a GH_InstalledAs edge. Installations with `repository_selection` set to `all` use one GH_CanAccess edge to the organization's repository/all GH_Scope; GH_ScopedTo edges enumerate the repositories in that reusable scope. For installations with `repository_selection` set to `selected`, the collector uses the enterprise organization-installation repositories API to enumerate the granted repositories when the enterprise installation has `Enterprise organization installations: read` or `Enterprise organization installation repositories: read`. If that permission is unavailable, selected repository edges are skipped.
 
 ## Properties
 
@@ -42,8 +42,10 @@ graph LR
     n0["GH_App"]
     n1["GH_AppInstallation"]
     n2["GH_Repository"]
-    n3["GH_Organization"]
+    n3["GH_Scope"]
+    n4["GH_Organization"]
     n0 -->|GH_InstalledAs| n1
     n1 -.->|GH_CanAccess| n2
-    n3 -.->|GH_Contains| n1
+    n1 -.->|GH_CanAccess| n3
+    n4 -.->|GH_Contains| n1
 ```

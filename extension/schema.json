@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.3.3",
+    "version": "v1.4.0",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -529,7 +529,7 @@
           "title": "Stored Credentials",
           "position": 9,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Repository {objectid: '%s'})-[:GH_HasSecret|GH_HasVariable]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View secrets and variables available to this repository in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Repository {objectid: '%s'})-[:GH_HasSecret|GH_HasVariable|GH_ScopedTo*1..2]->(target)\\nWHERE target:GH_Secret OR target:GH_Variable\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View secrets and variables available to this repository in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "roles_and_teams": {
@@ -734,7 +734,7 @@
           "title": "Secret and Runner Exposure",
           "position": 7,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_CanReadSecret|GH_CanReadSecretScanningAlert|GH_CanCreateRepositoryWithRunnerAccess]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View secret and runner exposure granted by this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_CanReadSecret|GH_ScopedTo*1..2]->(:GH_OrgSecret)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View organization secrets exposed through this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1210,7 +1210,7 @@
           "title": "Inbound Traversable GH Relationships",
           "position": 2,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = ()-[:GH_HasSecret|GH_CanReadSecret|GH_CanAccessSecret]->(selected:GH_Secret {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = ()-[:GH_HasSecret|GH_CanReadSecret|GH_CanAccessSecret|GH_ScopedTo*1..2]->(selected:GH_Secret {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "outbound_traversable_relationships": {
@@ -1231,7 +1231,7 @@
           "title": "Repositories With Access",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Repository)-[:GH_HasSecret]->(selected:GH_Secret {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories that can receive this secret in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Repository)-[:GH_HasSecret|GH_ScopedTo*1..2]->(selected:GH_Secret {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories that can receive this secret in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "workflow_jobs_with_access": {
@@ -1245,7 +1245,7 @@
           "title": "Role-Based Read Paths",
           "position": 7,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH (selected:GH_Secret {objectid: '%s'})\\nOPTIONAL MATCH p1 = (:GH_OrgRole)-[:GH_CanReadSecret]->(selected)\\nOPTIONAL MATCH p2 = (:GH_RepoRole)-[:GH_CanCreateBranch]->(:GH_Repository)-[:GH_HasSecret]->(selected)\\nRETURN p1, p2\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View role-based paths that can expose this secret in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH (selected:GH_Secret {objectid: '%s'})\\nOPTIONAL MATCH p1 = (:GH_OrgRole)-[:GH_CanReadSecret|GH_ScopedTo*1..2]->(selected)\\nOPTIONAL MATCH p2 = (:GH_RepoRole)-[:GH_CanCreateBranch]->(:GH_Repository)-[:GH_HasSecret|GH_ScopedTo*1..2]->(selected)\\nRETURN p1, p2\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View role-based paths that can expose this secret in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1267,7 +1267,7 @@
           "title": "Inbound Traversable GH Relationships",
           "position": 2,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = ()-[:GH_HasVariable]->(selected:GH_Variable {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = ()-[:GH_HasVariable|GH_ScopedTo*1..2]->(selected:GH_Variable {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "outbound_traversable_relationships": {
@@ -1288,7 +1288,7 @@
           "title": "Repositories With Access",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Repository)-[:GH_HasVariable]->(selected:GH_Variable {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories that can receive this variable in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Repository)-[:GH_HasVariable|GH_ScopedTo*1..2]->(selected:GH_Variable {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories that can receive this variable in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "workflow_steps_using_value": {
@@ -1475,7 +1475,7 @@
           "title": "Eligible Repositories",
           "position": 8,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Repository)-[:GH_IsEligibleFor]->(:GH_OrgRunnerGroup)-[:GH_InheritedFrom]->(selected:GH_EnterpriseRunnerGroup {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories within this enterprise runner group's access scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Repository)-[:GH_IsEligibleFor|GH_ScopedTo*1..2]->(:GH_OrgRunnerGroup)-[:GH_InheritedFrom]->(selected:GH_EnterpriseRunnerGroup {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories within this enterprise runner group's access scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "dispatchable_repositories": {
@@ -1716,7 +1716,52 @@
           "title": "Repository Reach",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_App {objectid: '%s'})-[:GH_InstalledAs]->(:GH_AppInstallation)-[:GH_CanAccess]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories reachable through this app's installations in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_App {objectid: '%s'})-[:GH_InstalledAs|GH_CanAccess|GH_ScopedTo*2..3]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories reachable through this app's installations in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        }
+      }
+    },
+    {
+      "name": "GH_Scope",
+      "display_name": "GitHub Scope",
+      "description": "A reusable asset selection within one GitHub organization",
+      "is_display_kind": true,
+      "icon": "boxes-stacked",
+      "color": "#6B7280",
+      "info": {
+        "description": {
+          "title": "Description",
+          "position": 1,
+          "markdown": {
+            "content": "## Overview\n\nRepresents a reusable asset selection within one GitHub organization. `scope_type` identifies the family of assets and `scope` identifies the canonical selector. Repository, runner-group, organization-secret, and organization-variable scopes support `all` and `private_or_internal`. `member_count` reports collected outgoing membership. Per-repository capability boundaries are emitted only for non-empty target scopes."
+          }
+        },
+        "inbound_traversable_relationships": {
+          "title": "Inbound Traversable GH Relationships",
+          "position": 2,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_HasSecret|GH_HasVariable|GH_CanReadSecret]->(selected:GH_Scope {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "outbound_traversable_relationships": {
+          "title": "Outbound Traversable GH Relationships",
+          "position": 3,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Scope {objectid: '%s'})-[:GH_ScopedTo]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "credentials": {
+          "title": "Credentials and Requests",
+          "position": 4,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_CanAccess|GH_RequestsAccessTo]->(selected:GH_Scope {objectid: '%s'})\\nWHERE source:GH_AppInstallation OR source:GH_PersonalAccessToken OR source:GH_PersonalAccessTokenRequest\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View credentials and pending requests associated with this scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "repositories": {
+          "title": "Scoped Assets",
+          "position": 5,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Scope {objectid: '%s'})-[:GH_ScopedTo]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View assets in this scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1768,7 +1813,7 @@
           "title": "Repository Scope",
           "position": 6,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_AppInstallation {objectid: '%s'})-[:GH_CanAccess]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories accessible to this app installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_AppInstallation {objectid: '%s'})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories accessible to this app installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1865,7 +1910,7 @@
           "title": "Repository Scope",
           "position": 6,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessToken {objectid: '%s'})-[:GH_CanAccess]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories accessible to this token in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessToken {objectid: '%s'})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories accessible to this token in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1882,7 +1927,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a pending request from an organization member to access organization resources with a fine-grained personal access token. Requested permissions are stored on the node, but no access edges are projected until GitHub reports an approved token."
+            "content": "## Overview\n\nRepresents a pending request from an organization member to access organization resources with a fine-grained personal access token. Requested permissions are stored on the node. An all-repository request uses non-traversable GH_RequestsAccessTo rather than granted-access GH_CanAccess."
           }
         },
         "inbound_traversable_relationships": {
@@ -1912,6 +1957,13 @@
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Organization)-[:GH_Contains]->(selected:GH_PersonalAccessTokenRequest {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the organization containing this request in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
+        },
+        "requested_repositories": {
+          "title": "Requested Repositories",
+          "position": 6,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessTokenRequest {objectid: '%s'})-[:GH_RequestsAccessTo|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories requested by this token request in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
         }
       }
     }
@@ -1919,7 +1971,17 @@
   "relationship_kinds": [
     {
       "name": "GH_Contains",
-      "description": "Container relationship for organizational hierarchy (org contains secrets/variables, repo contains secrets/variables, environment contains secrets/variables)",
+      "description": "Container relationship for GitHub resource hierarchy, including organization-owned scopes",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_ScopedTo",
+      "description": "Reusable scope applies to a repository, organization runner group, organization secret, or organization variable",
+      "is_traversable": true
+    },
+    {
+      "name": "GH_RequestsAccessTo",
+      "description": "Pending fine-grained PAT request requests access to this repository scope",
       "is_traversable": false
     },
     {
@@ -2504,7 +2566,7 @@
     },
     {
       "name": "GH_CanReadSecret",
-      "description": "Org role can read an organization secret by creating a repository in scope",
+      "description": "Org role can read organization secrets by creating a repository in scope",
       "is_traversable": true
     },
     {
@@ -2519,12 +2581,12 @@
     },
     {
       "name": "GH_HasSecret",
-      "description": "Repository or environment has access to this secret",
+      "description": "Repository or environment has access to this secret or organization-secret scope",
       "is_traversable": true
     },
     {
       "name": "GH_HasVariable",
-      "description": "Repository or environment has access to this variable",
+      "description": "Repository or environment has access to this variable or organization-variable scope",
       "is_traversable": true
     },
     {
@@ -2569,7 +2631,7 @@
     },
     {
       "name": "GH_CanAccess",
-      "description": "Personal access token, app installation, or deploy key can access this repository or organization",
+      "description": "Personal access token, app installation, or deploy key can access this repository, reusable repository scope, or organization",
       "is_traversable": false
     },
     {
@@ -2579,7 +2641,7 @@
     },
     {
       "name": "GH_IsEligibleFor",
-      "description": "Repository is within the repository-access scope of this runner group",
+      "description": "Repository is eligible for this runner-group scope or selected runner group",
       "is_traversable": false
     },
     {

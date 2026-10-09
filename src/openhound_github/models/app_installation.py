@@ -13,6 +13,11 @@ from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.permissions import normalize_permission_declaration
+from openhound_github.models.scope import (
+    ALL_REPOSITORIES_SCOPE,
+    REPOSITORY_SCOPE_TYPE,
+    scope_node_id,
+)
 
 
 @dataclass
@@ -149,7 +154,7 @@ class AppInstallation(BaseAsset):
                 suspended_at=self.suspended_at,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
-                query_repositories=f"MATCH p=(:GH_AppInstallation {{node_id:'{self.node_id}'}})-[:GH_CanAccess]->(:GH_Repository) RETURN p LIMIT 1000",
+                query_repositories=f"MATCH p=(:GH_AppInstallation {{node_id:'{self.node_id}'}})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository) RETURN p LIMIT 1000",
                 query_app=f"MATCH p=(:GH_App)-[:GH_InstalledAs]->(:GH_AppInstallation {{node_id:'{self.node_id}'}}) RETURN p",
             ),
         )
@@ -169,15 +174,19 @@ class AppInstallation(BaseAsset):
     @property
     def _can_access_edges(self):
         if self.repository_selection == "all":
-            for (repo_node_id,) in self._lookup.repository_node_ids_for_org(
-                self.org_login
-            ):
-                yield Edge(
-                    kind=ek.CAN_ACCESS,
-                    start=EdgePath(value=self.node_id, match_by="id"),
-                    end=EdgePath(value=repo_node_id, match_by="id"),
-                    properties=EdgeProperties(traversable=False),
-                )
+            yield Edge(
+                kind=ek.CAN_ACCESS,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(
+                    value=scope_node_id(
+                        self.org_node_id,
+                        REPOSITORY_SCOPE_TYPE,
+                        ALL_REPOSITORIES_SCOPE,
+                    ),
+                    match_by="id",
+                ),
+                properties=EdgeProperties(traversable=False),
+            )
 
     @property
     def edges(self):

@@ -2,7 +2,7 @@
 
 ## General Information
 
-Represents an organization-level GitHub Actions variable. Organization variables can be scoped to all repositories, only private/internal repositories, or a specific set of selected repositories. The visibility property determines how GH_HasVariable edges are resolved to repository nodes. Unlike secrets, variable values are readable via the API.
+Represents an organization-level GitHub Actions variable. All and private/internal visibility uses shared organization-variable GH_Scope nodes; arbitrary selected visibility uses direct GH_HasVariable relationships from repositories. Unlike secrets, variable values are readable via the API.
 
 ## Properties
 
@@ -27,10 +27,12 @@ graph LR
     n0["GH_Organization"]
     n1["GH_OrgVariable"]
     n2["GH_Repository"]
-    n3["GH_WorkflowJob"]
-    n4["GH_WorkflowStep"]
+    n3["GH_Scope"]
+    n4["GH_WorkflowJob"]
+    n5["GH_WorkflowStep"]
     n0 -.->|GH_Contains| n1
     n2 -->|GH_HasVariable| n1
-    n3 -.->|GH_UsesVariable| n1
+    n3 -->|GH_ScopedTo| n1
     n4 -.->|GH_UsesVariable| n1
+    n5 -.->|GH_UsesVariable| n1
 ```

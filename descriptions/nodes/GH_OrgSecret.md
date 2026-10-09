@@ -2,7 +2,7 @@
 
 ## General Information
 
-Represents an organization-level GitHub Actions secret. Organization secrets can be scoped to all repositories, only private/internal repositories, or a specific set of selected repositories. The visibility property determines how GH_HasSecret edges are resolved to repository nodes.
+Represents an organization-level GitHub Actions secret. All and private/internal visibility uses shared organization-secret GH_Scope nodes; arbitrary selected visibility uses direct GH_HasSecret relationships from repositories.
 
 ## Properties
 
@@ -28,12 +28,14 @@ graph LR
     n1["GH_OrgSecret"]
     n2["GH_Organization"]
     n3["GH_Repository"]
-    n4["GH_WorkflowJob"]
-    n5["GH_WorkflowStep"]
-    n0 -->|GH_CanReadSecret| n1
+    n4["GH_Scope"]
+    n5["GH_WorkflowJob"]
+    n6["GH_WorkflowStep"]
     n2 -.->|GH_Contains| n1
     n3 -->|GH_HasSecret| n1
-    n4 -->|GH_CanAccessSecret| n1
-    n4 -.->|GH_UsesSecret| n1
+    n0 -->|GH_CanReadSecret| n4
+    n4 -->|GH_ScopedTo| n1
+    n5 -->|GH_CanAccessSecret| n1
     n5 -.->|GH_UsesSecret| n1
+    n6 -.->|GH_UsesSecret| n1
 ```

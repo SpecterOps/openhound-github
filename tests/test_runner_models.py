@@ -16,6 +16,12 @@ from openhound_github.models.runner import (
     OrgRunnerGroupMembership,
     RepoRunner,
 )
+from openhound_github.models.scope import (
+    ALL_REPOSITORIES_SCOPE,
+    PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE,
+    RUNNER_GROUP_SCOPE_TYPE,
+    scope_node_id,
+)
 
 
 def _workflow_runner_lookup() -> GithubLookup:
@@ -200,6 +206,10 @@ def test_org_runner_group_keeps_generic_runner_group_label() -> None:
     assert node.kinds == [nk.ORG_RUNNER_GROUP, nk.RUNNER_GROUP, "GitHub"]
     assert node.properties.scope == "organization"
     assert node.id == "ORG_1_runner_group_1"
+    assert (
+        "[:GH_IsEligibleFor|GH_ScopedTo*1..2]->(:GH_OrgRunnerGroup"
+        in node.properties.query_repositories
+    )
 
 
 def test_inherited_org_runner_group_emits_inherited_from_edge() -> None:
@@ -397,10 +407,13 @@ def test_org_runner_group_access_emits_repository_access_to_inherited_group() ->
 
     edges = list(access.edges)
 
-    assert [edge.kind for edge in edges] == [ek.IS_ELIGIBLE_FOR]
-    assert edges[0].start.value == "REPO_1"
+    assert [edge.kind for edge in edges] == [ek.SCOPED_TO]
+    assert edges[0].start.value == scope_node_id(
+        "ORG_1", RUNNER_GROUP_SCOPE_TYPE, ALL_REPOSITORIES_SCOPE
+    )
     assert edges[0].end.value == "ORG_1_runner_group_1"
-    assert edges[0].properties.traversable is False
+    assert edges[0].properties.traversable is True
+    lookup.repository_node_ids_for_org.assert_not_called()
 
 
 def test_org_runner_group_access_all_visibility_excludes_public_repositories_when_disabled() -> None:
@@ -420,10 +433,12 @@ def test_org_runner_group_access_all_visibility_excludes_public_repositories_whe
 
     edges = list(access.edges)
 
-    assert [edge.kind for edge in edges] == [ek.IS_ELIGIBLE_FOR]
-    assert edges[0].start.value == "REPO_PRIVATE"
+    assert [edge.kind for edge in edges] == [ek.SCOPED_TO]
+    assert edges[0].start.value == scope_node_id(
+        "ORG_1", RUNNER_GROUP_SCOPE_TYPE, PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE
+    )
     assert edges[0].end.value == "ORG_1_runner_group_1"
-    lookup.private_repository_node_ids_for_org.assert_called_with("acme")
+    lookup.private_repository_node_ids_for_org.assert_not_called()
     lookup.repository_node_ids_for_org.assert_not_called()
 
 
@@ -547,7 +562,11 @@ def test_org_runner_group_access_all_visibility_emits_traversable_create_access_
     lookup.members_can_create_repository.return_value = (True, False, False, False)
     access._lookup = lookup
 
-    edges = list(access.edges)
+    edges = [
+        edge
+        for edge in access.edges
+        if edge.kind == ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
+    ]
 
     assert [edge.kind for edge in edges] == [
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
@@ -582,7 +601,11 @@ def test_org_runner_group_access_without_public_access_requires_private_or_inter
     lookup.members_can_create_repository.return_value = (True, True, False, False)
     access._lookup = lookup
 
-    edges = list(access.edges)
+    edges = [
+        edge
+        for edge in access.edges
+        if edge.kind == ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
+    ]
 
     assert [edge.kind for edge in edges] == [
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
@@ -612,7 +635,11 @@ def test_org_runner_group_access_private_visibility_requires_private_or_internal
     lookup.members_can_create_repository.return_value = (False, False, True, False)
     access._lookup = lookup
 
-    edges = list(access.edges)
+    edges = [
+        edge
+        for edge in access.edges
+        if edge.kind == ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
+    ]
 
     assert [edge.kind for edge in edges] == [
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
@@ -641,7 +668,9 @@ def test_org_runner_group_access_selected_visibility_does_not_emit_latent_access
     lookup.members_can_create_repository.return_value = (True, True, True, True)
     access._lookup = lookup
 
-    assert list(access.edges) == []
+    assert ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS not in {
+        edge.kind for edge in access.edges
+    }
 
 
 def test_org_runner_group_access_does_not_emit_create_access_when_new_repositories_do_not_have_actions_enabled() -> None:
@@ -660,7 +689,9 @@ def test_org_runner_group_access_does_not_emit_create_access_when_new_repositori
     lookup.members_can_create_repository.return_value = (True, True, True, True)
     access._lookup = lookup
 
-    assert list(access.edges) == []
+    assert ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS not in {
+        edge.kind for edge in access.edges
+    }
 
 
 def test_inherited_org_runner_group_create_access_requires_enterprise_workflow_policy_to_be_open() -> None:
@@ -683,7 +714,11 @@ def test_inherited_org_runner_group_create_access_requires_enterprise_workflow_p
     )
     access._lookup = lookup
 
-    edges = list(access.edges)
+    edges = [
+        edge
+        for edge in access.edges
+        if edge.kind == ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
+    ]
 
     assert [edge.kind for edge in edges] == [
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
@@ -714,7 +749,9 @@ def test_inherited_org_runner_group_create_access_is_not_emitted_when_enterprise
     )
     access._lookup = lookup
 
-    assert list(access.edges) == []
+    assert ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS not in {
+        edge.kind for edge in access.edges
+    }
     lookup.actions_enabled_repositories_for_org.assert_not_called()
 
 

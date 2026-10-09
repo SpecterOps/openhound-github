@@ -12,6 +12,11 @@ from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.permissions import normalize_permission_declaration
+from openhound_github.models.scope import (
+    ALL_REPOSITORIES_SCOPE,
+    REPOSITORY_SCOPE_TYPE,
+    scope_node_id,
+)
 
 
 class Permissions(BaseModel):
@@ -153,7 +158,7 @@ class PersonalAccessToken(BaseAsset):
                 token_last_used_at=self.token_last_used_at,
                 query_organization_permissions=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess]->(:GH_Organization) RETURN p",
                 query_user=f"MATCH p=(:GH_User)-[:GH_HasPersonalAccessToken]->(:GH_PersonalAccessToken {{node_id:'{pid}'}}) RETURN p",
-                query_repositories=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess]->(:GH_Repository) RETURN p LIMIT 1000",
+                query_repositories=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository) RETURN p LIMIT 1000",
             ),
         )
 
@@ -181,4 +186,18 @@ class PersonalAccessToken(BaseAsset):
             end=EdgePath(value=self.org_node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
+        if self.repository_selection == "all":
+            yield Edge(
+                kind=ek.CAN_ACCESS,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(
+                    value=scope_node_id(
+                        self.org_node_id,
+                        REPOSITORY_SCOPE_TYPE,
+                        ALL_REPOSITORIES_SCOPE,
+                    ),
+                    match_by="id",
+                ),
+                properties=EdgeProperties(traversable=False),
+            )
         yield from self._owner_edge

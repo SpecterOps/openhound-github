@@ -37,6 +37,7 @@ from .personal_access_token_request import PersonalAccessTokenRequest
 from .projected_enterprise_team import ProjectedEnterpriseTeam
 from .repo_role_assignment import RepoRoleAssignment
 from .repository import Repository, RepositoryQL
+from .scope import Scope
 from .repository_role import BaseRepoRole, RepoRole
 from .repository_secret import RepoSecret
 from .repository_variable import RepoVariable
@@ -84,6 +85,7 @@ __all__ = [
     "TeamRole",
     "TeamMember",
     "Repository",
+    "Scope",
     "RepoRole",
     "Branch",
     "BranchProtectionRule",

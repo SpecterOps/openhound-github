@@ -1,7 +1,7 @@
 {
   "name": "GitHub: Tier Zero PATs (All Repositories)",
   "description": "Fine-grained personal access tokens scoped to all repositories in the organization that have repository-control write permissions. A single compromised token may grant code, workflow, Actions, or administrative control across every repository. PATs with only read or lower-impact write permissions are excluded.",
-  "cypher": "MATCH (n:GH_PersonalAccessToken {repository_selection:'all'})\nWHERE ANY(permission IN n.repository_permissions WHERE permission IN ['contents:write', 'administration:write', 'workflows:write', 'actions:write'])\nRETURN n",
+  "cypher": "MATCH (n:GH_PersonalAccessToken)-[:GH_CanAccess]->(:GH_Scope {scope_type:'repository', scope:'all'})\nWHERE ANY(permission IN n.repository_permissions WHERE permission IN ['contents:write', 'administration:write', 'workflows:write', 'actions:write'])\nRETURN n",
   "enabled": true,
   "zone": "Tier Zero",
   "allow_disable": true

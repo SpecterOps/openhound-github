@@ -29,12 +29,12 @@ graph LR
     n1["GH_OrgRunnerGroup"]
     n2["GH_OrgSecret"]
     n3["GH_Organization"]
-    n4["GH_SecretScanningAlert"]
-    n5["GH_Team"]
-    n6["GH_User"]
+    n4["GH_Scope"]
+    n5["GH_SecretScanningAlert"]
+    n6["GH_Team"]
+    n7["GH_User"]
     n0 -->|GH_HasBaseRole| n0
     n0 -->|GH_CanCreateRepositoryWithRunnerAccess| n1
-    n0 -->|GH_CanReadSecret| n2
     n0 -.->|GH_AddCollaborator| n3
     n0 -.->|GH_CanCreateInternalRepositories| n3
     n0 -.->|GH_CanCreatePrivateRepositories| n3
@@ -45,8 +45,10 @@ graph LR
     n0 -.->|GH_ResolveSecretScanningAlerts| n3
     n0 -.->|GH_TransferRepository| n3
     n0 -.->|GH_ViewSecretScanningAlerts| n3
-    n0 -->|GH_CanReadSecretScanningAlert| n4
+    n0 -->|GH_CanReadSecret| n4
+    n4 -->|GH_ScopedTo| n2
+    n0 -->|GH_CanReadSecretScanningAlert| n5
     n3 -.->|GH_Contains| n0
-    n5 -->|GH_HasRole| n0
     n6 -->|GH_HasRole| n0
+    n7 -->|GH_HasRole| n0
 ```
