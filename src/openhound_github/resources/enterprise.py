@@ -4,7 +4,7 @@ import logging
 import tempfile
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
 import dlt
@@ -128,6 +128,7 @@ def iter_enterprise_scim_resources(
 def _log_enterprise_scim_failure(
     resource: str, enterprise_name: str, exception: BaseException
 ):
+    """Log a concise skip reason for an enterprise SCIM resource failure."""
     skip_reason = scim_skip_reason(exception)
     if skip_reason:
         logger.warning(
@@ -150,8 +151,9 @@ def _download_enterprise_credential_inventory(
     enterprise_slug: str,
     export_id: str | None = None,
     fallback_client: RESTClient | None = None,
+    on_export_created: Callable[[str, str | None, bool], None] | None = None,
 ):
-    """Export all credentials and return parsed CSV values."""
+    """Return parsed CSV values, recording a newly accepted export before polling."""
     path = f"/enterprises/{enterprise_slug}/credentials/exports"
     headers = {"X-GitHub-Api-Version": _CREDENTIAL_EXPORT_API_VERSION}
     export_metadata = {}
@@ -205,6 +207,10 @@ def _download_enterprise_credential_inventory(
         export_id = export_metadata.get("export_id")
         if not export_id or not isinstance(export_id, str):
             raise ValueError("Credential export response did not include an export_id")
+        if on_export_created is not None:
+            on_export_created(
+                export_id, export_metadata.get("as_of"), created_with_fallback
+            )
 
     deadline = time.monotonic() + _CREDENTIAL_EXPORT_TIMEOUT_SECONDS
     export_path = f"{path}/{export_id}"
@@ -275,12 +281,14 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
     except (PipelineStateNotAvailable, SourceSectionNotAvailable):
         state = {}
 
-    downloaded_at = state.get("last_export_downloaded_at")
+    export_recorded_at = state.get(
+        "last_export_created_at", state.get("last_export_downloaded_at")
+    )
     previous_id = (
         state.get("last_export_id")
         if state.get("last_export_enterprise") == ctx.enterprise_name
-        and isinstance(downloaded_at, (int, float))
-        and 0 <= time.time() - downloaded_at <= _CREDENTIAL_EXPORT_REUSE_SECONDS
+        and isinstance(export_recorded_at, (int, float))
+        and 0 <= time.time() - export_recorded_at <= _CREDENTIAL_EXPORT_REUSE_SECONDS
         else None
     )
     if previous_id:
@@ -310,10 +318,12 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
             except requests.HTTPError as exc:
                 if exc.response is None or exc.response.status_code != 404:
                     logger.warning(
-                        "Skipping credential inventory for enterprise '%s': prior export %s unavailable (%s)",
+                        "Skipping credential inventory for enterprise '%s': prior export %s unavailable (HTTP %s)",
                         ctx.enterprise_name,
                         previous_id,
-                        exc,
+                        exc.response.status_code
+                        if exc.response is not None
+                        else "unknown",
                     )
                     return
                 logger.info(
@@ -332,7 +342,7 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
                     "Skipping credential inventory for enterprise '%s': prior export %s unavailable (%s)",
                     ctx.enterprise_name,
                     previous_id,
-                    exc,
+                    type(exc).__name__,
                 )
                 return
     else:
@@ -341,6 +351,16 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
             ctx.enterprise_name,
         )
 
+    def record_export_created(
+        export_id: str, as_of: str | None, created_with_fallback: bool
+    ) -> None:
+        """Save an accepted export so a later run can resume it."""
+        state["last_export_id"] = export_id
+        state["last_export_enterprise"] = ctx.enterprise_name
+        state["last_export_as_of"] = as_of
+        state["last_export_created_with_fallback"] = created_with_fallback
+        state["last_export_created_at"] = time.time()
+
     try:
         inventory = _download_enterprise_credential_inventory(
             ctx.client,
@@ -348,12 +368,7 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
             fallback_client=(
                 ctx.sso_client if ctx.sso_client is not ctx.client else None
             ),
-        )
-        state["last_export_id"] = inventory["export_id"]
-        state["last_export_enterprise"] = ctx.enterprise_name
-        state["last_export_as_of"] = inventory["as_of"]
-        state["last_export_created_with_fallback"] = inventory.get(
-            "created_with_fallback", False
+            on_export_created=record_export_created,
         )
         state["last_export_downloaded_at"] = time.time()
         yield {
@@ -395,7 +410,7 @@ def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceCont
         logger.warning(
             "Skipping credential inventory for enterprise '%s': %s",
             ctx.enterprise_name,
-            exc,
+            type(exc).__name__,
         )
 
 
@@ -1267,6 +1282,7 @@ def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
     parallelized=True,
 )
 def enterprise_external_identity(saml_provider: SamlProvider, ctx: SourceContext):
+    """Collect enterprise SAML identities from the configured SSO client."""
     client, graphql_path = _sso_graphql_client(ctx)
     if not client:
         logger.info(
