@@ -37,6 +37,7 @@ from openhound_github.models import (
     ClassicPersonalAccessToken,
     Enterprise,
     EnterpriseAdmin,
+    EnterpriseCredentialInventory,
     EnterpriseManagedUser,
     EnterpriseOrganization,
     EnterpriseRunner,
@@ -285,7 +286,7 @@ def _download_enterprise_credential_inventory(
 
 @app.transformer(
     name="enterprise_credential_inventory",
-    columns={"columns": {"data_type": "json"}, "rows": {"data_type": "json"}},
+    columns=EnterpriseCredentialInventory,
     parallelized=True,
 )
 def enterprise_credential_inventory(enterprise_data: Enterprise, ctx: SourceContext):

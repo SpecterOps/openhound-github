@@ -7,6 +7,7 @@ from .branch_push_allowance import BranchPushAllowance
 from .classic_personal_access_token import ClassicPersonalAccessToken
 from .enterprise import Enterprise
 from .enterprise_admin import EnterpriseAdmin
+from .enterprise_credential_inventory import EnterpriseCredentialInventory
 from .enterprise_helpers import enterprise_role_node_id, enterprise_team_node_id
 from .enterprise_managed_user import EnterpriseManagedUser
 from .enterprise_member import BaseUser, flatten_enterprise_member
@@ -140,6 +141,7 @@ __all__ = [
     "DeployKey",
     "Enterprise",
     "EnterpriseAdmin",
+    "EnterpriseCredentialInventory",
     "EnterpriseManagedUser",
     "EnterpriseOrganization",
     "EnterpriseRole",
