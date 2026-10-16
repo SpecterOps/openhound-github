@@ -6,18 +6,20 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import dlt
+import duckdb
 import pytest
 import requests
-import duckdb
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.destinations import filesystem
+from dlt.extract.validation import PydanticValidator
 
 from openhound_github.kinds import edges as ek
 from openhound_github.lookup import GithubLookup
 from openhound_github.models.classic_personal_access_token import (
     ClassicPersonalAccessToken,
 )
-from openhound_github.models.enterprise_member import BaseUser
 from openhound_github.models.enterprise import Enterprise
+from openhound_github.models.enterprise_member import BaseUser
 from openhound_github.resources.enterprise import (
     SourceContext,
     _download_enterprise_credential_inventory,
@@ -51,6 +53,43 @@ class Response:
     def iter_content(self, chunk_size):
         for offset in range(0, len(self.content), chunk_size):
             yield self.content[offset : offset + chunk_size]
+
+
+def test_inventory_validator_preserves_raw_csv_for_token_parser(monkeypatch):
+    validator = enterprise_credential_inventory.validator
+    assert isinstance(validator, PydanticValidator)
+    monkeypatch.setattr(
+        validator, "table_name", enterprise_credential_inventory.name, raising=False
+    )
+    assert enterprise_credential_inventory.columns["columns"]["data_type"] == "json"
+    assert enterprise_credential_inventory.columns["rows"]["data_type"] == "json"
+
+    inventory = {
+        "export_id": "export-1",
+        "as_of": None,
+        "created_with_fallback": False,
+        "enterprise_node_id": "E_1",
+        "enterprise_name": "enterprise",
+        "columns": ["credential_type", "credential_id", "new_csv_column"],
+        "rows": [
+            {"credential_type": "classic_pat", "credential_id": "invalid"},
+            {"credential_type": "classic_pat", "credential_id": "42"},
+            {
+                "credential_type": "future_credential_type",
+                "credential_id": "007",
+                "new_csv_column": None,
+            },
+        ],
+    }
+    validated = validator(inventory)
+    assert isinstance(validated, dict)
+    assert validated == inventory
+    tokens = list(classic_personal_access_tokens.__wrapped__(validated))
+    assert [token["credential_id"] for token in tokens] == [42]
+
+    # Validate the envelope without applying credential-specific rules to CSV rows.
+    with pytest.raises(DataValidationError):
+        validator({**inventory, "rows": "not a list of rows"})
 
 
 def test_classic_pat_export_polls_one_job_and_deduplicates_org_rows(monkeypatch):
@@ -180,6 +219,7 @@ def test_one_export_persists_raw_rows_and_models_only_classic_pats(
         return {
             "export_id": "export-1",
             "as_of": "2026-10-05T20:00:00Z",
+            "created_with_fallback": False,
             "columns": ["credential_type", "credential_id", "hashed_token"],
             "rows": [
                 {
