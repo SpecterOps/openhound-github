@@ -1,0 +1,15 @@
+# Only application inputs belong in the build context.
+**
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE.md
+!src/
+!src/**
+**/__pycache__/
+**/*.pyc
+**/.dlt/
+**/*.pem
+**/*.key

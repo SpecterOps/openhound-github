@@ -143,3 +143,78 @@ Follow the OpenHound GitHub collector docs to get started:
 - [Configure an organization GitHub App](https://bloodhound.specterops.io/openhound/collectors/github/configure-app)
 - [Configure an enterprise GitHub App](https://bloodhound.specterops.io/openhound/collectors/github/configure-enterprise-app)
 - [Configure a personal access token](https://bloodhound.specterops.io/openhound/collectors/github/configure-pat)
+
+## Container images
+
+After a release-triggering pull request merges into `main` in
+`SpecterOps/openhound-github`, the release workflow publishes the PyPI package
+first, then builds images for `linux/amd64` and `linux/arm64` in GitHub Container
+Registry. Container builds are skipped for forks, other branches, and standalone
+tag pushes. Both images use the same release version:
+
+- `ghcr.io/specterops/openhound-github:<version>` starts the BloodHound Enterprise scheduler.
+- `ghcr.io/specterops/openhound-github:<version>-cli` runs the OpenHound CLI.
+
+For example, release tag `v0.20.0` produces image tags `0.20.0` and `0.20.0-cli`.
+Use a version containing the container files; releases predating this workflow
+cannot be built without backporting those files. No moving `latest` tag is published.
+
+### Run the scheduler
+
+Prepare your `.dlt/config.toml`, `.dlt/secrets.toml`, and GitHub App private key
+following the collector configuration documentation above. Mount the directory
+read-only and use the container path for the key (for example,
+`/app/.dlt/github-app.pem`). The container runs as UID/GID `65532`; mounted
+files must be readable by that user.
+
+```sh
+docker run --rm --init \
+  --mount type=bind,src="$(pwd)/.dlt",dst=/app/.dlt,readonly \
+  ghcr.io/specterops/openhound-github:<version>
+```
+
+Set the BloodHound Enterprise destination URL, token ID, and token key in
+`.dlt/secrets.toml`:
+
+```toml
+[destination.bloodhoundenterprise]
+url = "https://<tenant>.bloodhoundenterprise.io"
+token_id = "<token-id>"
+token_key = "<token-key>"
+```
+
+The image defaults the collector name to `github`. OpenHound manages the
+scheduler polling interval internally. Collection state and output are stored
+inside the container unless you mount persistent storage for them.
+
+To inspect the CLI:
+
+```sh
+docker run --rm ghcr.io/specterops/openhound-github:<version>-cli --help
+```
+
+### Build and publish
+
+To build locally without publishing:
+
+```sh
+docker build --target cli --build-arg COLLECTOR_VERSION=0.20.0 \
+  -t openhound-github:0.20.0-cli .
+docker build --target enterprise --build-arg COLLECTOR_VERSION=0.20.0 \
+  -t openhound-github:0.20.0 .
+```
+
+`COLLECTOR_VERSION` sets the GitHub collector package version; the OpenHound
+framework version is resolved separately from `uv.lock`. The container-only
+dependency group installs the framework without development tools.
+
+To retry a failed container publication, re-run the failed jobs in the original
+release workflow run. The container workflow authenticates using `GITHUB_TOKEN`
+with `packages: write`; AWS credentials and personal access tokens are not
+needed. Runtime checks run before each image is pushed, and both architectures
+include an SBOM.
+
+After the first publication, a package administrator should verify the GHCR
+package's visibility and repository access. New packages default to private;
+make the package public if anonymous pulls are intended. If the package
+already exists, grant this repository's Actions workflows write access to it.

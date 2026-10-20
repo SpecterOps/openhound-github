@@ -11,10 +11,19 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - "README.md"
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/publish.yml"
+      - ".github/workflows/publish-container.yml"
 
 permissions:
   contents: write
   id-token: write   # This is required for requesting the JWT for the OIDC provider
+  packages: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 
 jobs:
 
@@ -28,18 +37,23 @@ jobs:
     #    needs: test-core
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.versioning.outputs.new_version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Fetch tags
         run: git fetch --tags
 
       - name: Determine next version
         id: versioning
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
         run: |
           # Get latest tag or fallback
           LATEST_TAG=$(git tag --sort=-v:refname | head -n 1)
@@ -52,7 +66,6 @@ jobs:
           VERSION=${LATEST_TAG#v}
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
 
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
           echo "Merged branch: $BRANCH_NAME"
 
           if [[ "$BRANCH_NAME" == fix/* || "$BRANCH_NAME" == patch/* || "$BRANCH_NAME" == chore/* ]]; then
@@ -86,7 +99,7 @@ jobs:
 
   publish:
     needs: tag-release
-    if: github.event.pull_request.merged == true
+    if: needs.tag-release.outputs.new_version != ''
     uses: ./.github/workflows/publish.yml
     with:
       tag: ${{ needs.tag-release.outputs.new_version }}

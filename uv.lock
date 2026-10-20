@@ -879,6 +879,9 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+container = [
+    { name = "openhound" },
+]
 dev = [
     { name = "mypy" },
     { name = "openhound" },
@@ -895,6 +898,9 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+container = [
+    { name = "openhound", specifier = ">=0.4.0" },
+]
 dev = [
     { name = "mypy", specifier = ">=1.19.1" },
     { name = "openhound", specifier = ">=0.4.0" },
