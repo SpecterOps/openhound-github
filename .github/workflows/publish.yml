@@ -14,11 +14,12 @@ on:
 
 permissions:
   contents: read
-  id-token: write
-  packages: write
 
 jobs:
   build:
+    permissions:
+      contents: read
+      id-token: write
     environment: pypi
     runs-on: ubuntu-latest
 
@@ -48,6 +49,9 @@ jobs:
 
   container:
     needs: build
+    permissions:
+      contents: read
+      packages: write
     if: >-
       github.repository == 'SpecterOps/openhound-github' &&
       github.event_name == 'pull_request' &&
