@@ -14,10 +14,12 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   build:
+    permissions:
+      contents: read
+      id-token: write
     environment: pypi
     runs-on: ubuntu-latest
 
@@ -44,3 +46,18 @@ jobs:
 
       - name: Publish package
         run: uv publish
+
+  container:
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    if: >-
+      github.repository == 'SpecterOps/openhound-github' &&
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
+    uses: ./.github/workflows/publish-container.yml
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}
