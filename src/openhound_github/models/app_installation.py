@@ -292,6 +292,7 @@ class App(BaseAsset):
                 displayname=self.name,
                 node_id=aid,
                 environmentid=self.org_node_id,
+                id=self.id,
                 client_id=self.client_id,
                 slug=self.slug,
                 description=self.description,
