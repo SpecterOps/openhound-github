@@ -157,9 +157,17 @@ tag pushes. Both images use the same release version:
 
 For example, release tag `v0.20.0` produces image tags `0.20.0` and `0.20.0-cli`.
 Use a version containing the container files; releases predating this workflow
-cannot be built without backporting those files. No moving `latest` tag is published.
+cannot be built without backporting those files.
+
+Each release also updates `latest` for the scheduler and `latest-cli` for the
+CLI. These aliases point to the same images as that release's versioned tags.
+Use versioned tags to pin a deployment. To update a Compose deployment using
+`latest`, run `docker compose pull` followed by `docker compose up -d`.
 
 ### Run the scheduler
+
+For a complete Compose setup with configuration templates, persistent storage,
+and a preflight check, see [docker-compose/README.md](docker-compose/README.md).
 
 Prepare your `.dlt/config.toml`, `.dlt/secrets.toml`, and GitHub App private key
 following the collector configuration documentation above. Mount the directory
