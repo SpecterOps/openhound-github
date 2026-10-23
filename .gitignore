@@ -22,6 +22,11 @@ __pycache__/
 *.py[codz]
 *$py.class
 .dlt
+# Publish only the Compose configuration examples, never local credentials.
+!/docker-compose/.dlt/
+/docker-compose/.dlt/*
+!/docker-compose/.dlt/config.toml.example
+!/docker-compose/.dlt/secrets.toml.example
 # C extensions
 *.so
 

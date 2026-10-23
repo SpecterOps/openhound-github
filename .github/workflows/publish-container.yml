@@ -56,6 +56,7 @@ jobs:
           if [[ "$TARGET" == cli ]]; then SUFFIX="-cli"; fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$IMAGE:$VERSION$SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$IMAGE:latest$SUFFIX" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -125,3 +126,30 @@ jobs:
           build-args: |
             COLLECTOR_VERSION=${{ steps.image.outputs.version }}
           cache-from: type=gha,scope=${{ matrix.target }}
+
+      - name: Update latest alias for newest release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          VERSIONED_TAG: ${{ steps.image.outputs.tag }}
+          LATEST_TAG: ${{ steps.image.outputs.latest_tag }}
+        run: |
+          NEWEST_RELEASE_TAG=$(
+            git ls-remote --refs --tags origin 'refs/tags/v*' |
+              awk '$2 ~ /^refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+$/ {
+                sub("^refs/tags/", "", $2)
+                print $2
+              }' |
+              sort -V |
+              tail -n 1
+          )
+          if [[ -z "$NEWEST_RELEASE_TAG" ]]; then
+            echo "Unable to determine the newest release tag" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_TAG" != "$NEWEST_RELEASE_TAG" ]]; then
+            echo "Skipping $LATEST_TAG: newest release is $NEWEST_RELEASE_TAG"
+            exit 0
+          fi
+          docker buildx imagetools create \
+            --tag "$LATEST_TAG" \
+            "$VERSIONED_TAG"
