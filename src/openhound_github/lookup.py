@@ -119,6 +119,38 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def is_tenant_organization_node_id(self, node_id: str) -> bool:
+        """Return whether an organization belongs to the collected tenant."""
+        collected_org_id = self._find_single_object(
+            f"""SELECT node_id FROM {self.schema}.organizations WHERE node_id = ?""",
+            [node_id],
+        )
+        if collected_org_id is not None:
+            return True
+
+        enterprise_org_id = self._find_single_object(
+            f"""SELECT id FROM {self.schema}.enterprise_organizations WHERE id = ?""",
+            [node_id],
+        )
+        return enterprise_org_id is not None
+
+    @lru_cache
+    def is_collected_user_node_id(self, node_id: str) -> bool:
+        """Return whether a user node exists in collected organization or enterprise data."""
+        organization_user_id = self._find_single_object(
+            f"""SELECT id FROM {self.schema}.users WHERE id = ?""",
+            [node_id],
+        )
+        if organization_user_id is not None:
+            return True
+
+        enterprise_user_id = self._find_single_object(
+            f"""SELECT id FROM {self.schema}.enterprise_users WHERE id = ?""",
+            [node_id],
+        )
+        return enterprise_user_id is not None
+
+    @lru_cache
     def _enterprise_runner_group_identity_for_inherited_org_group(
         self, org_node_id: str, group_name: str
     ) -> tuple[str, int] | None:

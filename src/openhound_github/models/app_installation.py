@@ -215,10 +215,12 @@ class GHAppProperties(GHNodeProperties):
         owner_login: The login of the user or organization that owns the app.
         owner_node_id: The node_id of the user or organization that owns the app.
         owner_type: The type of the owner (e.g., `User`, `Organization`).
+        registration_origin: Whether the app is tenant-owned, third-party, or unknown.
         events: JSON string of the default webhook events the app subscribes to.
         installations_count: The total number of installations of this app across all organizations.
         created_at: When the app was created.
         updated_at: When the app was last updated.
+        query_owner: Query for the account that registered the app.
         query_installations: Query for installations.
     """
 
@@ -231,10 +233,12 @@ class GHAppProperties(GHNodeProperties):
     owner_login: str | None = None
     owner_node_id: str | None = None
     owner_type: str | None = None
+    registration_origin: str | None = None
     events: list[str] | None = None
     installations_count: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    query_owner: str | None = None
     query_installations: str | None = None
 
 
@@ -252,6 +256,29 @@ class Owner(BaseModel):
         icon="cube",
         properties=GHAppProperties,
     ),
+    edges=[
+        EdgeDef(
+            start=nk.ENTERPRISE,
+            end=nk.APP,
+            kind=ek.OWNS,
+            description="Enterprise owns GitHub App",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.ORGANIZATION,
+            end=nk.APP,
+            kind=ek.OWNS,
+            description="Organization owns GitHub App",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.USER,
+            end=nk.APP,
+            kind=ek.OWNS,
+            description="User owns GitHub App",
+            traversable=True,
+        ),
+    ],
 )
 class App(BaseAsset):
     """One record from `apps` → one GH_App node. Edges (GH_InstalledAs) are emitted by AppInstallationAsset."""
@@ -262,7 +289,7 @@ class App(BaseAsset):
     slug: str
     client_id: str | None = None
     node_id: str
-    owner: Owner
+    owner: Owner | None = None
     name: str
     description: str | None = None
     permissions: dict
@@ -283,6 +310,51 @@ class App(BaseAsset):
         return self._lookup.org_id_for_login(self.org_login)
 
     @property
+    def registration_origin(self) -> str:
+        if self.owner is None:
+            return "unknown"
+
+        owner_type = self.owner.type.casefold()
+        if owner_type == "user":
+            return "third_party"
+
+        if owner_type == "organization":
+            if self._lookup.is_tenant_organization_node_id(self.owner.node_id):
+                return "tenant_owned"
+            return "third_party" if self._lookup.enterprise_id() else "unknown"
+
+        if owner_type == "enterprise":
+            enterprise_id = self._lookup.enterprise_id()
+            if enterprise_id is None:
+                return "unknown"
+            return (
+                "tenant_owned"
+                if self.owner.node_id == enterprise_id
+                else "third_party"
+            )
+
+        return "unknown"
+
+    @property
+    def registration_owner_node_id(self) -> str | None:
+        if self.owner is None:
+            return None
+
+        owner_type = self.owner.type.casefold()
+        if owner_type == "organization":
+            owner_exists = self._lookup.is_tenant_organization_node_id(
+                self.owner.node_id
+            )
+        elif owner_type == "enterprise":
+            owner_exists = self._lookup.enterprise_id() == self.owner.node_id
+        elif owner_type == "user":
+            owner_exists = self._lookup.is_collected_user_node_id(self.owner.node_id)
+        else:
+            owner_exists = False
+
+        return self.owner.node_id if owner_exists else None
+
+    @property
     def as_node(self):
         aid = self.node_id
         return GHNode(
@@ -298,21 +370,34 @@ class App(BaseAsset):
                 description=self.description,
                 external_url=self.external_url,
                 html_url=self.html_url,
-                # owner_login=self.owner_login,
-                # owner_node_id=self.owner_node_id,
-                # owner_type=self.owner_type,
+                owner_login=self.owner.login if self.owner else None,
+                owner_node_id=self.owner.node_id if self.owner else None,
+                owner_type=self.owner.type if self.owner else None,
+                registration_origin=self.registration_origin,
                 # permissions=self.permissions,
                 # installations_count=self.installations_count,
                 events=self.events,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
+                query_owner=f"MATCH p=(owner)-[:GH_Owns]->(:GH_App {{node_id:'{aid}'}}) RETURN p",
                 query_installations=f"MATCH p=(:GH_App {{node_id:'{aid}'}})-[:GH_InstalledAs]->(:GH_AppInstallation) RETURN p",
             ),
         )
 
     @property
     def edges(self) -> list[Edge]:
-        return []
+        owner_node_id = self.registration_owner_node_id
+        if owner_node_id is None:
+            return []
+
+        return [
+            Edge(
+                kind=ek.OWNS,
+                start=EdgePath(value=owner_node_id, match_by="id"),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
+        ]
 
 
 @app.asset(

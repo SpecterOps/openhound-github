@@ -24,10 +24,12 @@ App definitions are retrieved via the public `GET /apps/{app_slug}` endpoint (no
 | `owner_login` | `string` | The login of the user or organization that owns the app. |
 | `owner_node_id` | `string` | The node_id of the user or organization that owns the app. |
 | `owner_type` | `string` | The type of the owner (e.g., `User`, `Organization`). |
+| `registration_origin` | `string` | Whether the app is tenant-owned, third-party, or unknown. |
 | `events` | `list[string]` | JSON string of the default webhook events the app subscribes to. |
 | `installations_count` | `integer` | The total number of installations of this app across all organizations. |
 | `created_at` | `datetime` | When the app was created. |
 | `updated_at` | `datetime` | When the app was last updated. |
+| `query_owner` | `string` | Query for the account that registered the app. |
 | `query_installations` | `string` | Query for installations. |
 
 ## Diagram
@@ -36,5 +38,11 @@ App definitions are retrieved via the public `GET /apps/{app_slug}` endpoint (no
 graph LR
     n0["GH_App"]
     n1["GH_AppInstallation"]
+    n2["GH_Enterprise"]
+    n3["GH_Organization"]
+    n4["GH_User"]
     n0 -->|GH_InstalledAs| n1
+    n2 -->|GH_Owns| n0
+    n3 -->|GH_Owns| n0
+    n4 -->|GH_Owns| n0
 ```
