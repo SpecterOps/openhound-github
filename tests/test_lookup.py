@@ -29,6 +29,44 @@ def test_github_lookup_rejects_untrusted_schema_identifiers() -> None:
         GithubLookup(connection, schema="github; DROP SCHEMA github")
 
 
+def test_tenant_organization_lookup_matches_collected_and_enterprise_orgs() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github_test")
+    connection.execute(
+        "CREATE TABLE github_test.organizations (node_id VARCHAR)"
+    )
+    connection.execute(
+        "CREATE TABLE github_test.enterprise_organizations (id VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO github_test.organizations VALUES ('ORG_COLLECTED')"
+    )
+    connection.execute(
+        "INSERT INTO github_test.enterprise_organizations VALUES ('ORG_ENTERPRISE')"
+    )
+    lookup = GithubLookup(connection, schema="github_test")
+
+    assert lookup.is_tenant_organization_node_id("ORG_COLLECTED") is True
+    assert lookup.is_tenant_organization_node_id("ORG_ENTERPRISE") is True
+    assert lookup.is_tenant_organization_node_id("ORG_EXTERNAL") is False
+
+
+def test_collected_user_lookup_matches_organization_and_enterprise_users() -> None:
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github_test")
+    connection.execute("CREATE TABLE github_test.users (id VARCHAR)")
+    connection.execute("CREATE TABLE github_test.enterprise_users (id VARCHAR)")
+    connection.execute("INSERT INTO github_test.users VALUES ('USER_ORG')")
+    connection.execute(
+        "INSERT INTO github_test.enterprise_users VALUES ('USER_ENTERPRISE')"
+    )
+    lookup = GithubLookup(connection, schema="github_test")
+
+    assert lookup.is_collected_user_node_id("USER_ORG") is True
+    assert lookup.is_collected_user_node_id("USER_ENTERPRISE") is True
+    assert lookup.is_collected_user_node_id("USER_EXTERNAL") is False
+
+
 def test_canonical_scope_activation_requires_matching_target() -> None:
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github_test")
