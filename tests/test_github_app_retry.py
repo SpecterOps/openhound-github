@@ -4,10 +4,12 @@ from datetime import datetime, timedelta, timezone
 from threading import Event, Lock
 
 import requests
+import pytest
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 from openhound_github.auth import GitHubAppInstallationAuth, TokenResponse
 from openhound_github.helpers import github_retry_policy
+from openhound_github.github_rest_client import github_http_session
 
 
 class FakeInstallation:
@@ -243,3 +245,37 @@ def test_retry_policy_does_not_repair_bad_credentials_for_bearer_token_auth() ->
 
     assert should_retry is False
     assert request.headers["Authorization"] == "Bearer static-token"
+
+
+@pytest.mark.parametrize("replacement_rejected", [False, True])
+def test_http_session_retries_with_refreshed_credentials(monkeypatch, replacement_rejected):
+    installation = FakeInstallation("new-token")
+    auth = GitHubAppInstallationAuth(installation=installation)
+    auth.access_token = "old-token"
+    auth.expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    session = github_http_session(github_retry_policy(auth))
+    session.auth = auth
+    session.send.retry.sleep = lambda _: None
+    # Two transient failures must leave room for credential recovery.
+    statuses = iter([503, 503, 401, 401 if replacement_rejected else 200])
+    authorizations = []
+
+    def send(request, **kwargs):
+        authorizations.append(request.headers.get("Authorization"))
+        response = requests.Response()
+        response.status_code = next(statuses)
+        response.request = request
+        response.url = request.url
+        response._content = b'{"message":"Bad credentials"}'
+        return response
+
+    monkeypatch.setattr(session.get_adapter("https://"), "send", send)
+    if replacement_rejected:
+        with pytest.raises(requests.HTTPError) as caught:
+            session.get("https://api.github.com/example")
+        assert caught.value.response.status_code == 401
+    else:
+        assert session.get("https://api.github.com/example").status_code == 200
+
+    assert authorizations == ["Bearer old-token"] * 3 + ["Bearer new-token"]
+    assert installation.token_calls == 1

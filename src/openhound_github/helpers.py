@@ -14,6 +14,7 @@ from dlt.sources.helpers.rest_client.paginators import (
 from requests import Request
 
 from openhound_github.auth import GitHubAppInstallationAuth
+from openhound_github.github_rest_client import GraphQLPageRetryBudget
 from openhound_github.github_retry import (
     is_primary_rate_limit_response,
     is_secondary_rate_limit_response,
@@ -230,9 +231,9 @@ def adaptive_graphql_paginate(
 ) -> Iterator[dict[str, Any]]:
     """Yield GraphQL pages while adapting connection size after gateway failures.
 
-    The underlying HTTP session still owns ordinary request retries. This helper
-    handles the remaining terminal 502/504 case by retrying the same cursor with
-    progressively smaller connection sizes.
+    HTTP retries and smaller-page recovery share three transient attempts per
+    page. Gateway errors return immediately so the next attempt can shrink the
+    page; rate-limit and credential-refresh retries retain their existing policy.
     """
     if not page_sizes or any(page_size <= 0 for page_size in page_sizes):
         raise ValueError("page_sizes must contain positive integers")
@@ -270,6 +271,7 @@ def adaptive_graphql_paginate(
         page_data: dict[str, Any] | None = None
         paginator: GraphQLCursorPaginator | None = None
         successful_page_size: int | None = None
+        retry_budget = GraphQLPageRetryBudget()
 
         for index, page_size in enumerate(candidate_sizes):
             request_variables = {
@@ -278,10 +280,11 @@ def adaptive_graphql_paginate(
                 page_size_variable: page_size,
             }
             try:
-                response = client.post(
-                    graphql_path,
-                    json={"query": query, "variables": request_variables},
-                )
+                with retry_budget.activate():
+                    response = client.post(
+                        graphql_path,
+                        json={"query": query, "variables": request_variables},
+                    )
                 response.raise_for_status()
                 response_json = response.json()
                 paginator = GraphQLCursorPaginator(
@@ -303,7 +306,11 @@ def adaptive_graphql_paginate(
                 status_code = _graphql_gateway_status(error)
                 next_page_size = (
                     candidate_sizes[index + 1]
-                    if status_code is not None and index + 1 < len(candidate_sizes)
+                    if (
+                        status_code is not None
+                        and index + 1 < len(candidate_sizes)
+                        and not retry_budget.exhausted
+                    )
                     else None
                 )
                 if next_page_size is not None:

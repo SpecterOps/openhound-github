@@ -6,6 +6,7 @@ from threading import Lock
 from typing import Any, Iterator
 from urllib.parse import quote
 
+import dlt
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
@@ -1475,7 +1476,7 @@ def workflows(repo: Repository, ctx: SourceContext):
         Workflow (Workflow): An active workflow record.
     """
 
-    @app.defer
+    @dlt.defer
     def _workflow_file_contents(
         client: RESTClient,
         repo: Repository,
@@ -1487,11 +1488,30 @@ def workflows(repo: Repository, ctx: SourceContext):
             return None
 
         params = {"ref": repo.default_branch} if repo.default_branch else None
-        response = client.get(
-            f"/repos/{repo.full_name}/contents/{path}", params=params
-        ).json()
+        try:
+            response = client.get(
+                f"/repos/{repo.full_name}/contents/{path}", params=params
+            ).json()
+            content = response.get("content")
+        except Exception as exc:
+            # Return None so DLT drops the failed item. app.defer returns [],
+            # which can reach the job/step transformers as an invalid Workflow.
+            if (
+                isinstance(exc, requests.HTTPError)
+                and exc.response is not None
+                and exc.response.status_code == 404
+            ):
+                logger.warning(
+                    "Skipping workflow '%s' in repository '%s': file unavailable at ref '%s' (HTTP 404)",
+                    path, repo.full_name, repo.default_branch,
+                )
+            else:
+                logger.error(
+                    "Unable to collect workflow '%s' in repository '%s': %s",
+                    path, repo.full_name, exc,
+                )
+            return None
 
-        content = response.get("content")
         if not content:
             return None
 
@@ -1517,6 +1537,9 @@ def workflows(repo: Repository, ctx: SourceContext):
     ):
         for workflow in page:
             if workflow.get("state") == "active":
+                path = workflow.get("path")
+                if not path or path.startswith("dynamic/"):
+                    continue
                 if workflow_permissions is None:
                     workflow_permissions = _repository_workflow_permissions(
                         ctx, client, repo.full_name

@@ -1,11 +1,16 @@
 import inspect
+import base64
+import logging
 from types import SimpleNamespace
 
+import dlt
 import pytest
 from dlt.sources.helpers import requests
 from requests.exceptions import JSONDecodeError
 
-from openhound_github.resources.organization import OrgContext, SourceContext, workflows
+from openhound_github.resources.organization import (
+    OrgContext, SourceContext, workflows, workflow_jobs, workflow_steps,
+)
 
 
 class _FakeResponse:
@@ -25,12 +30,14 @@ class _FakeClient:
         can_approve_pull_request_reviews: bool = False,
         workflow_permission_responses: dict[str, dict] | None = None,
         workflow_permission_errors: dict[str, BaseException] | None = None,
+        workflow_file_errors: dict[str, BaseException] | None = None,
     ):
         self.workflow_pages = workflow_pages
         self.default_workflow_permissions = default_workflow_permissions
         self.can_approve_pull_request_reviews = can_approve_pull_request_reviews
         self.workflow_permission_responses = workflow_permission_responses or {}
         self.workflow_permission_errors = workflow_permission_errors or {}
+        self.workflow_file_errors = workflow_file_errors or {}
         self.get_calls: list[tuple[str, dict]] = []
         self.paginate_calls: list[tuple[str, dict]] = []
 
@@ -51,7 +58,10 @@ class _FakeClient:
                     "can_approve_pull_request_reviews": self.can_approve_pull_request_reviews,
                 }
             )
-        return _FakeResponse({"content": "am9iczoge30="})
+        if path in self.workflow_file_errors:
+            raise self.workflow_file_errors[path]
+        contents = "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hello\n"
+        return _FakeResponse({"content": base64.b64encode(contents.encode()).decode()})
 
 
 def _repo() -> SimpleNamespace:
@@ -270,3 +280,52 @@ def test_workflows_propagate_unexpected_repository_permission_lookup_errors() ->
 
     with pytest.raises(RuntimeError, match="unexpected workflow permission failure"):
         _collect_workflows(_repo(), _ctx(client))
+
+
+@pytest.mark.parametrize("path", [
+    "dynamic/dependabot/update-graph", "dynamic/pages/pages-build-deployment", "", None,
+])
+def test_workflows_skip_non_file_paths_before_permission_lookup(path):
+    workflow = {**_workflow_row(1), "path": path}
+    client = _FakeClient([[workflow]])
+
+    assert _collect_workflows(_repo(), _ctx(client)) == []
+    assert client.get_calls == []
+
+
+@pytest.mark.parametrize("child", [workflow_jobs, workflow_steps])
+@pytest.mark.parametrize("failure", ["404", "503", "timeout", "unexpected"])
+def test_failed_workflow_file_does_not_cascade_to_children(caplog, child, failure):
+    if failure in {"404", "503"}:
+        response = requests.Response()
+        response.status_code = int(failure)
+        error = requests.HTTPError("file fetch failed", response=response)
+    elif failure == "timeout":
+        error = requests.ReadTimeout("file fetch timed out")
+    else:
+        error = RuntimeError("unexpected fetch failure")
+    dynamic = {**_workflow_row(4), "path": "dynamic/dependabot/update-graph"}
+    client = _FakeClient(
+        [[_workflow_row(1), _workflow_row(2), dynamic, _workflow_row(3)]],
+        workflow_file_errors={"/repos/acme/repo/contents/.github/workflows/2.yml": error},
+    )
+    parent = dlt.resource([_repo()], name="probe_workflow_repository")
+
+    with caplog.at_level(logging.WARNING):
+        rows = list(parent | workflows(_ctx(client)) | child())
+
+    assert len(rows) == 2
+    assert {_field(row, "workflow_node_id") for row in rows} == {"W_1", "W_3"}
+    assert not any("/contents/dynamic/" in path for path, _ in client.get_calls)
+    assert "has no attribute" not in caplog.text
+    assert "Error executing DLT defer" not in caplog.text
+    assert "2.yml" in caplog.text
+    if failure == "404":
+        assert "HTTP 404" in caplog.text
+        assert not any(record.levelno >= logging.ERROR for record in caplog.records)
+    else:
+        assert "Unable to collect workflow" in caplog.text
+
+
+def _field(row, name):
+    return row[name] if isinstance(row, dict) else getattr(row, name)
