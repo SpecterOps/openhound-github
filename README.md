@@ -68,6 +68,9 @@ continue with unaffected scopes. Already emitted records are retained, but the
 affected scope may be incomplete. Resources that require all pages before
 emitting records retain that behavior.
 
+Workflow collection skips `dynamic/` paths. Missing workflow files are logged
+and skipped without passing failed items to job or step parsing.
+
 Rate-limit responses and GitHub App token refresh retain their existing retry
 handling and do not consume the transient-failure budget. These timeouts are
 not an overall request deadline. App authentication requests and credential
