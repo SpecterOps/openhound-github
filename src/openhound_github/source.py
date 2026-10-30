@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 import dlt
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import CredentialsConfiguration
-from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
@@ -27,6 +26,7 @@ from openhound_github.helpers import (
     DEFAULT_GITHUB_REST_API_URL,
     github_retry_policy,
 )
+from openhound_github.github_rest_client import github_http_session
 from openhound_github.main import app
 from openhound_github.models.saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
@@ -352,10 +352,7 @@ def source(
             },
             auth=auth,
             paginator=HeaderLinkPaginator(),
-            session=requests.Client(
-                status_codes=tuple(range(500, 600)),
-                retry_condition=github_retry_policy(auth),
-            ).session,
+            session=github_http_session(github_retry_policy(auth)),
         )
 
     def clients(auth: AuthConfigBase) -> tuple[RESTClient, RESTClient]:

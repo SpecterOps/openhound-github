@@ -55,6 +55,24 @@ Both values must be provided together when overriding the GitHub.com defaults.
 Endpoint URLs must use HTTPS and share the same origin. GitHub App
 `credentials.api_uri` may override only the path on that same origin.
 
+### Request timeouts and retries
+
+REST and GraphQL collection requests use a 10-second connection timeout and a
+30-second read timeout. Transient HTTP 5xx errors, connection failures, and
+timeouts share a limit of three attempts (the initial attempt plus two retries).
+Adaptive GraphQL pagination shares that limit across page sizes: HTTP 502/504
+responses trigger smaller-page attempts instead of a new retry budget.
+
+After retries are exhausted, existing resource handlers log the failure and
+continue with unaffected scopes. Already emitted records are retained, but the
+affected scope may be incomplete. Resources that require all pages before
+emitting records retain that behavior.
+
+Rate-limit responses and GitHub App token refresh retain their existing retry
+handling and do not consume the transient-failure budget. These timeouts are
+not an overall request deadline. App authentication requests and credential
+inventory CSV downloads retain their separate timeout settings.
+
 ### Enterprise SCIM and hybrid correlations
 
 A token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.
