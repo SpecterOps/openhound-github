@@ -1371,7 +1371,7 @@ def iter_enterprise_external_identities(
     github_deployment_id: str,
     resource_name: str,
 ):
-    """Share identity fields, pagination and error handling across federation types."""
+    """Yield federation identities only after all pages are collected successfully."""
     query = {
         "samlIdentityProvider": ENTERPRISE_SAML_QUERY,
         "oidcProvider": ENTERPRISE_OIDC_QUERY,
@@ -1391,6 +1391,7 @@ def iter_enterprise_external_identities(
         has_next_field="hasNextPage",
         allow_missing_page_info=True,
     )
+    identities = []
     try:
         for page in client.paginate(
             graphql_path,
@@ -1418,11 +1419,13 @@ def iter_enterprise_external_identities(
                     "nodes"
                 ) or []:
                     if identity is not None:
-                        yield {
-                            **identity,
-                            "environment_slug": environment_slug,
-                            "github_deployment_id": github_deployment_id,
-                        }
+                        identities.append(
+                            {
+                                **identity,
+                                "environment_slug": environment_slug,
+                                "github_deployment_id": github_deployment_id,
+                            }
+                        )
     except Exception as e:
         logger.error(
             "Error in resource '%s' processing enterprise '%s': %s",
@@ -1431,6 +1434,8 @@ def iter_enterprise_external_identities(
             e,
             extra={"resource": resource_name, "phase": "resource_iteration"},
         )
+        return
+    yield from identities
 
 
 @app.transformer(
@@ -1457,6 +1462,7 @@ def enterprise_external_identity(saml_provider: SamlProvider, ctx: SourceContext
     parallelized=True,
 )
 def enterprise_oidc_external_identity(oidc_provider: OidcProvider, ctx: SourceContext):
+    """Collect all OIDC external identities into the shared identity output table."""
     yield from iter_enterprise_external_identities(
         ctx,
         provider_field="oidcProvider",

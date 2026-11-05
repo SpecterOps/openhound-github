@@ -17,6 +17,8 @@ from .saml_helpers import DEFAULT_GITHUB_DEPLOYMENT_ID, DEFAULT_GITHUB_WEB_ORIGI
 
 @dataclass
 class GHOidcProviderProperties(GHNodeProperties):
+    """OIDC provider metadata and its enterprise collection context."""
+
     provider_type: str | None = None
     tenant_id: str | None = None
     environment_name: str | None = None
@@ -42,6 +44,8 @@ class GHOidcProviderProperties(GHNodeProperties):
     ],
 )
 class OidcProvider(BaseAsset):
+    """Convert an enterprise OIDC provider and its containment relationship."""
+
     model_config = ConfigDict(populate_by_name=True)
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
@@ -56,10 +60,12 @@ class OidcProvider(BaseAsset):
 
     @property
     def node_id(self) -> str:
+        """Return the provider's native GitHub identifier."""
         return self.id
 
     @property
     def as_node(self) -> GHNode:
+        """Build the OIDC node with the shared identity-provider kind."""
         return GHNode(
             kinds=[nk.OIDC_IDENTITY_PROVIDER, nk.IDENTITY_PROVIDER],
             properties=GHOidcProviderProperties(
@@ -77,6 +83,7 @@ class OidcProvider(BaseAsset):
 
     @property
     def edges(self):
+        """Link the enterprise to its provider through a non-traversable edge."""
         yield Edge(
             kind=ek.HAS_OIDC_IDENTITY_PROVIDER,
             start=EdgePath(value=self.environment_node_id, match_by="id"),

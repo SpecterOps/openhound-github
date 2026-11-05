@@ -17,12 +17,14 @@ from openhound_github.resources.enterprise import (
     enterprise_external_identity,
     enterprise_oidc_external_identity,
     enterprise_oidc_provider,
+    iter_enterprise_external_identities,
 )
 from openhound_github.transforms import ensure_optional_input_tables
 from test_enterprise_resources import _FakeClient, _FailingPaginateClient
 
 
 def _identity_record(i=1):
+    """Build an external identity with SCIM attributes and a linked GitHub user."""
     return {
         "id": f"EI_{i}",
         "guid": f"guid-{i}",
@@ -36,6 +38,7 @@ def _identity_record(i=1):
 def test_shared_identity_collection_reads_all_pages_and_preserves_fields(
     provider_field,
 ):
+    """Collect every SAML or OIDC identity page using the supplemental PAT."""
     pages = [
         [
             {
@@ -90,6 +93,7 @@ def test_shared_identity_collection_reads_all_pages_and_preserves_fields(
 
 
 def test_oidc_extraction_pipeline_validates_provider_and_shares_identity_table():
+    """Validate OIDC records through the DLT pipeline and shared identity table."""
     pat = _FakeClient(
         {
             "data": {
@@ -135,6 +139,7 @@ def test_oidc_extraction_pipeline_validates_provider_and_shares_identity_table()
 
 
 def test_oidc_pagination_failure_is_diagnostic_and_returns(caplog):
+    """Skip inaccessible OIDC identities while recording a diagnostic."""
     ctx = SourceContext(
         client=None, sso_client=_FailingPaginateClient({}), enterprise_name="acme"
     )
@@ -148,7 +153,57 @@ def test_oidc_pagination_failure_is_diagnostic_and_returns(caplog):
     assert "enterprise_oidc_external_identity" in caplog.text
 
 
+@pytest.mark.parametrize("provider_field", ["samlIdentityProvider", "oidcProvider"])
+@pytest.mark.parametrize("failure", ["exception", "missing_provider"])
+def test_late_pagination_failure_discards_buffered_identities(
+    provider_field, failure, caplog
+):
+    """Keep earlier pages out of the output when a later page cannot be collected."""
+
+    class LateFailureClient(_FakeClient):
+        """Return a valid first page before simulating a pagination failure."""
+
+        def paginate(self, path, **kwargs):
+            """Yield one identity and then fail or return a missing provider."""
+            yield [
+                {
+                    "enterprise": {
+                        "ownerInfo": {
+                            provider_field: {
+                                "externalIdentities": {"nodes": [_identity_record()]},
+                            }
+                        }
+                    }
+                }
+            ]
+            if failure == "exception":
+                raise ConnectionError("Later page unavailable")
+            yield ({"enterprise": {"ownerInfo": {provider_field: None}}},)
+
+    ctx = SourceContext(
+        client=None, sso_client=LateFailureClient({}), enterprise_name="acme"
+    )
+    rows = list(
+        iter_enterprise_external_identities(
+            ctx,
+            provider_field=provider_field,
+            environment_slug="acme",
+            github_deployment_id="github.com",
+            resource_name="identity_probe",
+        )
+    )
+    assert rows == []
+    if failure == "exception":
+        error = next(record for record in caplog.records if record.levelname == "ERROR")
+        assert error.resource == "identity_probe"
+        assert error.phase == "resource_iteration"
+        assert "Later page unavailable" in error.message
+    else:
+        assert "No enterprise" in caplog.text
+
+
 def _write_records(root, table, rows):
+    """Write compressed fixture records for preprocessing."""
     directory = root / table
     directory.mkdir()
     with gzip.open(directory / "rows.jsonl.gz", "wt") as f:
@@ -160,6 +215,7 @@ def _write_records(root, table, rows):
 def test_preprocessing_and_conversion_resolve_provider_without_identity_properties(
     tmp_path, federation
 ):
+    """Resolve each federation provider from lookup data during conversion."""
     provider = {
         "id": "IDP_1",
         "environment_node_id": "E_1",
@@ -203,6 +259,7 @@ def test_preprocessing_and_conversion_resolve_provider_without_identity_properti
 
 @pytest.mark.parametrize("user", [None, {"id": "U_1", "login": "user1_acme"}])
 def test_nullable_identity_attributes_and_unlinked_user_are_retained(user):
+    """Retain identities whose attributes or GitHub user mapping are absent."""
     identity = ExternalIdentity(
         id="EI_1",
         guid="guid-1",
@@ -224,6 +281,7 @@ def test_nullable_identity_attributes_and_unlinked_user_are_retained(user):
 
 
 def test_oidc_does_not_emit_saml_edge_even_if_saml_attributes_are_present():
+    """Prevent OIDC identities from acquiring SAML account relationships."""
     identity = ExternalIdentity.model_validate(
         {
             **_identity_record(),
@@ -240,6 +298,7 @@ def test_oidc_does_not_emit_saml_edge_even_if_saml_attributes_are_present():
 
 
 def test_missing_or_ambiguous_provider_does_not_emit_invalid_association(caplog):
+    """Omit unresolved provider relationships while retaining user mappings."""
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github")
     ensure_optional_input_tables(connection)

@@ -17,10 +17,12 @@ from test_enterprise_resources import _FakeClient, _FailingPostClient
 
 
 def _enterprise():
+    """Build the enterprise fixture used by provider resource tests."""
     return Enterprise(id="E_1", name="Acme", slug="acme")
 
 
 def _payload():
+    """Build the GraphQL response for a configured enterprise OIDC provider."""
     return {
         "data": {
             "enterprise": {
@@ -37,6 +39,7 @@ def _payload():
 
 
 def test_oidc_provider_uses_pat_graphql_client_and_converts():
+    """Collect provider metadata through the PAT and verify its graph representation."""
     app = _FakeClient({})
     pat = _FakeClient({})
     pat_graphql = _FakeClient(_payload())
@@ -86,6 +89,7 @@ def test_oidc_provider_uses_pat_graphql_client_and_converts():
     ],
 )
 def test_absent_or_inaccessible_provider_is_skipped(payload, diagnostic, caplog):
+    """Skip absent or inaccessible OIDC providers with a diagnostic."""
     ctx = SourceContext(
         client=None, sso_client=_FakeClient(payload), enterprise_name="acme"
     )
@@ -96,6 +100,7 @@ def test_absent_or_inaccessible_provider_is_skipped(payload, diagnostic, caplog)
 
 
 def test_oidc_network_failure_does_not_prevent_saml_collection(caplog):
+    """Keep SAML collection available after an OIDC request fails."""
     ctx = SourceContext(
         client=None, sso_client=_FailingPostClient({}), enterprise_name="acme"
     )
@@ -119,6 +124,7 @@ def test_oidc_network_failure_does_not_prevent_saml_collection(caplog):
 
 
 def test_oidc_resources_require_pat_and_no_pat_skips_calls():
+    """Register and query OIDC resources only when a supplemental PAT exists."""
     app = _FakeClient({})
     ctx = SourceContext(client=app, enterprise_name="acme")
     assert list(enterprise_oidc_provider.__wrapped__(_enterprise(), ctx)) == []
@@ -132,6 +138,7 @@ def test_oidc_resources_require_pat_and_no_pat_skips_calls():
 
 
 def test_provider_schema_registers_specific_display_kind_and_secondary_kind():
+    """Register OIDC display metadata and the shared identity-provider kind."""
     schema = json.loads(
         (Path(__file__).parents[1] / "extension/schema.json").read_text()
     )
