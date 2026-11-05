@@ -19,8 +19,10 @@ from openhound_github.graphql import (
     ENTERPRISE_MEMBERS_QUERY,
     ORGANIZATION_ENTERPRISE_OWNERS_QUERY,
     ENTERPRISE_SAML_PROVIDER_QUERY,
+    ENTERPRISE_OIDC_PROVIDER_QUERY,
     ENTERPRISE_QUERY,
     ENTERPRISE_SAML_QUERY,
+    ENTERPRISE_OIDC_QUERY,
 )
 from openhound_github.helpers import (
     GraphQLCursorPaginator,
@@ -55,6 +57,7 @@ from openhound_github.models import (
     EnterpriseScimOrganization,
     EnterpriseScimUser,
     SamlProvider,
+    OidcProvider,
     SamlServiceProvider,
     SamlAssertionConsumerService,
     SamlIssuer,
@@ -1243,6 +1246,64 @@ def enterprise_saml_provider(enterprise_data: Enterprise, ctx: SourceContext):
 
 
 @app.transformer(
+    name="enterprise_oidc_provider",
+    table_name="oidc_provider",
+    columns=OidcProvider,
+    parallelized=True,
+)
+def enterprise_oidc_provider(enterprise_data: Enterprise, ctx: SourceContext):
+    """Discover enterprise OIDC independently of the SAML provider query."""
+    client, graphql_path = _sso_graphql_client(ctx)
+    if not client:
+        logger.info(
+            "Skipping enterprise_oidc_provider for enterprise '%s': no SSO client configured",
+            ctx.enterprise_name,
+        )
+        return
+    try:
+        response = client.post(
+            graphql_path,
+            json={
+                "query": ENTERPRISE_OIDC_PROVIDER_QUERY,
+                "variables": {"slug": ctx.enterprise_name},
+            },
+        ).json()
+        if response.get("errors"):
+            logger.warning(
+                "Enterprise OIDC provider query failed for '%s': %s",
+                ctx.enterprise_name,
+                response["errors"],
+            )
+            return
+        enterprise_object = (response.get("data") or {}).get("enterprise")
+        if not enterprise_object:
+            logger.warning(
+                "No enterprise object returned while fetching OIDC provider for enterprise '%s'",
+                ctx.enterprise_name,
+            )
+            return
+        provider = (enterprise_object.get("ownerInfo") or {}).get("oidcProvider")
+        if not provider:
+            logger.info("No enterprise OIDC provider configured for '%s'", ctx.enterprise_name)
+            return
+        yield {
+            **provider,
+            "environment_node_id": enterprise_data.id,
+            "environment_name": enterprise_data.name or enterprise_data.slug,
+            "environment_slug": enterprise_data.slug,
+            "github_deployment_id": ctx.github_deployment_id,
+            "github_web_origin": ctx.github_web_origin,
+        }
+    except Exception as e:
+        logger.error(
+            "Error in resource 'enterprise_oidc_provider' processing enterprise '%s': %s",
+            ctx.enterprise_name,
+            e,
+            extra={"resource": "enterprise_oidc_provider", "phase": "resource_iteration"},
+        )
+
+
+@app.transformer(
     name="enterprise_saml_service_provider",
     table_name="saml_service_provider",
     columns=SamlServiceProvider,
@@ -1302,6 +1363,81 @@ def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
     }
 
 
+def iter_enterprise_external_identities(
+    ctx: SourceContext,
+    *,
+    provider_field: str,
+    environment_slug: str,
+    github_deployment_id: str,
+    resource_name: str,
+):
+    """Yield federation identities only after all pages are collected successfully."""
+    query = {
+        "samlIdentityProvider": ENTERPRISE_SAML_QUERY,
+        "oidcProvider": ENTERPRISE_OIDC_QUERY,
+    }[provider_field]
+    client, graphql_path = _sso_graphql_client(ctx)
+    if not client:
+        logger.info(
+            "Skipping %s for enterprise '%s': no SSO client configured",
+            resource_name,
+            ctx.enterprise_name,
+        )
+        return
+    paginator = GraphQLCursorPaginator(
+        page_info_path=f"data.enterprise.ownerInfo.{provider_field}.externalIdentities.pageInfo",
+        cursor_variable="after",
+        cursor_field="endCursor",
+        has_next_field="hasNextPage",
+        allow_missing_page_info=True,
+    )
+    identities = []
+    try:
+        for page in client.paginate(
+            graphql_path,
+            method="POST",
+            json={
+                "query": query,
+                "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
+            },
+            paginator=paginator,
+            data_selector="data",
+        ):
+            for item in page:
+                enterprise_object = item.get("enterprise") or {}
+                provider = (enterprise_object.get("ownerInfo") or {}).get(
+                    provider_field
+                )
+                if not provider:
+                    logger.warning(
+                        "No enterprise %s returned while fetching external identities for enterprise '%s'",
+                        provider_field,
+                        ctx.enterprise_name,
+                    )
+                    return
+                for identity in (provider.get("externalIdentities") or {}).get(
+                    "nodes"
+                ) or []:
+                    if identity is not None:
+                        identities.append(
+                            {
+                                **identity,
+                                "environment_slug": environment_slug,
+                                "github_deployment_id": github_deployment_id,
+                            }
+                        )
+    except Exception as e:
+        logger.error(
+            "Error in resource '%s' processing enterprise '%s': %s",
+            resource_name,
+            ctx.enterprise_name,
+            e,
+            extra={"resource": resource_name, "phase": "resource_iteration"},
+        )
+        return
+    yield from identities
+
+
 @app.transformer(
     name="enterprise_external_identity",
     table_name="external_identities",
@@ -1309,65 +1445,31 @@ def enterprise_saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
     parallelized=True,
 )
 def enterprise_external_identity(saml_provider: SamlProvider, ctx: SourceContext):
-    """Collect enterprise SAML identities from the configured SSO client."""
-    client, graphql_path = _sso_graphql_client(ctx)
-    if not client:
-        logger.info(
-            "Skipping enterprise_external_identity for enterprise '%s': no SSO client configured",
-            ctx.enterprise_name,
-        )
-        return
-
-    paginator = GraphQLCursorPaginator(
-        page_info_path="data.enterprise.ownerInfo.samlIdentityProvider.externalIdentities.pageInfo",
-        cursor_variable="after",
-        cursor_field="endCursor",
-        has_next_field="hasNextPage",
-        allow_missing_page_info=True,
+    """Preserve the existing SAML resource and output table."""
+    yield from iter_enterprise_external_identities(
+        ctx,
+        provider_field="samlIdentityProvider",
+        environment_slug=saml_provider.get("environment_slug"),
+        github_deployment_id=saml_provider.get("github_deployment_id"),
+        resource_name="enterprise_external_identity",
     )
-    data = {
-        "query": ENTERPRISE_SAML_QUERY,
-        "variables": {"slug": ctx.enterprise_name, "count": 100, "after": None},
-    }
 
-    try:
-        for page_data in client.paginate(
-            graphql_path,
-            method="POST",
-            json=data,
-            paginator=paginator,
-            data_selector="data",
-        ):
-            for enterprise_object in page_data:
-                es_data = enterprise_object.get("enterprise", {})
-                page_provider = (es_data.get("ownerInfo") or {}).get(
-                    "samlIdentityProvider"
-                )
-                if not page_provider:
-                    logger.warning(
-                        "No enterprise SAML provider returned while fetching external identities for enterprise '%s'",
-                        ctx.enterprise_name,
-                    )
-                    return
-                for identity in (page_provider.get("externalIdentities") or {}).get(
-                    "nodes"
-                ) or []:
-                    yield {
-                        **identity,
-                        "environment_slug": saml_provider.get("environment_slug"),
-                        "github_deployment_id": saml_provider.get(
-                            "github_deployment_id"
-                        ),
-                    }
-    except Exception as e:
-        logger.error(
-            f"Error in resource 'enterprise_external_identity' processing enterprise '{ctx.enterprise_name}': {e}",
-            extra={
-                "resource": "enterprise_external_identity",
-                "phase": "resource_iteration",
-            },
-        )
-        return
+
+@app.transformer(
+    name="enterprise_oidc_external_identity",
+    table_name="external_identities",
+    columns=ExternalIdentity,
+    parallelized=True,
+)
+def enterprise_oidc_external_identity(oidc_provider: OidcProvider, ctx: SourceContext):
+    """Collect all OIDC external identities into the shared identity output table."""
+    yield from iter_enterprise_external_identities(
+        ctx,
+        provider_field="oidcProvider",
+        environment_slug=oidc_provider.environment_slug,
+        github_deployment_id=oidc_provider.github_deployment_id,
+        resource_name="enterprise_oidc_external_identity",
+    )
 
 
 def enterprise_resources(ctx: SourceContext):
@@ -1403,8 +1505,11 @@ def enterprise_resources(ctx: SourceContext):
 
     if ctx.sso_client:
         saml_resource = enterprise_saml_provider(ctx)
+        oidc_resource = enterprise_resource | enterprise_oidc_provider(ctx)
         resources.extend(
             [
+                oidc_resource,
+                oidc_resource | enterprise_oidc_external_identity(ctx),
                 enterprise_resource | saml_resource,
                 enterprise_resource
                 | saml_resource

@@ -72,6 +72,7 @@ def preproc(ctx: PreProcContext):
         "team_external_groups": "team_external_groups",
         "team_members": "team_members",
         "saml_provider": "saml_provider",
+        "oidc_provider": "oidc_provider",
         "external_identities": "external_identities",
         "applications": "applications",
         "enterprise": "enterprise",

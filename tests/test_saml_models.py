@@ -38,7 +38,7 @@ def _identity_with_lookup(**overrides) -> ExternalIdentity:
     data.update(overrides)
     identity = ExternalIdentity.model_validate(data)
     identity._lookup = SimpleNamespace(
-        idp_for_environment=lambda _slug: [
+        identity_providers_for_environment=lambda _slug: [
             (
                 "IDP_1",
                 "https://issuer.example.com",
@@ -46,6 +46,7 @@ def _identity_with_lookup(**overrides) -> ExternalIdentity:
                 "ORG_1",
                 "Acme",
                 "org",
+                "saml",
             )
         ]
     )
@@ -233,7 +234,9 @@ def test_saml_provider_replays_snake_case_fields_and_deployment_metadata() -> No
     assert provider.sso_url == "https://issuer.example.com/sso"
     assert provider.signature_method == "rsa-sha256"
     assert provider.idp_certificate == "certificate-data"
-    assert provider.as_node.kinds == [nk.SAML_IDENTITY_PROVIDER, "GitHub"]
+    assert provider.as_node.kinds == [
+        nk.SAML_IDENTITY_PROVIDER, nk.IDENTITY_PROVIDER, "GitHub"
+    ]
     assert provider.as_node.properties.github_deployment_id == "github.example.com"
     assert provider.as_node.properties.github_web_origin == "https://github.example.com"
 
@@ -273,7 +276,7 @@ def test_saml_account_edge_emits_contract_evidence_and_direct_user_mapping() -> 
 def test_external_identity_does_not_emit_legacy_foreign_user_correlations() -> None:
     identity = _identity_with_lookup()
     identity._lookup = SimpleNamespace(
-        idp_for_environment=lambda _slug: [
+        identity_providers_for_environment=lambda _slug: [
             (
                 "IDP_1",
                 "http://www.okta.com/example",
@@ -281,6 +284,7 @@ def test_external_identity_does_not_emit_legacy_foreign_user_correlations() -> N
                 "ORG_1",
                 "Acme",
                 "org",
+                "saml",
             )
         ]
     )
@@ -296,7 +300,7 @@ def test_external_identity_does_not_emit_legacy_foreign_user_correlations() -> N
 
 def test_external_identity_missing_idp_fallback_includes_environment_type() -> None:
     identity = _identity_with_lookup()
-    identity._lookup = SimpleNamespace(idp_for_environment=lambda _slug: [])
+    identity._lookup = SimpleNamespace(identity_providers_for_environment=lambda _slug: [])
 
     assert identity.idp == {
         "id": None,
@@ -305,6 +309,7 @@ def test_external_identity_missing_idp_fallback_includes_environment_type() -> N
         "environment_node_id": None,
         "environment_name": None,
         "environment_type": None,
+        "federation_type": None,
     }
 
 
@@ -323,7 +328,7 @@ def test_enterprise_scim_only_identity_emits_managed_user_binding() -> None:
         scimIdentity={"username": "managed@example.com"},
     )
     identity._lookup = SimpleNamespace(
-        idp_for_environment=lambda _slug: [
+        identity_providers_for_environment=lambda _slug: [
             (
                 "IDP_1",
                 "https://issuer.example.com",
@@ -331,6 +336,7 @@ def test_enterprise_scim_only_identity_emits_managed_user_binding() -> None:
                 "ENT_1",
                 "Acme",
                 "enterprise",
+                "saml",
             )
         ]
     )

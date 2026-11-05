@@ -37,3 +37,5 @@ graph LR
     n2 -.->|GH_HasSamlIdentityProvider| n1
     n1 -.->|GH_HasExternalIdentity| n3
 ```
+
+This node also carries the non-display secondary kind `GH_IdentityProvider`, shared with enterprise OIDC providers.

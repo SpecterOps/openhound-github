@@ -43,6 +43,7 @@ BYPASS_PULL_REQUEST_ALLOWANCES = "GH_BypassPullRequestAllowances"
 RESTRICTIONS_CAN_PUSH = "GH_RestrictionsCanPush"
 
 # Identity and authentication edges
+HAS_OIDC_IDENTITY_PROVIDER = "GH_HasOidcIdentityProvider"
 HAS_EXTERNAL_IDENTITY = "GH_HasExternalIdentity"
 HAS_SAML_IDENTITY_PROVIDER = "GH_HasSamlIdentityProvider"
 MAPS_TO_USER = "GH_MapsToUser"

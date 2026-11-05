@@ -73,6 +73,21 @@ def ensure_optional_input_tables(
             external_group_name VARCHAR,
             external_group_updated_at VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.saml_provider (
+            id VARCHAR,
+            issuer VARCHAR,
+            sso_url VARCHAR,
+            environment_node_id VARCHAR,
+            environment_name VARCHAR,
+            environment_type VARCHAR,
+            environment_slug VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.oidc_provider (
+            id VARCHAR,
+            environment_node_id VARCHAR,
+            environment_name VARCHAR,
+            environment_slug VARCHAR
+        );
         CREATE TABLE IF NOT EXISTS {schema}.external_identities (
             id VARCHAR,
             guid VARCHAR,

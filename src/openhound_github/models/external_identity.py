@@ -96,7 +96,7 @@ class User(BaseModel):
     ),
     edges=[
         EdgeDef(
-            start=nk.SAML_IDENTITY_PROVIDER,
+            start=nk.IDENTITY_PROVIDER,
             end=nk.EXTERNAL_IDENTITY,
             kind=ek.HAS_EXTERNAL_IDENTITY,
             description="IdP has external identity",
@@ -185,8 +185,8 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def idp(self) -> dict:
-        ext_idp = self._lookup.idp_for_environment(self.environment_slug)
-        if not ext_idp:
+        ext_idp = self._lookup.identity_providers_for_environment(self.environment_slug)
+        if len(ext_idp) != 1:
             return {
                 "id": None,
                 "issuer": None,
@@ -194,8 +194,12 @@ class ExternalIdentity(BaseAsset):
                 "environment_node_id": None,
                 "environment_name": None,
                 "environment_type": None,
+                "federation_type": None,
             }
-        provider_id, issuer, sso_url, environment_node_id, environment_name, environment_type = ext_idp[0]
+        (
+            provider_id, issuer, sso_url, environment_node_id,
+            environment_name, environment_type, federation_type,
+        ) = ext_idp[0]
         return {
             "id": provider_id,
             "issuer": issuer,
@@ -203,10 +207,13 @@ class ExternalIdentity(BaseAsset):
             "environment_node_id": environment_node_id,
             "environment_name": environment_name,
             "environment_type": environment_type,
+            "federation_type": federation_type,
         }
 
     @property
     def service_provider_node_id(self) -> str | None:
+        if self.idp.get("federation_type") != "saml":
+            return None
         return github_saml_service_provider_id(
             self.idp.get("environment_type"),
             self.environment_slug,
@@ -263,12 +270,13 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def edges(self):
-        yield Edge(
-            kind=ek.HAS_EXTERNAL_IDENTITY,
-            start=EdgePath(value=self.idp["id"], match_by="id"),
-            end=EdgePath(value=self.node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
-        )
+        if self.idp.get("id"):
+            yield Edge(
+                kind=ek.HAS_EXTERNAL_IDENTITY,
+                start=EdgePath(value=self.idp["id"], match_by="id"),
+                end=EdgePath(value=self.node_id, match_by="id"),
+                properties=EdgeProperties(traversable=False),
+            )
 
         has_idp = bool(self.idp.get("id"))
         service_provider_node_id = self.service_provider_node_id

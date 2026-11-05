@@ -13,6 +13,8 @@ ENVIRONMENT_VARIABLE = "GH_EnvironmentVariable"
 ENVIRONMENT_BRANCH_POLICY = "GH_EnvironmentBranchPolicy"
 
 # Identity nodes
+IDENTITY_PROVIDER = "GH_IdentityProvider"
+OIDC_IDENTITY_PROVIDER = "GH_OidcIdentityProvider"
 EXTERNAL_IDENTITY = "GH_ExternalIdentity"
 SAML_IDENTITY_PROVIDER = "GH_SamlIdentityProvider"
 ENTERPRISE_MANAGED_USER = "GH_EnterpriseManagedUser"

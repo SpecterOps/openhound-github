@@ -131,12 +131,19 @@ query OrganizationEnterpriseOwners($login: String!, $count: Int = 100, $after: S
 }
 """
 
-ENTERPRISE_SAML_QUERY = """
-query EnterpriseSAML($slug: String!, $count: Int = 100, $after: String = null) {
+def enterprise_external_identity_query(provider_field: str) -> str:
+    """Build the common paginated identity query for an enterprise provider."""
+    if provider_field not in {"samlIdentityProvider", "oidcProvider"}:
+        raise ValueError(f"Unsupported identity provider: {provider_field}")
+    return _ENTERPRISE_EXTERNAL_IDENTITY_QUERY.replace("PROVIDER_FIELD", provider_field)
+
+
+_ENTERPRISE_EXTERNAL_IDENTITY_QUERY = """
+query EnterpriseExternalIdentities($slug: String!, $count: Int = 100, $after: String = null) {
     enterprise(slug: $slug) {
         slug
         ownerInfo {
-            samlIdentityProvider {
+            PROVIDER_FIELD {
                 externalIdentities(first: $count, after: $after) {
                     totalCount
                     nodes {
@@ -179,6 +186,9 @@ query EnterpriseSAML($slug: String!, $count: Int = 100, $after: String = null) {
 }
 """
 
+ENTERPRISE_SAML_QUERY = enterprise_external_identity_query("samlIdentityProvider")
+ENTERPRISE_OIDC_QUERY = enterprise_external_identity_query("oidcProvider")
+
 ENTERPRISE_SAML_PROVIDER_QUERY = """
 query EnterpriseSAMLProvider($slug: String!) {
     enterprise(slug: $slug) {
@@ -193,6 +203,20 @@ query EnterpriseSAMLProvider($slug: String!) {
                 digestMethod
                 signatureMethod
                 idpCertificate
+            }
+        }
+    }
+}
+"""
+
+ENTERPRISE_OIDC_PROVIDER_QUERY = """
+query EnterpriseOIDCProvider($slug: String!) {
+    enterprise(slug: $slug) {
+        ownerInfo {
+            oidcProvider {
+                id
+                providerType
+                tenantId
             }
         }
     }

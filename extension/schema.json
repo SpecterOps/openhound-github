@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.4.0",
+    "version": "v1.4.2",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -74,7 +74,7 @@
           "title": "Identity Provider",
           "position": 9,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Enterprise {objectid: '%s'})-[:GH_HasSamlIdentityProvider]->(idp:GH_SamlIdentityProvider)\\nOPTIONAL MATCH p1 = (idp)-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)-[:GH_MapsToUser]->(:GH_User)\\nRETURN p, p1\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the identity provider and mapped users for this enterprise in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Enterprise {objectid: '%s'})-[:GH_HasSamlIdentityProvider|GH_HasOidcIdentityProvider]->(idp:GH_IdentityProvider)\\nOPTIONAL MATCH p1 = (idp)-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)-[:GH_MapsToUser]->(:GH_User)\\nRETURN p, p1\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the identity provider and mapped users for this enterprise in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "classic_personal_access_tokens": {
@@ -1632,9 +1632,61 @@
       }
     },
     {
+      "name": "GH_OidcIdentityProvider",
+      "display_name": "GitHub OIDC Identity Provider",
+      "description": "An OIDC identity provider configured for a GitHub Enterprise account",
+      "is_display_kind": true,
+      "icon": "id-badge",
+      "color": "#5A6C8F",
+      "info": {
+        "description": {
+          "title": "Description",
+          "position": 1,
+          "markdown": {
+            "content": "## Overview\n\nRepresents an enterprise OIDC identity provider. The provider_type and tenant_id properties identify the provider and its tenant."
+          }
+        },
+        "inbound_traversable_relationships": {
+          "title": "Inbound Traversable GH Relationships",
+          "position": 2,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OidcIdentityProvider {objectid: '%s'})\\nWHERE false\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "outbound_traversable_relationships": {
+          "title": "Outbound Traversable GH Relationships",
+          "position": 3,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OidcIdentityProvider {objectid: '%s'})\\nWHERE false\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "environment_context": {
+          "title": "Environment Context",
+          "position": 4,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (environment)-[:GH_HasOidcIdentityProvider]->(selected:GH_OidcIdentityProvider {objectid: '%s'})\\nWHERE environment:GH_Enterprise\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the enterprise using this identity provider in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "external_identities": {
+          "title": "External Identities",
+          "position": 5,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OidcIdentityProvider {objectid: '%s'})-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View external identities from this provider in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "mapped_users": {
+          "title": "Mapped Users",
+          "position": 6,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OidcIdentityProvider {objectid: '%s'})-[:GH_HasExternalIdentity]->(:GH_ExternalIdentity)-[:GH_MapsToUser]->(:GH_User)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View GitHub users mapped through this identity provider in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        }
+      }
+    },
+    {
       "name": "GH_ExternalIdentity",
       "display_name": "GitHub External Identity",
-      "description": "An external identity from a SAML/SCIM provider linked to a GitHub user for SSO authentication",
+      "description": "An external identity from a SAML or OIDC provider with optional SCIM attributes and a linked GitHub user when available",
       "is_display_kind": true,
       "icon": "arrows-left-right",
       "color": "#8A8F98",
@@ -1643,7 +1695,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents an external identity from a SAML or SCIM identity provider that is linked to a GitHub user. This node preserves the identity-provider attributes used to understand how a corporate identity maps into GitHub."
+            "content": "## Overview\n\nRepresents an external identity collected through a SAML or OIDC provider, with a linked GitHub user when available. This node preserves the identity-provider attributes used to understand how a corporate identity maps into GitHub."
           }
         },
         "inbound_traversable_relationships": {
@@ -1664,7 +1716,7 @@
           "title": "Identity Provider",
           "position": 4,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_SamlIdentityProvider)-[:GH_HasExternalIdentity]->(selected:GH_ExternalIdentity {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the identity provider containing this external identity in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_IdentityProvider)-[:GH_HasExternalIdentity]->(selected:GH_ExternalIdentity {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the identity provider containing this external identity in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "mapped_user": {
@@ -1966,6 +2018,12 @@
           }
         }
       }
+    },
+    {
+      "name": "GH_IdentityProvider",
+      "display_name": "GitHub Identity Provider",
+      "description": "Shared secondary kind for GitHub SAML and OIDC identity providers",
+      "is_display_kind": false
     }
   ],
   "relationship_kinds": [
@@ -2601,7 +2659,7 @@
     },
     {
       "name": "GH_HasExternalIdentity",
-      "description": "SAML identity provider has this external identity",
+      "description": "SAML or OIDC identity provider has this external identity",
       "is_traversable": false
     },
     {
@@ -2747,6 +2805,11 @@
     {
       "name": "GH_ApprovesDeploymentTo",
       "description": "User or team is configured as a required reviewer for this environment",
+      "is_traversable": false
+    },
+    {
+      "name": "GH_HasOidcIdentityProvider",
+      "description": "Enterprise has this OIDC identity provider configured",
       "is_traversable": false
     }
   ],
