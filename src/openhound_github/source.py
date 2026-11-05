@@ -159,6 +159,7 @@ class OrgContext:
 @dataclass
 class SourceContext:
     organizations: list[OrgContext] | None = field(default_factory=list)
+    github_app: GithubApp | None = None
     client: RESTClient | None = None
     graphql_client: RESTClient | None = None
     sso_client: RESTClient | None = None
@@ -388,6 +389,7 @@ def source(
             private_key_path=credentials.key_path,
             api_uri=auth_api_uri,
         )
+        ctx.github_app = github_app_session
         for installation in github_app_session.installations:
             if installation.target_type == "Organization":
                 org_installation = GithubInstallation(

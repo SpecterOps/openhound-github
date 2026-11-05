@@ -5,7 +5,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import dlt
 import requests
@@ -34,6 +34,9 @@ from openhound_github.github_retry import (
     is_secondary_rate_limit_response,
 )
 from openhound_github.main import app
+from openhound_github.auth import GithubApp
+from openhound_github.models.app_installation import App, AppInstallation
+from openhound_github.resources.app_helpers import migrate_app_context_schema
 from openhound_github.models import (
     BaseUser,
     ClassicPersonalAccessToken,
@@ -90,6 +93,7 @@ class SourceContext:
     """Shared context for GitHub API access."""
 
     client: RESTClient
+    github_app: GithubApp | None = None
     graphql_client: RESTClient | None = None
     sso_client: RESTClient | None = None
     sso_graphql_client: RESTClient | None = None
@@ -1472,6 +1476,66 @@ def enterprise_oidc_external_identity(oidc_provider: OidcProvider, ctx: SourceCo
     )
 
 
+@app.transformer(
+    name="enterprise_app_installation",
+    table_name="app_installations",
+    columns=AppInstallation,
+    parallelized=True,
+)
+def enterprise_app_installation(enterprise_data: Enterprise, ctx: SourceContext):
+    """Collect the authenticating app's enterprise installation independently of auth discovery."""
+    if ctx.github_app is None:
+        return
+    migrate_app_context_schema()
+    try:
+        response = ctx.github_app.client.get(
+            f"/enterprises/{quote(enterprise_data.slug, safe='')}/installation",
+            headers={
+                **ctx.github_app.jwt_headers,
+                "X-GitHub-Api-Version": "2026-03-10",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        installation = response.json()
+        if installation.get("target_type") != "Enterprise":
+            raise ValueError("Expected an enterprise-target app installation")
+        yield {
+            **installation,
+            "environment_slug": enterprise_data.slug,
+            "enterprise_node_id": enterprise_data.node_id,
+        }
+    except Exception as exc:
+        logger.warning(
+            "Skipping enterprise app installation for '%s': %s",
+            enterprise_data.slug,
+            exc,
+        )
+
+
+@app.transformer(
+    name="enterprise_applications",
+    table_name="applications",
+    columns=App,
+    parallelized=True,
+)
+def enterprise_applications(installation: AppInstallation, ctx: SourceContext):
+    """Enrich the collected installation with its parent app using enterprise auth."""
+    if not installation.app_slug or ctx.client is None:
+        return
+    migrate_app_context_schema()
+    try:
+        response = ctx.client.get(f"/apps/{quote(installation.app_slug, safe='')}")
+        response.raise_for_status()
+        yield {
+            **response.json(),
+            "environment_slug": installation.environment_slug,
+            "enterprise_node_id": installation.enterprise_node_id,
+        }
+    except Exception as exc:
+        logger.warning("Skipping app metadata for '%s': %s", installation.app_slug, exc)
+
+
 def enterprise_resources(ctx: SourceContext):
     enterprise_resource = enterprise(ctx)
     organizations_resource = enterprise_organizations(ctx)
@@ -1502,6 +1566,15 @@ def enterprise_resources(ctx: SourceContext):
         # enterprise_resource | enterprise_admin_roles(ctx),
         enterprise_resource | enterprise_admins(ctx),
     ]
+
+    if ctx.github_app is not None:
+        installation_resource = enterprise_resource | enterprise_app_installation(ctx)
+        resources.extend(
+            [
+                installation_resource,
+                installation_resource | enterprise_applications(ctx),
+            ]
+        )
 
     if ctx.sso_client:
         saml_resource = enterprise_saml_provider(ctx)

@@ -37,6 +37,7 @@ from openhound_github.helpers import (
     scim_skip_reason,
 )
 from openhound_github.main import app
+from openhound_github.resources.app_helpers import migrate_app_context_schema
 from openhound_github.models import (
     ActionPermission,
     App,
@@ -648,13 +649,14 @@ def app_installations(ctx: SourceContext):
     Yields:
         AppInstallation (AppInstallation): App installation record.
     """
+    migrate_app_context_schema()
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
         try:
             for page in client.paginate(f"/orgs/{org_name}/installations"):
                 for item in page:
-                    yield {**item, "org_login": org_name}
+                    yield {**item, "environment_slug": org_name}
         except Exception as e:
             logger.error(
                 f"Error in resource 'app_installations' processing organization '{org_name}': {e}",
@@ -671,7 +673,9 @@ def app_installations(ctx: SourceContext):
 def app_installation_repo_access(app_install: AppInstallation, ctx: SourceContext):
     """List the repositories granted to a selected organization installation."""
     if (
-        app_install.repository_selection != "selected"
+        app_install.target_type != "Organization"
+        or not app_install.environment_slug
+        or app_install.repository_selection != "selected"
         or not ctx.client
         or not ctx.enterprise_name
         or ctx.deployment_type == "ghes"
@@ -681,7 +685,7 @@ def app_installation_repo_access(app_install: AppInstallation, ctx: SourceContex
 
     path = (
         f"/enterprises/{ctx.enterprise_name}/apps/organizations/"
-        f"{app_install.org_login}/installations/{app_install.id}/repositories"
+        f"{app_install.environment_slug}/installations/{app_install.id}/repositories"
     )
     try:
         # Read every page before yielding so a failed page cannot create partial access.
@@ -711,7 +715,7 @@ def app_installation_repo_access(app_install: AppInstallation, ctx: SourceContex
         logger.warning(
             "Skipping repository access for app installation %s in organization '%s': %s",
             app_install.id,
-            app_install.org_login,
+            app_install.environment_slug,
             exc,
         )
         return
@@ -719,7 +723,7 @@ def app_installation_repo_access(app_install: AppInstallation, ctx: SourceContex
         logger.warning(
             "Skipping repository access for app installation %s in organization '%s': %s",
             app_install.id,
-            app_install.org_login,
+            app_install.environment_slug,
             exc,
         )
         return
@@ -735,7 +739,7 @@ def app_installation_repo_access(app_install: AppInstallation, ctx: SourceContex
             "installation_node_id": app_install.node_id,
             "repository_database_id": repository["id"],
             "repo_full_name": repository.get("full_name"),
-            "org_login": app_install.org_login,
+            "org_login": app_install.environment_slug,
         }
 
 
@@ -750,9 +754,12 @@ def applications(app_install: AppInstallation, ctx: SourceContext):
     Yields:
         App (App): GitHub App record.
     """
+    if app_install.target_type != "Organization" or not app_install.environment_slug:
+        return
+    migrate_app_context_schema()
     app_slug = app_install.app_slug if app_install.app_slug else app_install.app_id
     if app_install.id:
-        client = _client_for_org(ctx, app_install.org_login)
+        client = _client_for_org(ctx, app_install.environment_slug)
         app_slug = str(app_slug)
         if app_slug not in ctx.app_cache:
             with ctx.cache_lock:
@@ -760,7 +767,11 @@ def applications(app_install: AppInstallation, ctx: SourceContext):
                     ctx.app_cache[app_slug] = client.get(f"/apps/{app_slug}").json()
         app_data = ctx.app_cache[app_slug]
         if app_data.get("node_id"):
-            yield {**app_data, "slug": app_slug, "org_login": app_install.org_login}
+            yield {
+                **app_data,
+                "slug": app_slug,
+                "environment_slug": app_install.environment_slug,
+            }
 
 
 @app.resource(name="users", columns=User, parallelized=True)

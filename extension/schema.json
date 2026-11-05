@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.4.2",
+    "version": "v1.4.3",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -82,6 +82,13 @@
           "position": 10,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Enterprise {objectid: '%s'})-[:GH_Contains]->(:GH_ClassicPersonalAccessToken)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View classic personal access tokens in this enterprise in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "collector_app_installation": {
+          "title": "Collector App Installation",
+          "position": 11,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Enterprise {objectid: '%s'})-[:GH_Contains]->(:GH_AppInstallation)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the collector app installation in this enterprise in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1740,7 +1747,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a GitHub App definition. The app owner controls the private key used to generate installation tokens for every installation of this app, so compromise of the app can affect every organization where it is installed."
+            "content": "## Overview\n\nRepresents a GitHub App definition. The `permissions` property records requested app permissions. Each installation records its own granted permissions. The app owner controls the private key used to generate installation tokens for its installations on organizations and enterprises.\n\n`environment_slug` records the organization login or enterprise slug for this collection context."
           }
         },
         "inbound_traversable_relationships": {
@@ -1821,7 +1828,7 @@
     {
       "name": "GH_AppInstallation",
       "display_name": "GitHub App Installation",
-      "description": "A GitHub App installed on the organization with specific permissions and repository access",
+      "description": "A GitHub App installed on an organization or enterprise with a specific set of granted permissions",
       "is_display_kind": true,
       "icon": "plug",
       "color": "#A8D8EA",
@@ -1830,7 +1837,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a GitHub App installed on an organization. Installations have a permission set and repository scope, and are linked back to the parent `GH_App` that owns the private key used to mint installation tokens."
+            "content": "## Overview\n\nRepresents a GitHub App installed on an organization or enterprise. The `permissions` property records permissions granted to this installation; the parent `GH_App` records requested permissions.\n\nEnterprise collection currently includes only the authenticating collector app installation. Enterprise installations do not automatically grant access to organizations or repositories.\n\n`environment_slug` records the organization login or enterprise slug for this collection context."
           }
         },
         "inbound_traversable_relationships": {
@@ -1866,6 +1873,13 @@
           "position": 6,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_AppInstallation {objectid: '%s'})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories accessible to this app installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "enterprise_context": {
+          "title": "Enterprise Context",
+          "position": 7,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Enterprise)-[:GH_Contains]->(selected:GH_AppInstallation {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the enterprise containing this app installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }

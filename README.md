@@ -82,6 +82,8 @@ A token with enterprise SCIM access is used to collect both `/scim/v2/enterprise
 
 `SOURCES__GITHUB__EMIT_LEGACY_SCIM_CORRELATIONS=true` temporarily reproduces GitHound-style Okta-to-SCIM correlation relationships. It defaults to false because a dedicated hybrid correlator should own IdP-to-SCIM matching; GitHub remains authoritative for GitHub's SCIM resources and target-system provisioning relationships.
 
+In enterprise app authentication mode, the collector separately retrieves its own enterprise installation for configuration troubleshooting, including granted permissions, timestamps, and suspension status. It also retrieves the parent app's requested permissions and owner metadata using the enterprise installation token. This does not enumerate other enterprise-target app installations or imply organization/repository access. App and installation records use `environment_slug` for the organization login or enterprise slug. Installations also retain `target_type` to distinguish targets; older collected records remain compatible. Existing DLT app schemas are migrated to allow empty legacy `org_login` fields and absent `repository_selection`. A load already stuck in normalization retains its saved schema and needs recovery or restart; do not delete the pipeline or collected output to apply this change.
+
 Enterprise roles, including the built-in `members` role, are emitted through `GH_HasRole` and granular enterprise capability relationships. Only capability relationships with a confirmed privilege path are traversable; descriptive permissions such as `GH_WriteEnterpriseSso` remain non-traversable.
 
 ### Enterprise OIDC collection

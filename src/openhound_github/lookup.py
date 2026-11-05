@@ -850,16 +850,11 @@ class GithubLookup(LookupManager):
         return rows
 
     @lru_cache
-    def app_node_id(self, app_slug: str, org_login: str | None = None) -> str | None:
-        if org_login is None:
-            return self._find_single_object(
-                f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
-                [app_slug],
-            )
-
+    def app_node_id(self, app_slug: str) -> str | None:
+        """Resolve the registration shared by its organization and enterprise installations."""
         return self._find_single_object(
-            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ? AND org_login = ?""",
-            [app_slug, org_login],
+            f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
+            [app_slug],
         )
 
     @lru_cache
