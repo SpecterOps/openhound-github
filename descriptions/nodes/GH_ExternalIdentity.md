@@ -2,7 +2,7 @@
 
 ## General Information
 
-Represents an external identity from a SAML or SCIM identity provider that is linked to a GitHub user. External identities map corporate user accounts (from providers like Okta, Azure AD, etc.) to GitHub user accounts, enabling single sign-on authentication. Each external identity can have both SAML and SCIM identity attributes.
+Represents an external identity collected through a SAML or OIDC provider, with a linked GitHub user when available. External identities map corporate user accounts (from providers like Okta, Azure AD, etc.) to GitHub user accounts, enabling single sign-on authentication. SAML attributes, SCIM attributes, and the linked user may be absent.
 
 ## Properties
 

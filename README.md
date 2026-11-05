@@ -84,6 +84,28 @@ A token with enterprise SCIM access is used to collect both `/scim/v2/enterprise
 
 Enterprise roles, including the built-in `members` role, are emitted through `GH_HasRole` and granular enterprise capability relationships. Only capability relationships with a confirmed privilege path are traversable; descriptive permissions such as `GH_WriteEnterpriseSso` remain non-traversable.
 
+### Enterprise OIDC collection
+
+A supplemental classic PAT owned by an enterprise owner with `read:enterprise`
+enables discovery of `enterprise.ownerInfo.oidcProvider`. The collector stores
+provider metadata in `oidc_provider` and emits `GH_OidcIdentityProvider` with
+`provider_type` and `tenant_id`, linked to the enterprise through the
+non-traversable `GH_HasOidcIdentityProvider` relationship.
+
+SAML and OIDC providers both carry the secondary kind `GH_IdentityProvider`.
+Provider queries run independently, so an unavailable OIDC field or denied
+request does not prevent existing SAML collection. An absent OIDC provider is
+logged separately from query failures.
+
+External identities from both enterprise provider types are paginated into the
+existing `external_identities` table. Conversion resolves their provider through
+the SAML and OIDC metadata tables and emits `GH_HasExternalIdentity` and, when a
+linked user exists, `GH_MapsToUser`. These edges remain non-traversable. Nullable
+identity attributes and unlinked identities are retained. OIDC identities do not
+produce SAML account relationships. If provider lookup is missing or ambiguous,
+conversion omits the provider edge while preserving the identity and user mapping;
+ambiguous matches are logged.
+
 ### Optional privileged collection
 
 The collector runs successfully with the documented read-only permission set. Some higher-fidelity relationships require optional non-read-only permissions because GitHub exposes the supporting read APIs behind privileged permission names:

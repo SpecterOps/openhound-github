@@ -101,7 +101,7 @@ class SamlProvider(BaseAsset):
     def as_node(self) -> GHNode:
         _, foreign_environment_id = detect_foreign_idp(self.issuer, self.sso_url)
         return GHNode(
-            kinds=[nk.SAML_IDENTITY_PROVIDER],
+            kinds=[nk.SAML_IDENTITY_PROVIDER, nk.IDENTITY_PROVIDER],
             properties=GHSamlProviderProperties(
                 name=self.node_id,
                 displayname=self.environment_name,

@@ -26,6 +26,7 @@ from .environment import Environment
 from .environment_branch_policy import EnvironmentBranchPolicy
 from .deploy_key import DeployKey
 from .external_identity import ExternalIdentity
+from .oidc_provider import OidcProvider
 from .org import Organization
 from .org_role import OrgRole
 from .org_role_member import OrgRoleMember
@@ -75,6 +76,7 @@ from .workflow_job import WorkflowJob
 from .workflow_step import WorkflowStep
 
 __all__ = [
+    "OidcProvider",
     "Organization",
     "OrgRole",
     "OrgRoleMember",

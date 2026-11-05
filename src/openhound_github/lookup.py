@@ -828,6 +828,28 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def identity_providers_for_environment(self, environment_slug: str) -> list:
+        """Return provider context without duplicating it on external identity nodes."""
+        rows = self._find_all_objects(
+            f"""SELECT id, issuer, sso_url, environment_node_id, environment_name,
+                       environment_type, 'saml' AS federation_type
+                FROM {self.schema}.saml_provider WHERE environment_slug = ?
+                UNION ALL
+                SELECT id, NULL, NULL, environment_node_id, environment_name,
+                       'enterprise', 'oidc'
+                FROM {self.schema}.oidc_provider WHERE environment_slug = ?""",
+            [environment_slug, environment_slug],
+        )
+
+        if len(rows) > 1:
+            logger.warning(
+                "Multiple identity providers found for environment '%s'; skipping ambiguous provider association",
+                environment_slug,
+            )
+            return []
+        return rows
+
+    @lru_cache
     def app_node_id(self, app_slug: str, org_login: str | None = None) -> str | None:
         if org_login is None:
             return self._find_single_object(
