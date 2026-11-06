@@ -1537,6 +1537,7 @@ def enterprise_applications(installation: AppInstallation, ctx: SourceContext):
 
 
 def enterprise_resources(ctx: SourceContext):
+    """Assemble enterprise resources enabled by the available authentication clients."""
     enterprise_resource = enterprise(ctx)
     organizations_resource = enterprise_organizations(ctx)
     members_resource = enterprise_members(ctx)

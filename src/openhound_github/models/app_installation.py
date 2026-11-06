@@ -155,6 +155,7 @@ class AppInstallation(BaseAsset):
 
     @property
     def org_node_id(self) -> str | None:
+        """Resolve the containing organization for organization installations only."""
         if self.target_type != "Organization" or not self.environment_slug:
             return None
         return self._lookup.org_id_for_login(self.environment_slug)
@@ -168,6 +169,7 @@ class AppInstallation(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        """Build the installation node with granted permissions and target context."""
         slug = self.app_slug or str(self.app_id)
         return GHNode(
             kinds=["GH_AppInstallation"],
@@ -199,6 +201,7 @@ class AppInstallation(BaseAsset):
 
     @property
     def _app_edges(self):
+        """Link the registered app to this installation when its slug resolves."""
         if self.app_slug:
             # App slugs identify one registration across all installation targets.
             app_node_id = self._lookup.app_node_id(self.app_slug)
@@ -212,6 +215,7 @@ class AppInstallation(BaseAsset):
 
     @property
     def _can_access_edges(self):
+        """Link all-repository organization installations to their repository scope."""
         if (
             self.target_type == "Organization"
             and self.environment_slug
@@ -233,6 +237,7 @@ class AppInstallation(BaseAsset):
 
     @property
     def edges(self):
+        """Yield target containment, parent app, and repository scope relationships."""
         if self.environment_node_id:
             yield Edge(
                 kind=ek.CONTAINS,
@@ -363,6 +368,7 @@ class App(BaseAsset):
 
     @property
     def org_node_id(self) -> str | None:
+        """Resolve organization collection context, excluding enterprise context."""
         if self.collected_org_node_id:
             return self.collected_org_node_id
         if self.enterprise_node_id or not self.environment_slug:
@@ -371,6 +377,7 @@ class App(BaseAsset):
 
     @property
     def registration_origin(self) -> str:
+        """Classify app ownership relative to the collected tenant when known."""
         if self.owner is None:
             return "unknown"
 
@@ -414,6 +421,7 @@ class App(BaseAsset):
 
     @property
     def as_node(self):
+        """Build the app node with owner metadata and requested permissions."""
         aid = self.node_id
         return GHNode(
             kinds=[nk.APP],
