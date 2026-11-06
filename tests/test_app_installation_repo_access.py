@@ -17,7 +17,8 @@ def _installation(selection="selected"):
     return SimpleNamespace(
         id=42,
         node_id="GH_AppInstallation_42",
-        org_login="example-org",
+        environment_slug="example-org",
+        target_type="Organization",
         repository_selection=selection,
     )
 
@@ -64,7 +65,9 @@ def test_all_repositories_do_not_need_extra_request():
         client=client, enterprise_name="enterprise", deployment_type="ghec"
     )
 
-    assert list(app_installation_repo_access.__wrapped__(_installation("all"), ctx)) == []
+    assert (
+        list(app_installation_repo_access.__wrapped__(_installation("all"), ctx)) == []
+    )
     client.paginate.assert_not_called()
 
 

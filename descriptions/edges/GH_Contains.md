@@ -2,12 +2,13 @@
 
 ## General Information
 
-The non-traversable GH_Contains edge represents structural containment within the GitHub resource hierarchy. The enterprise contains enterprise teams, roles, managed users, classic personal access tokens, runner groups, and enterprise runners through their groups. The organization serves as a top-level container for users, teams, repositories, roles, scopes, secrets, app installations, fine-grained personal access tokens, and organization runner groups. Native organization runner groups contain organization runners. Repositories contain branches, workflows, branch protection rules, environments, repo-level secrets and variables, and repository-scoped runners. Environments contain environment branch policies, environment-scoped secrets, and environment-scoped variables. This edge is created by the collector to establish the resource hierarchy and is not traversable because containment alone does not imply privilege escalation.
+The non-traversable GH_Contains edge represents structural containment within the GitHub resource hierarchy. The enterprise contains enterprise teams, roles, managed users, classic personal access tokens, the collector app installation, runner groups, and enterprise runners through their groups. The organization serves as a top-level container for users, teams, repositories, roles, scopes, secrets, app installations, fine-grained personal access tokens, and organization runner groups. Native organization runner groups contain organization runners. Repositories contain branches, workflows, branch protection rules, environments, repo-level secrets and variables, and repository-scoped runners. Environments contain environment branch policies, environment-scoped secrets, and environment-scoped variables. This edge is created by the collector to establish the resource hierarchy and is not traversable because containment alone does not imply privilege escalation.
 
 ## Edge Schema
 
 | Source | Destination | Traversable |
 | --- | --- | --- |
+| `GH_Enterprise` | `GH_AppInstallation` | `false` |
 | `GH_Enterprise` | `GH_ClassicPersonalAccessToken` | `false` |
 | `GH_Enterprise` | `GH_EnterpriseRole` | `false` |
 | `GH_Enterprise` | `GH_EnterpriseRunnerGroup` | `false` |
@@ -75,6 +76,7 @@ graph LR
     n29["GH_WorkflowJob"]
     n30["GH_WorkflowStep"]
     n0 -.->|GH_Contains| n1
+    n0 -.->|GH_Contains| n13
     n0 -.->|GH_Contains| n2
     n0 -.->|GH_Contains| n3
     n0 -.->|GH_Contains| n4
