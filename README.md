@@ -34,6 +34,12 @@ The openhound-github extension collects resources from Github organizations and 
 edges for
 BloodHound.
 
+### Version 0.23.0
+
+This release adds enterprise OIDC providers and external identities, collects the
+authenticating GitHub App's enterprise installation metadata, and corrects Tier
+Zero role matching and expired-token filtering.
+
 ### GitHub App JWT issuer
 
 Enterprise GitHub App credentials accept either `client_id` or `app_id` as the
