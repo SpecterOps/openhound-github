@@ -264,7 +264,8 @@ class GHAppProperties(GHNodeProperties):
         owner_login: The login of the user or organization that owns the app.
         owner_node_id: The node_id of the user or organization that owns the app.
         owner_type: The type of the owner (e.g., `User`, `Organization`).
-        registration_origin: Whether the app is tenant-owned, third-party, or unknown.
+        registration_origin: Ownership classification: tenant_owned, member_owned,
+            third_party (no internal ownership evidence), or unknown.
         permissions: Requested app permissions in `scope:access` form.
         environment_slug: The organization login or enterprise slug where the app was collected.
         events: JSON string of the default webhook events the app subscribes to.
@@ -383,17 +384,19 @@ class App(BaseAsset):
 
         owner_type = self.owner.type.casefold()
         if owner_type == "user":
-            return "third_party"
+            return (
+                "member_owned"
+                if self._lookup.is_collected_user_node_id(self.owner.node_id)
+                else "third_party"
+            )
 
         if owner_type == "organization":
             if self._lookup.is_tenant_organization_node_id(self.owner.node_id):
                 return "tenant_owned"
-            return "third_party" if self._lookup.enterprise_id() else "unknown"
+            return "third_party"
 
         if owner_type == "enterprise":
             enterprise_id = self._lookup.enterprise_id()
-            if enterprise_id is None:
-                return "unknown"
             return (
                 "tenant_owned" if self.owner.node_id == enterprise_id else "third_party"
             )
