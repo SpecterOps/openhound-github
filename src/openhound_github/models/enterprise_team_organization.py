@@ -36,6 +36,7 @@ class EnterpriseTeamOrganization(BaseAsset):
 
     @property
     def enterprise_team_node_id(self) -> str:
+        """Resolve the native enterprise-team endpoint for this organization assignment."""
         return self._lookup.enterprise_team_node_id(
             self.enterprise_node_id, self.team_id
         )
@@ -51,4 +52,5 @@ class EnterpriseTeamOrganization(BaseAsset):
 
     @property
     def edges(self):
+        """Yield the direct enterprise-team assignment without a projected team node."""
         yield from self._assigned_to_edge

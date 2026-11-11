@@ -241,6 +241,7 @@ class Organization(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        """Build the organization node and queries for its collected resources."""
         oid = self.node_id
         return GHNode(
             kinds=["GH_Organization"],

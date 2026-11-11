@@ -26,6 +26,7 @@ class ProjectedEnterpriseTeam(BaseAsset):
 
     @property
     def as_node(self):
+        """Retain the REST observation as lookup evidence without emitting a node."""
         return None
 
     @property

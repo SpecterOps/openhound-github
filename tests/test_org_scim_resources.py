@@ -60,6 +60,7 @@ def test_org_scim_uses_scim_count_pagination() -> None:
     "api_base", ["https://api.github.com/", "https://api.example.ghe.com/"]
 )
 def test_org_scim_organization_preserves_configured_endpoint(api_base) -> None:
+    """Preserve the configured API host in organization SCIM endpoint metadata."""
     client = MagicMock()
     client.base_url = api_base
     client.paginate.return_value = [[]]
@@ -75,6 +76,7 @@ def test_org_scim_organization_preserves_configured_endpoint(api_base) -> None:
 
 
 def test_org_scim_organization_skips_unavailable_scope(caplog) -> None:
+    """Skip organization scopes whose SCIM endpoint returns not found."""
     client = _HTTPErrorPaginateClient(status_code=404)
     organization = SimpleNamespace(login="acme", node_id="O_1")
 

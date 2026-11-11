@@ -39,17 +39,20 @@ NATIVE = "ET_kwDOAAiv9s4A_uCo"
     ],
 )
 def test_native_id_derivation_matches_observed_github_ids(team_id, expected):
+    """Verify derived IDs reproduce native identifiers returned by GitHub."""
     assert enterprise_database_id(ENTERPRISE) == 569334
     assert enterprise_team_node_id(ENTERPRISE, team_id) == expected
 
 
 @pytest.mark.parametrize("scope", ["not-an-id", "e_kgDOAAiv9g", "E_aGVsbG8", "E_!!!!"])
 def test_unknown_scope_encoding_is_not_manufactured(scope):
+    """Reject unsupported enterprise encodings instead of inventing team IDs."""
     with pytest.raises(ValueError):
         enterprise_team_node_id(scope, TEAM_ID)
 
 
 def lookup_with_observations():
+    """Create lookup evidence for shared team identities in separate enterprises."""
     con = duckdb.connect(":memory:")
     con.execute("CREATE SCHEMA github")
     ensure_optional_input_tables(con)
@@ -65,6 +68,7 @@ def lookup_with_observations():
 
 
 def test_lookup_scopes_native_observations_and_derives_unobserved_teams():
+    """Verify enterprise scoping and fallback derivation for unobserved teams."""
     lookup = lookup_with_observations()
     assert lookup.enterprise_team_node_id(ENTERPRISE, TEAM_ID) == NATIVE
     assert lookup.enterprise_team_node_id("OTHER_ENTERPRISE", TEAM_ID) == "ET_other"
@@ -72,6 +76,7 @@ def test_lookup_scopes_native_observations_and_derives_unobserved_teams():
 
 
 def test_lookup_rejects_conflicting_observations():
+    """Reject contradictory native IDs for the same enterprise and numeric team ID."""
     lookup = lookup_with_observations()
     lookup.client.execute(
         "INSERT INTO github.projected_enterprise_teams VALUES (?, 'ET_conflict','org-one')",
@@ -82,6 +87,7 @@ def test_lookup_rejects_conflicting_observations():
 
 
 def test_native_endpoint_id_takes_precedence_over_encoding_fallback():
+    """Prefer a collected native endpoint ID over inferred encoding."""
     lookup = lookup_with_observations()
     lookup.client.execute(
         "INSERT INTO github.enterprise_teams VALUES (123, ?, 'ET_returned')",
@@ -91,6 +97,7 @@ def test_native_endpoint_id_takes_precedence_over_encoding_fallback():
 
 
 def test_all_team_relationships_share_one_native_identity():
+    """Verify membership, provisioning, roles, and assignments share one team ID."""
     lookup = lookup_with_observations()
     lookup.enterprise_id = lambda: ENTERPRISE
     context = dict(enterprise_node_id=ENTERPRISE, enterprise_slug="example")
@@ -123,6 +130,7 @@ def test_all_team_relationships_share_one_native_identity():
 
 
 def test_organization_observations_emit_no_projected_nodes():
+    """Keep organization REST observations as evidence without projected graph nodes."""
     observation = ProjectedEnterpriseTeam(
         node_id=NATIVE,
         id=TEAM_ID,
@@ -157,6 +165,7 @@ def test_organization_observations_emit_no_projected_nodes():
 def test_repository_grants_use_org_client_and_native_team_identity(
     role, custom_roles, expected_base, dictionary_input
 ):
+    """Verify paginated built-in and custom grants use the organization client and native ID."""
     client = MagicMock()
     client.paginate.return_value = [
         [{"node_id": "R_1", "name": "repo-one", "role_name": role}],
@@ -198,6 +207,7 @@ def test_repository_grants_use_org_client_and_native_team_identity(
 
 
 def test_grants_skip_orgs_without_collection_access(caplog):
+    """Skip unavailable organization grants without using the enterprise client."""
     ctx = SourceContext(client=MagicMock())
     assignment = EnterpriseTeamOrganization(
         node_id="O_1",
@@ -216,6 +226,7 @@ def test_grants_skip_orgs_without_collection_access(caplog):
 
 
 def test_source_wires_grants_through_organization_assignments():
+    """Verify repository grant collection depends on enterprise-team assignments."""
     resources = {
         r.name: r
         for r in enterprise_resources(

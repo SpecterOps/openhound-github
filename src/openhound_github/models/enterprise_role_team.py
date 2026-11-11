@@ -32,6 +32,7 @@ class EnterpriseRoleTeam(BaseAsset):
 
     @property
     def edges(self):
+        """Yield the native enterprise team's enterprise-role assignment."""
         yield Edge(
             kind=ek.HAS_ROLE,
             start=EdgePath(

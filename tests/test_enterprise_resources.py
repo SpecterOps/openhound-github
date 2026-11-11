@@ -507,6 +507,7 @@ def test_enterprise_scim_organization_skips_unavailable_scope(caplog) -> None:
 
 
 def test_enterprise_scim_uses_enterprise_client_when_sso_client_is_present() -> None:
+    """Use the enterprise client for the SCIM scope probe despite a supplemental SSO client."""
     enterprise_client = _FakeClient(payload={}, pages=[[]])
     sso_client = _FailingPaginateClient(payload={})
     ctx = SourceContext(
@@ -530,6 +531,7 @@ def test_enterprise_scim_uses_enterprise_client_when_sso_client_is_present() -> 
 
 
 def test_enterprise_scim_organization_preserves_custom_api_endpoint() -> None:
+    """Preserve the configured API base when reporting an enterprise SCIM endpoint."""
     client = _FakeClient(payload={}, pages=[[]])
     client.base_url = "https://github.example/api/v3/"
     ctx = SourceContext(client=client, enterprise_name="acme")

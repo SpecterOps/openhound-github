@@ -150,6 +150,7 @@ class ScimOrganization(ScimScopeAsset):
 
     @property
     def as_node(self) -> ScimNode:
+        """Build the SCIM organization node within its hosting GitHub scope."""
         return ScimNode(
             id=self.scim_org_id,
             kinds=[nk.SCIM_ORGANIZATION],
@@ -233,6 +234,7 @@ class ScimUser(ScimScopeAsset):
 
     @property
     def as_node(self) -> ScimNode:
+        """Preserve user state, resource metadata, roles, and groups in the SCIM node."""
         display_name = self.display_name or self.user_name or self.id
         return ScimNode(
             id=self.id,
@@ -261,6 +263,7 @@ class ScimUser(ScimScopeAsset):
 
     @property
     def edges(self):
+        """Yield containment for every user and access paths only for active users."""
         yield Edge(
             kind=ek.SCIM_CONTAINS,
             start=EdgePath(value=self.scim_org_id, match_by="id"),
@@ -366,6 +369,7 @@ class ScimGroup(ScimScopeAsset):
 
     @property
     def as_node(self) -> ScimNode:
+        """Build the group node with metadata and the returned member count."""
         return ScimNode(
             id=self.id,
             kinds=[nk.SCIM_GROUP],
@@ -385,6 +389,7 @@ class ScimGroup(ScimScopeAsset):
 
     @property
     def edges(self):
+        """Yield group containment, returned memberships, and optional legacy correlation."""
         yield Edge(
             kind=ek.SCIM_CONTAINS,
             start=EdgePath(value=self.scim_org_id, match_by="id"),

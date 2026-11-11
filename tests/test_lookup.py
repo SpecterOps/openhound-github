@@ -9,6 +9,7 @@ from openhound_github.transforms import (
 
 
 def test_external_identity_lookup_uses_exact_scope_and_guid_and_rejects_ambiguity():
+    """Match case-sensitive scope and resource IDs and reject ambiguous identity matches."""
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github")
     ensure_optional_input_tables(connection)
@@ -28,6 +29,7 @@ def test_external_identity_lookup_uses_exact_scope_and_guid_and_rejects_ambiguit
 
 
 def test_legacy_external_identity_scope_resolution_preserves_exact_ids():
+    """Resolve legacy slugs without changing explicit IDs or accepting conflicting scopes."""
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github")
     ensure_optional_input_tables(connection)
@@ -63,6 +65,7 @@ def test_legacy_external_identity_scope_resolution_preserves_exact_ids():
 
 
 def test_github_lookup_accepts_plain_schema_identifiers() -> None:
+    """Verify native-team lookups work with an explicitly selected valid schema."""
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github_test")
     ensure_optional_input_tables(connection, "github_test")

@@ -140,6 +140,7 @@ class ExternalIdentity(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        """Build the identity node, preferring its explicitly collected GitHub scope ID."""
         display_name = (
             self.saml_identity.username
             if self.saml_identity and self.saml_identity.username

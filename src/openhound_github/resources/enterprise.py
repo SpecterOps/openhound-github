@@ -593,6 +593,7 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
     parallelized=True,
 )
 def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    """Emit a SCIM scope and endpoint after a successful enterprise Users probe."""
     if not ctx.client or not ctx.enterprise_name:
         raise ValueError(
             "Enterprise SCIM collection requires a client and enterprise slug"
@@ -966,6 +967,7 @@ def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
 )
 def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
 
+    """Collect organization assignments and numeric IDs for enterprise-team grants."""
     for page in ctx.client.paginate(
         f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/organizations",
         params={"per_page": 100},

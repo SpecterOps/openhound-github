@@ -265,6 +265,7 @@ class Repository(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        """Build the repository node with its settings, scope, and access queries."""
         rid = self.node_id
         branch_ruleset_count = self._lookup.repository_branch_ruleset_count(rid)
         branch_count, environment_count, deploy_key_count = (

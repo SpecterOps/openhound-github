@@ -60,6 +60,7 @@ class EnterpriseTeamRole(BaseAsset):
 
     @property
     def enterprise_team_node_id(self) -> str:
+        """Resolve the native enterprise team containing this membership role."""
         return self._lookup.enterprise_team_node_id(self.enterprise_node_id, self.id)
 
     @property

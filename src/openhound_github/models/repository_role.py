@@ -712,6 +712,7 @@ class RepoRole(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
+        """Build the repository-role node with permission and assignee queries."""
         rid = self.node_id
         return GHNode(
             kinds=["GH_RepoRole", "GH_Role"],

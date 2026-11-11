@@ -81,6 +81,7 @@ class RepoRoleAssignment(BaseAsset):
 
     @property
     def actor_node_id(self) -> str:
+        """Resolve enterprise-team actors to native IDs and retain other actor IDs."""
         if self.enterprise_node_id is not None and self.enterprise_team_id is not None:
             return self._lookup.enterprise_team_node_id(
                 self.enterprise_node_id, self.enterprise_team_id
@@ -97,6 +98,7 @@ class RepoRoleAssignment(BaseAsset):
 
     @property
     def _bypass_edges(self):
+        """Yield actor-specific branch access not already supplied by the repository role."""
         if not self._lookup.repository_default_branch_collected(self.repo_node_id):
             return
 
@@ -144,6 +146,7 @@ class RepoRoleAssignment(BaseAsset):
     @property
     def edges(self):
         # TODO: CHeck if edge goes actor → role node (not actor → repo).
+        """Yield repository-role and branch-access edges from the resolved actor."""
         if self.role_name:
             role_node_id = f"{self.repo_node_id}_{self.role_name}"
             yield Edge(

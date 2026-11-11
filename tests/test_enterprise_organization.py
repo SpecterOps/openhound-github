@@ -17,6 +17,7 @@ from openhound_github.models import EnterpriseOrganization, EnterpriseTeamOrgani
 def _make_org(
     node_id: str = "ORG_NODE_1", login: str = "acme"
 ) -> EnterpriseOrganization:
+    """Construct an enterprise-discovered organization for collection-state tests."""
     org = EnterpriseOrganization(
         id=node_id,
         login=login,
@@ -73,6 +74,7 @@ def test_collected_resolved_per_node_id_in_multi_org_enterprise() -> None:
 
 
 def test_enterprise_team_organization_links_native_team_directly_to_org() -> None:
+    """Verify assignments connect native enterprise teams directly to organizations."""
     assignment = EnterpriseTeamOrganization(
         node_id="ORG_1",
         login="github",

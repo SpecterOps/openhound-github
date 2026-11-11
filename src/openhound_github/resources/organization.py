@@ -2463,6 +2463,7 @@ def scim_users(scim_organization: ScimOrganization, ctx: SourceContext):
     parallelized=True,
 )
 def org_scim_organizations(org: Organization, ctx: SourceContext):
+    """Emit a SCIM scope and endpoint after a successful organization Users probe."""
     org_context = _org_context_for_login(ctx, org.login)
     if not org_context:
         raise ValueError(

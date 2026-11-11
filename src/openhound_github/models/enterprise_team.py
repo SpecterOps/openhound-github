@@ -87,12 +87,14 @@ class EnterpriseTeam(BaseAsset):
 
     @property
     def node_id(self) -> str:
+        """Return the supplied native team ID or resolve it from collected evidence."""
         return self.native_node_id or self._lookup.enterprise_team_node_id(
             self.enterprise_node_id, self.id
         )
 
     @property
     def as_node(self) -> GHNode:
+        """Build the native enterprise-team node with its scope and access queries."""
         return GHNode(
             kinds=[nk.ENTERPRISE_TEAM],
             properties=GHEnterpriseTeamProperties(

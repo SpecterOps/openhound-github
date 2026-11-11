@@ -39,6 +39,7 @@ def _scim_user(*, legacy: bool = False, user_id: str = "scim-user-1") -> ScimUse
 
 
 def _external_identity_lookup(tmp_path: Path) -> GithubLookup:
+    """Build a preprocessed lookup with matching and mismatched identity scopes."""
     resource_dir = tmp_path / "external_identities"
     resource_dir.mkdir()
     with gzip.open(resource_dir / "rows.jsonl.gz", "wt", encoding="utf-8") as f:
@@ -73,6 +74,7 @@ def _external_identity_lookup(tmp_path: Path) -> GithubLookup:
 
 
 def test_enterprise_scim_uses_enterprise_endpoint_and_scim_pagination() -> None:
+    """Verify enterprise Users collection uses SCIM offset and count pagination."""
     client = MagicMock()
     client.paginate.return_value = [[{"id": "u1"}], [{"id": "u2"}]]
 
@@ -136,6 +138,7 @@ def test_scim_user_legacy_idp_correlation_is_explicitly_gated(tmp_path: Path) ->
     ],
 )
 def test_scim_user_preserves_metadata_roles_and_groups_in_graph_output(scope) -> None:
+    """Verify graph serialization retains source metadata and complete role/group evidence."""
     roles = [
         {"value": "enterprise_owner", "display": "Owner", "primary": True},
         {"value": "custom-role", "type": "custom", "extra": {"source": "IdP"}},
@@ -168,6 +171,7 @@ def test_scim_user_preserves_metadata_roles_and_groups_in_graph_output(scope) ->
     lookup.scim_group_has_member.return_value = False
 
     def apply_context(user):
+        """Attach the test lookup before serializing the SCIM user."""
         user._lookup = lookup
 
     entries = list(_generate_graph_content([resource], ScimUser, 150, apply_context))
@@ -203,6 +207,7 @@ def test_scim_user_preserves_metadata_roles_and_groups_in_graph_output(scope) ->
     "meta", [None, {}, {"location": "https://api.github.com/scim/v2/Users/u1"}]
 )
 def test_scim_user_handles_missing_metadata_without_profile_url_fallback(meta) -> None:
+    """Keep absent metadata unknown without treating the SCIM URL as a user profile."""
     user = ScimUser(id="u1", org_node_id="ORG_NODE_1", meta=meta)
 
     properties = user.as_node.properties
@@ -218,6 +223,7 @@ def test_scim_user_handles_missing_metadata_without_profile_url_fallback(meta) -
 def test_scim_user_memberships_supplement_group_evidence_without_duplicates(
     tmp_path: Path,
 ) -> None:
+    """Supplement group-side evidence with scoped, deduplicated user memberships."""
     resource_dir = tmp_path / "enterprise_scim_groups"
     resource_dir.mkdir()
     groups = [
@@ -282,6 +288,7 @@ def test_scim_user_memberships_supplement_group_evidence_without_duplicates(
 def test_org_scim_user_emits_membership_without_collected_groups(
     tmp_path: Path,
 ) -> None:
+    """Preserve active user-side membership when no group records were collected."""
     user = ScimUser(
         id="u1",
         org_node_id="ORG_NODE_1",
@@ -302,6 +309,7 @@ def test_scim_user_access_edges_require_active_state_but_preserve_evidence(
     state,
     legacy,
 ) -> None:
+    """Gate access edges on explicit active state while retaining collected evidence."""
     groups = [{"value": "g1", "display": "Engineering"}]
     roles = [{"value": "enterprise_owner", "primary": False}]
     fields = {} if state is None else {"active": state}
@@ -335,6 +343,7 @@ def test_scim_user_access_edges_require_active_state_but_preserve_evidence(
 
 
 def test_scim_group_preserves_metadata_and_count_without_member_array() -> None:
+    """Retain group metadata and member count without duplicating the full member array."""
     resource = {
         "id": "scim-group-1",
         "displayName": "Engineering",
@@ -377,6 +386,7 @@ def test_scim_group_preserves_metadata_and_count_without_member_array() -> None:
 def test_scim_group_distinguishes_unknown_and_empty_member_lists(
     member_fields, expected_count
 ) -> None:
+    """Preserve the distinction between omitted and empty members through serialization."""
     group = ScimGroup(
         id="g1",
         displayName="Engineering",
@@ -431,6 +441,7 @@ def test_scim_group_emits_membership_and_tenant_scoped_legacy_correlation() -> N
 
 
 def test_enterprise_team_emits_scim_provisioning_edge_with_group_id() -> None:
+    """Verify a SCIM group provisions the native enterprise-team endpoint."""
     team = EnterpriseTeam(
         id=7,
         name="Engineering",
@@ -451,6 +462,7 @@ def test_enterprise_team_emits_scim_provisioning_edge_with_group_id() -> None:
 
 
 def test_scim_organization_stays_within_github_environment_root() -> None:
+    """Keep the SCIM organization anchored to its hosting GitHub enterprise."""
     organization = ScimOrganization(
         enterprise_node_id="ENT_NODE_1",
         enterprise_slug="example-enterprise",
@@ -483,6 +495,7 @@ def test_scim_organization_stays_within_github_environment_root() -> None:
 def test_scim_organization_exports_endpoint_without_changing_scope(
     scope, scope_type, scope_id
 ):
+    """Serialize endpoint and scope type while preserving exact graph and environment IDs."""
     base_url = f"https://api.example.ghe.com/scim/v2/{'enterprises' if scope_type == 'enterprise' else 'organizations'}/acme/"
     resource = {**scope, "scim_base_url": base_url}
     entry = next(_generate_graph_content([resource], ScimOrganization, 150))

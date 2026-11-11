@@ -9,6 +9,7 @@ import struct
 
 
 def _uint(value: int) -> bytes:
+    """Encode an unsigned database ID using the observed 32- or 64-bit MessagePack form."""
     if not 0 <= value <= 0xFFFFFFFFFFFFFFFF:
         raise ValueError("GitHub database ID must be an unsigned 64-bit integer")
     return (
@@ -19,6 +20,7 @@ def _uint(value: int) -> bytes:
 
 
 def enterprise_database_id(node_id: str) -> int:
+    """Decode a recognized native enterprise ID, rejecting unsupported payloads."""
     if not node_id.startswith("E_"):
         raise ValueError(
             "Cannot derive enterprise-team ID from an unrecognized enterprise node ID"
@@ -38,6 +40,7 @@ def enterprise_database_id(node_id: str) -> int:
 
 
 def enterprise_team_node_id(enterprise_id: str, team_id: str | int) -> str:
+    """Derive an ET_ ID using the observed enterprise/team MessagePack encoding."""
     payload = (
         b"\x93\x00" + _uint(enterprise_database_id(enterprise_id)) + _uint(int(team_id))
     )
