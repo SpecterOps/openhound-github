@@ -1747,7 +1747,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a GitHub App definition. The `permissions` property records requested app permissions. Each installation records its own granted permissions. The app owner controls the private key used to generate installation tokens for its installations on organizations and enterprises.\n\n`environment_slug` records the organization login or enterprise slug for this collection context."
+            "content": "## Overview\n\nRepresents a GitHub App definition. The `permissions` property records requested app permissions. Each installation records its own granted permissions. The app owner controls the private key used to generate installation tokens for its installations on organizations and enterprises.\n\n`environment_slug` records the organization login or enterprise slug for this collection context.\n\n`registration_origin` is `tenant_owned` when the registration owner is a collected organization or the collected enterprise, and `member_owned` when the owner is a collected organization or enterprise member. Member-owned apps remain under the user's account; membership does not imply tenant control or approval. Recognized owners without matching internal evidence default to `third_party`, including in organization-only collections. This classification depends on collected inventory completeness. Missing owners or unsupported owner types are `unknown`. Outside-collaborator status alone does not establish membership."
           }
         },
         "inbound_traversable_relationships": {
