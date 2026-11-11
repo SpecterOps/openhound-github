@@ -589,6 +589,24 @@ class GithubLookup(LookupManager):
         return int(row[0]), str(row[1])
 
     @lru_cache
+    def scim_group_has_member(
+        self, scope_node_id: str, group_id: str, user_id: str
+    ) -> bool:
+        """Check whether group-side conversion already emits this membership."""
+        row = self._find_single_row(
+            f"""
+            SELECT 1
+            FROM {self.schema}.enterprise_scim_groups g,
+                 json_each(g.members) member
+            WHERE g.enterprise_node_id = ? AND g.id = ?
+              AND json_extract_string(member.value, '$.value') = ?
+            LIMIT 1
+            """,
+            [scope_node_id, group_id, user_id],
+        )
+        return row is not None
+
+    @lru_cache
     def scim_group_id_for_team_external_group(
         self, org_login: str, external_group_name: str
     ) -> str | None:
@@ -609,12 +627,15 @@ class GithubLookup(LookupManager):
 
     @lru_cache
     def external_identity_id_for_guid(
-        self, guid: str, environment_slug: str
+        self, guid: str, environment_node_id: str
     ) -> str | None:
-        return self._find_single_object(
-            f"""SELECT id FROM {self.schema}.external_identities WHERE guid = ? AND environment_slug = ?""",
-            [guid, environment_slug],
+        """Match source-exact resource and GitHub scope IDs; reject ambiguity."""
+        rows = self._find_all_objects(
+            f"""SELECT DISTINCT id FROM {self.schema}.external_identities
+            WHERE guid = ? AND environment_node_id = ?""",
+            [guid, environment_node_id],
         )
+        return str(rows[0][0]) if rows and len(rows) == 1 else None
 
     @lru_cache
     def repository_node_ids(self):

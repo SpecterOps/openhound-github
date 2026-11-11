@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -42,6 +43,32 @@ class ScimNodeProperties(NodeProperties):
     profile_url: str | None = None
     enterprise: str | None = None
     organization: str | None = None
+
+
+@dataclass
+class ScimOrganizationNodeProperties(ScimNodeProperties):
+    scim_base_url: str | None = None
+    scope_type: str | None = None
+
+
+@dataclass
+class ScimUserNodeProperties(ScimNodeProperties):
+    active: bool | None = None
+    resource_url: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    # Preserve complete role and group objects using scalar graph properties.
+    roles: str = "[]"
+    groups: str = "[]"
+
+
+@dataclass
+class ScimGroupNodeProperties(ScimNodeProperties):
+    resource_url: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    # Count returned entries; an omitted list does not establish zero members.
+    member_count: int | None = None
 
 
 @dataclass
@@ -115,19 +142,24 @@ class ScimScopeAsset(BaseAsset):
         description="SCIM organization exposed by a GitHub scope",
         icon="building-circle-arrow-right",
         color="#3B82F6",
-        properties=ScimNodeProperties,
+        properties=ScimOrganizationNodeProperties,
     )
 )
 class ScimOrganization(ScimScopeAsset):
+    scim_base_url: str | None = None
+
     @property
     def as_node(self) -> ScimNode:
+        """Build the SCIM organization node within its hosting GitHub scope."""
         return ScimNode(
             id=self.scim_org_id,
             kinds=[nk.SCIM_ORGANIZATION],
-            properties=ScimNodeProperties(
+            properties=ScimOrganizationNodeProperties(
                 name=self.scope_name,
                 displayname=self.scope_name,
                 environmentid=self.scope_node_id,
+                scim_base_url=self.scim_base_url,
+                scope_type="enterprise" if self.enterprise_node_id else "organization",
                 enterprise=self.enterprise_slug,
                 organization=self.org_login,
             ),
@@ -153,9 +185,16 @@ class EnterpriseScimOrganization(ScimOrganization):
         description="User provisioned through GitHub SCIM",
         icon="user-gear",
         color="#10B981",
-        properties=ScimNodeProperties,
+        properties=ScimUserNodeProperties,
     ),
     edges=[
+        EdgeDef(
+            start=nk.SCIM_USER,
+            end=nk.SCIM_GROUP,
+            kind=ek.SCIM_MEMBER_OF,
+            description="SCIM user is a member of group",
+            traversable=True,
+        ),
         EdgeDef(
             start=nk.SCIM_ORGANIZATION,
             end=nk.SCIM_USER,
@@ -184,6 +223,7 @@ class ScimUser(ScimScopeAsset):
     external_id: str | None = Field(default=None, alias="externalId")
     user_name: str | None = Field(default=None, alias="userName")
     display_name: str | None = Field(default=None, alias="displayName")
+    profile_url: str | None = Field(default=None, alias="profileUrl")
     name: Name | None = None
     emails: list[dict[str, Any]] = Field(default_factory=list)
     groups: list[dict[str, Any]] = Field(default_factory=list)
@@ -194,21 +234,28 @@ class ScimUser(ScimScopeAsset):
 
     @property
     def as_node(self) -> ScimNode:
+        """Preserve user state, resource metadata, roles, and groups in the SCIM node."""
         display_name = self.display_name or self.user_name or self.id
         return ScimNode(
             id=self.id,
             kinds=[nk.SCIM_USER],
-            properties=ScimNodeProperties(
+            properties=ScimUserNodeProperties(
                 name=self.user_name or self.id,
                 displayname=display_name,
                 environmentid=self.scope_node_id,
                 external_id=self.external_id,
                 user_name=self.user_name,
                 enabled=self.active,
+                active=self.active,
                 given_name=self.name.given_name if self.name else None,
                 family_name=self.name.family_name if self.name else None,
                 mail=_primary_email(self.emails),
-                profile_url=self.meta.location if self.meta else None,
+                profile_url=self.profile_url,
+                resource_url=self.meta.location if self.meta else None,
+                created_at=self.meta.created if self.meta else None,
+                updated_at=self.meta.last_modified if self.meta else None,
+                roles=json.dumps(self.roles),
+                groups=json.dumps(self.groups),
                 enterprise=self.enterprise_slug,
                 organization=self.org_login,
             ),
@@ -216,14 +263,40 @@ class ScimUser(ScimScopeAsset):
 
     @property
     def edges(self):
+        """Yield containment for every user and access paths only for active users."""
         yield Edge(
             kind=ek.SCIM_CONTAINS,
             start=EdgePath(value=self.scim_org_id, match_by="id"),
             end=EdgePath(value=self.id, match_by="id"),
             properties=EdgeProperties(traversable=True),
         )
+        # Retain collected evidence and containment for every user, but emit
+        # membership and provisioning paths only for explicitly active users.
+        if self.active is not True:
+            return
+        seen_group_ids: set[str] = set()
+        for group in self.groups:
+            group_id = group.get("value")
+            if not group_id:
+                continue
+            group_id = str(group_id)
+            if group_id in seen_group_ids:
+                continue
+            seen_group_ids.add(group_id)
+            # Group-side mapping already emits this edge when members contain
+            # the user. Keep user-only evidence without duplicating that edge.
+            if self._lookup.scim_group_has_member(
+                self.scope_node_id, group_id, self.id
+            ):
+                continue
+            yield Edge(
+                kind=ek.SCIM_MEMBER_OF,
+                start=EdgePath(value=self.id, match_by="id"),
+                end=EdgePath(value=group_id, match_by="id"),
+                properties=EdgeProperties(traversable=True),
+            )
         external_identity_id = self._lookup.external_identity_id_for_guid(
-            self.id, self.scope_name
+            self.id, self.scope_node_id
         )
         if external_identity_id:
             yield Edge(
@@ -252,7 +325,7 @@ class EnterpriseScimUser(ScimUser):
         description="Group provisioned through GitHub SCIM",
         icon="users-gear",
         color="#EF4444",
-        properties=ScimNodeProperties,
+        properties=ScimGroupNodeProperties,
     ),
     edges=[
         EdgeDef(
@@ -282,7 +355,7 @@ class ScimGroup(ScimScopeAsset):
     id: str
     external_id: str | None = Field(default=None, alias="externalId")
     display_name: str = Field(alias="displayName")
-    members: list[dict[str, Any]] = Field(default_factory=list)
+    members: list[dict[str, Any]] | None = None
     meta: ScimMeta | None = None
     emit_legacy_correlation: bool = False
 
@@ -296,14 +369,19 @@ class ScimGroup(ScimScopeAsset):
 
     @property
     def as_node(self) -> ScimNode:
+        """Build the group node with metadata and the returned member count."""
         return ScimNode(
             id=self.id,
             kinds=[nk.SCIM_GROUP],
-            properties=ScimNodeProperties(
+            properties=ScimGroupNodeProperties(
                 name=self.display_name,
                 displayname=self.display_name,
                 environmentid=self.scope_node_id,
                 external_id=self.external_id,
+                resource_url=self.meta.location if self.meta else None,
+                created_at=self.meta.created if self.meta else None,
+                updated_at=self.meta.last_modified if self.meta else None,
+                member_count=len(self.members) if self.members is not None else None,
                 enterprise=self.enterprise_slug,
                 organization=self.org_login,
             ),
@@ -311,13 +389,14 @@ class ScimGroup(ScimScopeAsset):
 
     @property
     def edges(self):
+        """Yield group containment, returned memberships, and optional legacy correlation."""
         yield Edge(
             kind=ek.SCIM_CONTAINS,
             start=EdgePath(value=self.scim_org_id, match_by="id"),
             end=EdgePath(value=self.id, match_by="id"),
             properties=EdgeProperties(traversable=True),
         )
-        for member in self.members:
+        for member in self.members or []:
             member_id = member.get("value")
             if member_id:
                 yield Edge(

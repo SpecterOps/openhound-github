@@ -25,6 +25,7 @@ from openhound_github.graphql import (
     ENTERPRISE_OIDC_QUERY,
 )
 from openhound_github.helpers import (
+    _rest_api_url,
     GraphQLCursorPaginator,
     graphql_client_and_path,
     scim_skip_reason,
@@ -590,6 +591,7 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
     parallelized=True,
 )
 def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    """Emit a SCIM scope and endpoint after a successful enterprise Users probe."""
     if not ctx.client or not ctx.enterprise_name:
         raise ValueError(
             "Enterprise SCIM collection requires a client and enterprise slug"
@@ -616,6 +618,10 @@ def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContex
     yield {
         "enterprise_node_id": enterprise_data.id,
         "enterprise_slug": ctx.enterprise_name,
+        "scim_base_url": (
+            f"{_rest_api_url(ctx.client)}"
+            f"/scim/v2/enterprises/{ctx.enterprise_name}/"
+        ),
     }
 
 
@@ -1374,6 +1380,7 @@ def iter_enterprise_external_identities(
     environment_slug: str,
     github_deployment_id: str,
     resource_name: str,
+    environment_node_id: str | None = None,
 ):
     """Yield federation identities only after all pages are collected successfully."""
     query = {
@@ -1427,6 +1434,11 @@ def iter_enterprise_external_identities(
                             {
                                 **identity,
                                 "environment_slug": environment_slug,
+                                **(
+                                    {"environment_node_id": environment_node_id}
+                                    if environment_node_id
+                                    else {}
+                                ),
                                 "github_deployment_id": github_deployment_id,
                             }
                         )
@@ -1456,6 +1468,7 @@ def enterprise_external_identity(saml_provider: SamlProvider, ctx: SourceContext
         environment_slug=saml_provider.get("environment_slug"),
         github_deployment_id=saml_provider.get("github_deployment_id"),
         resource_name="enterprise_external_identity",
+        environment_node_id=saml_provider.get("environment_node_id"),
     )
 
 
@@ -1473,6 +1486,7 @@ def enterprise_oidc_external_identity(oidc_provider: OidcProvider, ctx: SourceCo
         environment_slug=oidc_provider.environment_slug,
         github_deployment_id=oidc_provider.github_deployment_id,
         resource_name="enterprise_oidc_external_identity",
+        environment_node_id=getattr(oidc_provider, "environment_node_id", None),
     )
 
 
