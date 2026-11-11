@@ -60,13 +60,19 @@ def test_shared_identity_collection_reads_all_pages_and_preserves_fields(
     ctx = SourceContext(client=app, sso_client=pat, enterprise_name="acme")
     if provider_field == "samlIdentityProvider":
         records = enterprise_external_identity.__wrapped__(
-            {"environment_slug": "acme", "github_deployment_id": "deployment-1"},
+            {
+                "environment_slug": "acme",
+                "environment_node_id": "E_CaseSensitive",
+                "github_deployment_id": "deployment-1",
+            },
             ctx,
         )
     else:
         records = enterprise_oidc_external_identity.__wrapped__(
             SimpleNamespace(
-                environment_slug="acme", github_deployment_id="deployment-1"
+                environment_slug="acme",
+                environment_node_id="E_CaseSensitive",
+                github_deployment_id="deployment-1",
             ),
             ctx,
         )
@@ -75,6 +81,7 @@ def test_shared_identity_collection_reads_all_pages_and_preserves_fields(
     assert rows[0] == {
         **_identity_record(),
         "environment_slug": "acme",
+        "environment_node_id": "E_CaseSensitive",
         "github_deployment_id": "deployment-1",
     }
     assert app.paginate_calls == []

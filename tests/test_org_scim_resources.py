@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import requests
+import pytest
 
 from openhound_github.resources.organization import (
     OrgContext,
@@ -55,18 +56,37 @@ def test_org_scim_uses_scim_count_pagination() -> None:
     assert kwargs["paginator"].limit_param == "count"
 
 
+@pytest.mark.parametrize(
+    "api_base", ["https://api.github.com/", "https://api.example.ghe.com/"]
+)
+def test_org_scim_organization_preserves_configured_endpoint(api_base) -> None:
+    client = MagicMock()
+    client.base_url = api_base
+    client.paginate.return_value = [[]]
+    organization = SimpleNamespace(login="acme", node_id="O_CaseSensitive")
+    rows = list(org_scim_organizations.__wrapped__(organization, _ctx(client)))
+    assert rows == [
+        {
+            "org_login": "acme",
+            "org_node_id": "O_CaseSensitive",
+            "scim_base_url": f"{api_base.rstrip('/')}/scim/v2/organizations/acme/",
+        }
+    ]
+
+
 def test_org_scim_organization_skips_unavailable_scope(caplog) -> None:
     client = _HTTPErrorPaginateClient(status_code=404)
     organization = SimpleNamespace(login="acme", node_id="O_1")
 
-    with caplog.at_level(logging.WARNING, logger="openhound_github.resources.organization"):
+    with caplog.at_level(
+        logging.WARNING, logger="openhound_github.resources.organization"
+    ):
         rows = list(org_scim_organizations.__wrapped__(organization, _ctx(client)))
 
     assert rows == []
     assert any(
         "Skipping org_scim_organizations for organization 'acme': "
-        "the GitHub scope does not expose SCIM endpoints"
-        in message
+        "the GitHub scope does not expose SCIM endpoints" in message
         for message in caplog.messages
     )
 

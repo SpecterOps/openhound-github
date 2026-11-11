@@ -333,6 +333,9 @@ def ensure_optional_input_tables(
         ALTER TABLE {schema}.org_role_teams
             ADD COLUMN IF NOT EXISTS org_login VARCHAR;
 
+        ALTER TABLE {schema}.external_identities
+            ADD COLUMN IF NOT EXISTS environment_node_id VARCHAR;
+
         ALTER TABLE {schema}.environment_branch_policies
             ADD COLUMN IF NOT EXISTS environment_node_id VARCHAR;
         ALTER TABLE {schema}.environment_branch_policies
@@ -375,6 +378,8 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS display_name VARCHAR;
         ALTER TABLE {schema}.enterprise_scim_groups
             ADD COLUMN IF NOT EXISTS enterprise_node_id VARCHAR;
+        ALTER TABLE {schema}.enterprise_scim_groups
+            ADD COLUMN IF NOT EXISTS members JSON;
 
         ALTER TABLE {schema}.enterprise_runner_groups
             ADD COLUMN IF NOT EXISTS id BIGINT;
@@ -561,6 +566,34 @@ def actor_branch_gates(con, schema: str = "github"):
     """)
 
 
+def resolve_external_identity_scopes(
+    con: duckdb.DuckDBPyConnection, schema: str = "github"
+) -> None:
+    """Resolve legacy slug-only records through an unambiguous collected provider.
+
+    Slugs may differ in case; object IDs are copied unchanged and matched exactly.
+    Explicitly collected scope IDs always take precedence.
+    """
+    con.execute(f"""
+        WITH provider_scopes AS (
+            SELECT environment_slug, environment_node_id FROM {schema}.saml_provider
+            UNION ALL
+            SELECT environment_slug, environment_node_id FROM {schema}.oidc_provider
+        ), unique_scopes AS (
+            SELECT lower(environment_slug) AS slug, min(environment_node_id) AS node_id
+            FROM provider_scopes
+            WHERE environment_node_id IS NOT NULL
+            GROUP BY lower(environment_slug)
+            HAVING count(DISTINCT environment_node_id) = 1
+        )
+        UPDATE {schema}.external_identities AS ei
+        SET environment_node_id = scope.node_id
+        FROM unique_scopes AS scope
+        WHERE ei.environment_node_id IS NULL
+          AND lower(ei.environment_slug) = scope.slug
+    """)
+
+
 def transforms(con: duckdb.DuckDBPyConnection, schema: str = "github") -> None:
     """Apply all preprocessing transformations to the DuckDB lookup database.
 
@@ -570,6 +603,7 @@ def transforms(con: duckdb.DuckDBPyConnection, schema: str = "github") -> None:
     """
 
     ensure_optional_input_tables(con, schema)
+    resolve_external_identity_scopes(con, schema)
     join_branch_bpr(con, schema)
     actor_allowances(con, schema)
     unprotected_branches(con, schema)

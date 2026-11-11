@@ -518,9 +518,28 @@ def test_enterprise_scim_uses_enterprise_client_when_sso_client_is_present() -> 
 
     rows = list(enterprise_scim_organizations.__wrapped__(enterprise_data, ctx))
 
-    assert rows == [{"enterprise_node_id": "E_1", "enterprise_slug": "acme"}]
+    assert rows == [
+        {
+            "enterprise_node_id": "E_1",
+            "enterprise_slug": "acme",
+            "scim_base_url": "https://api.github.com/scim/v2/enterprises/acme/",
+        }
+    ]
     assert enterprise_client.paginate_calls[0][0] == "/scim/v2/enterprises/acme/Users"
     assert sso_client.paginate_calls == []
+
+
+def test_enterprise_scim_organization_preserves_custom_api_endpoint() -> None:
+    client = _FakeClient(payload={}, pages=[[]])
+    client.base_url = "https://github.example/api/v3/"
+    ctx = SourceContext(client=client, enterprise_name="acme")
+    rows = list(
+        enterprise_scim_organizations.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    )
+    assert (
+        rows[0]["scim_base_url"]
+        == "https://github.example/api/v3/scim/v2/enterprises/acme/"
+    )
 
 
 def test_enterprise_scim_users_logs_unexpected_failure_as_error(caplog) -> None:

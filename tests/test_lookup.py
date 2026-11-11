@@ -2,7 +2,64 @@ import duckdb
 import pytest
 
 from openhound_github.lookup import GithubLookup
-from openhound_github.transforms import ensure_optional_input_tables
+from openhound_github.transforms import (
+    ensure_optional_input_tables,
+    resolve_external_identity_scopes,
+)
+
+
+def test_external_identity_lookup_uses_exact_scope_and_guid_and_rejects_ambiguity():
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    ensure_optional_input_tables(connection)
+    connection.execute(
+        "INSERT INTO github.external_identities (id, guid, environment_slug, environment_node_id) VALUES "
+        "('EI_1', 'Guid-1', 'mixed-SLUG', 'Scope-1'), "
+        "('EI_2', 'Guid-1', 'mixed-SLUG', 'OtherScope'), "
+        "('EI_3', 'ambiguous', 'mixed-SLUG', 'Scope-1'), "
+        "('EI_4', 'ambiguous', 'mixed-SLUG', 'Scope-1')"
+    )
+    lookup = GithubLookup(connection)
+    assert lookup.external_identity_id_for_guid("Guid-1", "Scope-1") == "EI_1"
+    assert lookup.external_identity_id_for_guid("Guid-1", "OtherScope") == "EI_2"
+    assert lookup.external_identity_id_for_guid("Guid-1", "scope-1") is None
+    assert lookup.external_identity_id_for_guid("guid-1", "Scope-1") is None
+    assert lookup.external_identity_id_for_guid("ambiguous", "Scope-1") is None
+
+
+def test_legacy_external_identity_scope_resolution_preserves_exact_ids():
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    ensure_optional_input_tables(connection)
+    connection.execute(
+        "INSERT INTO github.saml_provider (environment_slug, environment_node_id) VALUES "
+        "('Enterprise', 'CaseSensitiveID'), ('conflict', 'ScopeA'), ('conflict', 'scopea')"
+    )
+    connection.execute(
+        "INSERT INTO github.oidc_provider (environment_slug, environment_node_id) VALUES "
+        "('enterprise', 'CaseSensitiveID'), ('org', 'OrgID')"
+    )
+    connection.execute(
+        "INSERT INTO github.external_identities (id, guid, environment_slug, environment_node_id) VALUES "
+        "('legacy', 'g1', 'ENTERPRISE', NULL), "
+        "('explicit', 'g2', 'enterprise', 'ExplicitID'), "
+        "('ambiguous', 'g3', 'CONFLICT', NULL), "
+        "('missing', 'g4', 'missing', NULL), "
+        "('org-identity', 'g5', 'ORG', NULL)"
+    )
+    resolve_external_identity_scopes(connection)
+    actual = dict(
+        connection.execute(
+            "SELECT id, environment_node_id FROM github.external_identities"
+        ).fetchall()
+    )
+    assert actual == {
+        "legacy": "CaseSensitiveID",
+        "explicit": "ExplicitID",
+        "ambiguous": None,
+        "missing": None,
+        "org-identity": "OrgID",
+    }
 
 
 def test_github_lookup_accepts_plain_schema_identifiers() -> None:

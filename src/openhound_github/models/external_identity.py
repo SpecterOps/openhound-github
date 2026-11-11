@@ -131,6 +131,7 @@ class ExternalIdentity(BaseAsset):
 
     # Additional
     environment_slug: str
+    environment_node_id: str | None = None
     github_deployment_id: str = DEFAULT_GITHUB_DEPLOYMENT_ID
 
     @property
@@ -178,7 +179,8 @@ class ExternalIdentity(BaseAsset):
                 github_username=self.user.login if self.user else None,
                 github_user_id=self.user.id if self.user else None,
                 environment_name=self.idp["environment_name"] if self.idp else None,
-                environmentid=self.idp["environment_node_id"] if self.idp else None,
+                environmentid=self.environment_node_id
+                or (self.idp["environment_node_id"] if self.idp else None),
                 query_mapped_users=f"MATCH p=(:GH_ExternalIdentity {{node_id:'{self.node_id}'}})-[:GH_MapsToUser]->() RETURN p",
             ),
         )

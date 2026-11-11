@@ -2321,6 +2321,7 @@ def external_identities(ctx: SourceContext):
                         yield {
                             **identity,
                             "environment_slug": org_data.get("login"),
+                            "environment_node_id": org_data.get("id"),
                             "github_deployment_id": github_deployment_id,
                         }
         except Exception as e:
@@ -2481,6 +2482,9 @@ def org_scim_organizations(org: Organization, ctx: SourceContext):
     yield {
         "org_login": org.login,
         "org_node_id": org.node_id,
+        "scim_base_url": (
+            f"{_rest_api_url(org_context.client)}/scim/v2/organizations/{org.login}/"
+        ),
     }
 
 
