@@ -2,6 +2,7 @@ import logging
 from types import SimpleNamespace
 
 import requests
+import pytest
 
 from openhound_github.models import EnterpriseScimOrganization, EnterpriseScimUser
 from openhound_github.resources.enterprise import (
@@ -530,18 +531,27 @@ def test_enterprise_scim_uses_enterprise_client_when_sso_client_is_present() -> 
     assert sso_client.paginate_calls == []
 
 
-def test_enterprise_scim_organization_preserves_custom_api_endpoint() -> None:
+@pytest.mark.parametrize(
+    "api_base, expected_base",
+    [
+        ("https://github.example/api/v3/", "https://github.example/api/v3"),
+        (None, "https://api.github.com"),
+        ("", "https://api.github.com"),
+        (" \t ", "https://api.github.com"),
+        ("  https://github.example/api/v3/  ", "https://github.example/api/v3"),
+    ],
+)
+def test_enterprise_scim_organization_preserves_custom_api_endpoint(
+    api_base, expected_base
+) -> None:
     """Preserve the configured API base when reporting an enterprise SCIM endpoint."""
     client = _FakeClient(payload={}, pages=[[]])
-    client.base_url = "https://github.example/api/v3/"
+    client.base_url = api_base
     ctx = SourceContext(client=client, enterprise_name="acme")
     rows = list(
         enterprise_scim_organizations.__wrapped__(SimpleNamespace(id="E_1"), ctx)
     )
-    assert (
-        rows[0]["scim_base_url"]
-        == "https://github.example/api/v3/scim/v2/enterprises/acme/"
-    )
+    assert rows[0]["scim_base_url"] == f"{expected_base}/scim/v2/enterprises/acme/"
 
 
 def test_enterprise_scim_users_logs_unexpected_failure_as_error(caplog) -> None:
