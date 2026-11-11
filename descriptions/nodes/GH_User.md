@@ -6,7 +6,7 @@ Represents a GitHub user who is a member of the organization. Users are associat
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

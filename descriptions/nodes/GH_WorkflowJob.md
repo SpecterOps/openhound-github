@@ -14,7 +14,7 @@ When `runs_on_is_dynamic` is true, runner matching and interception status remai
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

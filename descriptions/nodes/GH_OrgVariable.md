@@ -6,7 +6,7 @@ Represents an organization-level GitHub Actions variable. All and private/intern
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

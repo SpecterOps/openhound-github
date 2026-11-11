@@ -14,7 +14,7 @@ Enterprise collection includes the authenticating collector app's installation, 
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

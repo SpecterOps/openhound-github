@@ -6,7 +6,7 @@ Represents a SAML identity provider configured for the organization. This node c
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

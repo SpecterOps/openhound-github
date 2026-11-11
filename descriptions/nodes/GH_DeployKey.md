@@ -6,7 +6,7 @@ A repository-scoped SSH deploy key that grants read-only or read-write access to
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

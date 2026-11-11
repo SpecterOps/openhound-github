@@ -6,7 +6,7 @@ Generic label applied to GitHub self-hosted runner group nodes across enterprise
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

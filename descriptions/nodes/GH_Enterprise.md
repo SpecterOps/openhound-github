@@ -6,7 +6,7 @@ A GitHub Enterprise account that contains organizations, enterprise teams, roles
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

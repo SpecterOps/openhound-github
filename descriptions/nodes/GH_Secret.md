@@ -6,7 +6,7 @@ Generic label applied to GitHub secret nodes across organization, repository, an
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

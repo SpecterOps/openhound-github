@@ -6,7 +6,7 @@ Represents an external identity collected through a SAML or OIDC provider, with 
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

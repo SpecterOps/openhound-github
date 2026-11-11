@@ -8,7 +8,7 @@ The containing environment is linked to the variable with GH_Contains and GH_Has
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

@@ -6,7 +6,7 @@ Represents a repository-level GitHub Actions secret. These are secrets defined d
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

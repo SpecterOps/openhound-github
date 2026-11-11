@@ -6,7 +6,7 @@ Represents a GitHub organization. This is the root node of the graph and serves 
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

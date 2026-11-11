@@ -8,7 +8,7 @@ Enterprise runner groups contain GH_EnterpriseRunner nodes and emit GH_HasRunner
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

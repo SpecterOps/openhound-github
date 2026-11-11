@@ -12,7 +12,7 @@ When the runner is not explicitly marked ephemeral, GH_CanInterceptJob edges ide
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

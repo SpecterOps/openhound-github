@@ -6,7 +6,7 @@ A team managed at the GitHub Enterprise level and assignable across organization
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

@@ -8,7 +8,7 @@ When present, `workflow_permissions` captures the top-level `permissions` declar
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

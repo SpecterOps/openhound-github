@@ -247,7 +247,7 @@ def render_node_doc(
     existing_info: str | None,
 ) -> str:
     property_table = [
-        "| Property | Type | Description |",
+        "| Name | Type | Description |",
         "| --- | --- | --- |",
     ]
     property_table.extend(

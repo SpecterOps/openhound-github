@@ -6,7 +6,7 @@ Represents a role within a GitHub team. Each team has two built-in roles: Member
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |

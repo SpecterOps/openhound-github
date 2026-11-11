@@ -10,7 +10,7 @@ GH_CanRequestOIDCTokenFor edges from GH_WorkflowJob nodes identify jobs with a s
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The repository-qualified environment name (e.g., `org/repo/production`). |
 | `displayname` | `string` | The environment name shown in the UI (e.g., `production`). |

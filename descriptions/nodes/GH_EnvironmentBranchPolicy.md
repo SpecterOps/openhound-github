@@ -8,7 +8,7 @@ Environment branch policies are modeled as their own nodes so analysts can disti
 
 ## Properties
 
-| Property | Type | Description |
+| Name | Type | Description |
 | --- | --- | --- |
 | `name` | `string` | The node name used for matching and display. |
 | `displayname` | `string` | The human-readable display name. |
