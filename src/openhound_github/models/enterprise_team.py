@@ -4,13 +4,12 @@ from typing import ClassVar
 from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.enterprise_helpers import enterprise_team_node_id
 
 
 @dataclass
@@ -28,7 +27,7 @@ class GHEnterpriseTeamProperties(GHNodeProperties):
         environment_name: The enterprise environment name.
         query_enterprise: Query for the containing enterprise.
         query_assigned_organizations: Query for assigned organizations.
-        query_projected_teams: Query for projected organization teams.
+        query_repositories: Query for repository roles.
         query_members: Query for team members.
     """
 
@@ -42,7 +41,7 @@ class GHEnterpriseTeamProperties(GHNodeProperties):
     environment_name: str | None = None
     query_enterprise: str | None = None
     query_assigned_organizations: str | None = None
-    query_projected_teams: str | None = None
+    query_repositories: str | None = None
     query_members: str | None = None
 
 
@@ -76,6 +75,7 @@ class EnterpriseTeam(BaseAsset):
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
     id: int
+    native_node_id: str | None = Field(default=None, alias="node_id")
     name: str
     slug: str
     group_id: str | None = None
@@ -87,10 +87,14 @@ class EnterpriseTeam(BaseAsset):
 
     @property
     def node_id(self) -> str:
-        return enterprise_team_node_id(self.enterprise_node_id, self.id)
+        """Return the supplied native team ID or resolve it from collected evidence."""
+        return self.native_node_id or self._lookup.enterprise_team_node_id(
+            self.enterprise_node_id, self.id
+        )
 
     @property
     def as_node(self) -> GHNode:
+        """Build the native enterprise-team node with its scope and access queries."""
         return GHNode(
             kinds=[nk.ENTERPRISE_TEAM],
             properties=GHEnterpriseTeamProperties(
@@ -108,7 +112,7 @@ class EnterpriseTeam(BaseAsset):
                 updated_at=self.updated_at,
                 query_enterprise=f"MATCH p=(:GH_Enterprise {{node_id:'{self.enterprise_node_id}'}})-[:GH_Contains]->(:GH_EnterpriseTeam {{node_id:'{self.node_id}'}}) RETURN p",
                 query_assigned_organizations=f"MATCH p=(:GH_EnterpriseTeam {{node_id:'{self.node_id}'}})-[:GH_AssignedTo]->(:GH_Organization) RETURN p",
-                query_projected_teams=f"MATCH p=(:GH_EnterpriseTeam {{node_id:'{self.node_id}'}})-[:GH_MemberOf]->(:GH_Team) RETURN p",
+                query_repositories=f"MATCH p=(:GH_EnterpriseTeam {{node_id:'{self.node_id}'}})-[:GH_HasRole]->(:GH_RepoRole)-[]->(:GH_Repository) RETURN p",
                 query_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_TeamRole)-[:GH_MemberOf]->(:GH_EnterpriseTeam {{node_id:'{self.node_id}'}}) RETURN p",
             ),
         )

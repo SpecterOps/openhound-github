@@ -872,14 +872,17 @@ def teams(ctx: SourceContext):
     parallelized=True,
 )
 def projected_enterprise_teams(ctx: SourceContext):
-    """Fetch REST-based enterprise teams (starts with ent:) since these are not returned via GraphQL."""
+    """Retain native enterprise-team observations for lookup, without graph projections."""
 
     for org in ctx.organizations:
         org_name = org.org_name
         client = org.client
         try:
             for team in _rest_teams_for_org(ctx, client, org_name):
-                if str(team.get("slug", "")).startswith("ent:") and team.get("node_id"):
+                if (
+                    team.get("type") == "enterprise"
+                    or str(team.get("node_id", "")).startswith("ET_")
+                ) and team.get("node_id"):
                     yield {**team, "org_login": org_name}
         except Exception as e:
             logger.error(

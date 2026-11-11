@@ -441,6 +441,7 @@ def test_scim_group_emits_membership_and_tenant_scoped_legacy_correlation() -> N
 
 
 def test_enterprise_team_emits_scim_provisioning_edge_with_group_id() -> None:
+    """Verify a SCIM group provisions the native enterprise-team endpoint."""
     team = EnterpriseTeam(
         id=7,
         name="Engineering",
@@ -451,6 +452,7 @@ def test_enterprise_team_emits_scim_provisioning_edge_with_group_id() -> None:
     )
     lookup = MagicMock()
     lookup.enterprise_id.return_value = "ENT_NODE_1"
+    lookup.enterprise_team_node_id.return_value = "ET_kwDOAAiv9s4A_uCo"
     team._lookup = lookup
 
     edges = list(team.edges)

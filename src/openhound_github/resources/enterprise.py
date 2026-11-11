@@ -37,6 +37,8 @@ from openhound_github.github_retry import (
 from openhound_github.main import app
 from openhound_github.auth import GithubApp
 from openhound_github.models.app_installation import App, AppInstallation
+from openhound_github.models.repo_role_assignment import RepoRoleAssignment
+from openhound_github.enterprise_team_ids import enterprise_team_node_id
 from openhound_github.resources.app_helpers import migrate_app_context_schema
 from openhound_github.models import (
     BaseUser,
@@ -965,6 +967,7 @@ def enterprise_team_members(team: EnterpriseTeam, ctx: SourceContext):
 )
 def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
 
+    """Collect organization assignments and numeric IDs for enterprise-team grants."""
     for page in ctx.client.paginate(
         f"/enterprises/{ctx.enterprise_name}/teams/{team.id}/organizations",
         params={"per_page": 100},
@@ -975,11 +978,74 @@ def enterprise_team_organizations(team: EnterpriseTeam, ctx: SourceContext):
                 yield {
                     **org,
                     "node_id": node_id,
+                    "org_database_id": org.get("id"),
                     "team_id": team.id,
                     "projected_slug": team.slug,
                     "enterprise_node_id": team.enterprise_node_id,
                     "enterprise_slug": team.enterprise_slug,
                 }
+
+
+@app.transformer(
+    name="enterprise_team_repo_role_assignments",
+    table_name="repo_role_assignments",
+    columns=RepoRoleAssignment,
+    parallelized=True,
+)
+def enterprise_team_repo_role_assignments(
+    assignment: EnterpriseTeamOrganization, ctx: SourceContext, roles
+):
+    """Collect grants per assigned organization using its installation client."""
+    from openhound_github.resources.organization import _repo_permission_role
+    from openhound_github.models.repository_role import BaseRepoRole
+
+    # This parent resource uses DLT's dictionary output during collection.
+    if isinstance(assignment, dict):
+        assignment = EnterpriseTeamOrganization(**assignment)
+
+    org = next(
+        (
+            o
+            for o in ctx.organizations
+            if assignment.login and o.org_name.lower() == assignment.login.lower()
+        ),
+        None,
+    )
+    if org is None or assignment.org_database_id is None:
+        logger.warning(
+            "Skipping enterprise team repository grants for team %s, organization %s: organization client or numeric ID unavailable",
+            assignment.team_id,
+            assignment.login,
+        )
+        return
+    custom_roles = {
+        r["name"]: BaseRepoRole(**r)
+        for r in roles
+        if r.get("org_login") == org.org_name
+    }
+    for page in org.client.paginate(
+        f"/organizations/{assignment.org_database_id}/team/{assignment.team_id}/repos",
+        params={"per_page": 100},
+    ):
+        for repo in page:
+            role = _repo_permission_role(repo)
+            custom = custom_roles.get(role)
+            yield {
+                "id": assignment.team_id,
+                "node_id": enterprise_team_node_id(
+                    assignment.enterprise_node_id, assignment.team_id
+                ),
+                "type": "EnterpriseTeam",
+                "assignee_type": "team",
+                "enterprise_node_id": assignment.enterprise_node_id,
+                "enterprise_team_id": assignment.team_id,
+                "repo_node_id": repo["node_id"],
+                "repo_name": repo["name"],
+                "org_login": org.org_name,
+                "role_name": role,
+                "base_role": custom.base_role if custom else None,
+                "role_permissions": custom.permissions if custom else [],
+            }
 
 
 @app.transformer(name="enterprise_roles", columns=EnterpriseRole, parallelized=True)
@@ -1552,10 +1618,16 @@ def enterprise_applications(installation: AppInstallation, ctx: SourceContext):
 
 def enterprise_resources(ctx: SourceContext):
     """Assemble enterprise resources enabled by the available authentication clients."""
+    from openhound_github.resources.organization import RepositoryRoleCache
+
+    repo_roles_base = RepositoryRoleCache(ctx)
     enterprise_resource = enterprise(ctx)
     organizations_resource = enterprise_organizations(ctx)
     members_resource = enterprise_members(ctx)
     teams_resource = enterprise_teams(ctx)
+    team_organizations_resource = (
+        enterprise_resource | teams_resource | enterprise_team_organizations(ctx)
+    )
     roles_resource = enterprise_roles(ctx)
     runner_groups_resource = enterprise_runner_groups(ctx)
     scim_organizations_resource = enterprise_resource | enterprise_scim_organizations(
@@ -1574,7 +1646,8 @@ def enterprise_resources(ctx: SourceContext):
         enterprise_resource | teams_resource,
         enterprise_resource | teams_resource | enterprise_team_roles,
         enterprise_resource | teams_resource | enterprise_team_members(ctx),
-        enterprise_resource | teams_resource | enterprise_team_organizations(ctx),
+        team_organizations_resource,
+        team_organizations_resource | enterprise_team_repo_role_assignments(ctx, repo_roles_base),
         enterprise_resource | roles_resource,
         enterprise_resource | roles_resource | enterprise_role_users(ctx),
         enterprise_resource | roles_resource | enterprise_role_teams(ctx),

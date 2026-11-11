@@ -6,7 +6,6 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.enterprise_helpers import (
     enterprise_role_node_id,
-    enterprise_team_node_id,
 )
 
 
@@ -33,10 +32,13 @@ class EnterpriseRoleTeam(BaseAsset):
 
     @property
     def edges(self):
+        """Yield the native enterprise team's enterprise-role assignment."""
         yield Edge(
             kind=ek.HAS_ROLE,
             start=EdgePath(
-                value=enterprise_team_node_id(self.enterprise_node_id, self.id),
+                value=self._lookup.enterprise_team_node_id(
+                    self.enterprise_node_id, self.id
+                ),
                 match_by="id",
             ),
             end=EdgePath(

@@ -65,20 +65,12 @@ def test_legacy_external_identity_scope_resolution_preserves_exact_ids():
 
 
 def test_github_lookup_accepts_plain_schema_identifiers() -> None:
+    """Verify native-team lookups work with an explicitly selected valid schema."""
     connection = duckdb.connect(":memory:")
     connection.execute("CREATE SCHEMA github_test")
-    connection.execute(
-        "CREATE TABLE github_test.projected_enterprise_teams "
-        "(node_id VARCHAR, org_login VARCHAR, slug VARCHAR)"
-    )
-    connection.execute(
-        "INSERT INTO github_test.projected_enterprise_teams VALUES (?, ?, ?)",
-        ["TEAM_1", "acme", "ent:security"],
-    )
-
+    ensure_optional_input_tables(connection, "github_test")
     lookup = GithubLookup(connection, schema="github_test")
-
-    assert lookup.projected_enterprise_team_id("acme", "ent:security") == "TEAM_1"
+    assert lookup.enterprise_team_node_id("E_kgDOAAiv9g", 16703656) == "ET_kwDOAAiv9s4A_uCo"
 
 
 def test_github_lookup_rejects_untrusted_schema_identifiers() -> None:

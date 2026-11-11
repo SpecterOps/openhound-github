@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.4.3",
+    "version": "v1.5.0",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -105,7 +105,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents an enterprise-managed team that can be assigned into one or more organizations. Enterprise teams can carry enterprise roles and project into organization teams that inherit their membership."
+            "content": "## Overview\n\nRepresents one enterprise-managed team using its native ET_ identifier across organizations. Organization assignments and repository roles attach directly to this team."
           }
         },
         "inbound_traversable_relationships": {
@@ -119,7 +119,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseTeam {objectid: '%s'})-[:GH_HasRole|GH_MemberOf]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseTeam {objectid: '%s'})-[:GH_HasRole|GH_CanWriteBranch]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "enterprise_context": {
@@ -136,18 +136,18 @@
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseTeam {objectid: '%s'})-[:GH_AssignedTo]->(:GH_Organization)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View organizations assigned this enterprise team in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
-        "projected_teams": {
-          "title": "Projected Teams",
-          "position": 6,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseTeam {objectid: '%s'})-[:GH_MemberOf]->(:GH_Team)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View organization teams projected from this enterprise team in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
         "members": {
           "title": "Members",
           "position": 7,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_User)-[:GH_HasRole]->(:GH_TeamRole)-[:GH_MemberOf]->(selected:GH_EnterpriseTeam {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View members of this enterprise team in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "repositories": {
+          "title": "Repository Access",
+          "position": 6,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseTeam {objectid: '%s'})-[:GH_HasRole]->(:GH_RepoRole)-[]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repository access for this enterprise team in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -543,7 +543,7 @@
           "title": "Roles and Teams",
           "position": 10,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH (selected:GH_Repository {objectid: '%s'})\\nOPTIONAL MATCH p1 = (:GH_RepoRole)-[:GH_AdminTo|GH_ReadRepoContents|GH_WriteRepoContents|GH_WriteRepoPullRequests]->(selected)\\nOPTIONAL MATCH p2 = (:GH_Team)-[:GH_HasRole|GH_HasBaseRole*1..]->(:GH_RepoRole)-[:GH_AdminTo|GH_ReadRepoContents|GH_WriteRepoPullRequests|GH_WriteRepoContents]->(selected)\\nRETURN p1, p2\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repository roles and teams with access to this repository in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH (selected:GH_Repository {objectid: '%s'})\\nOPTIONAL MATCH p1 = (:GH_RepoRole)-[:GH_AdminTo|GH_ReadRepoContents|GH_WriteRepoContents|GH_WriteRepoPullRequests]->(selected)\\nOPTIONAL MATCH p2 = (team)-[:GH_HasRole|GH_HasBaseRole*1..]->(:GH_RepoRole)-[:GH_AdminTo|GH_ReadRepoContents|GH_WriteRepoPullRequests|GH_WriteRepoContents]->(selected)\\nWHERE team:GH_Team OR team:GH_EnterpriseTeam\\nRETURN p1, p2\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repository roles and teams with access to this repository in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "effective_readers": {
@@ -2203,7 +2203,7 @@
     },
     {
       "name": "GH_MemberOf",
-      "description": "Team role is a member of a team, team is nested under a parent team, or enterprise team maps to its projected organization team",
+      "description": "Team role belongs to an organization or enterprise team, or an organization team is nested under a parent team",
       "is_traversable": true
     },
     {

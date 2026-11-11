@@ -8,6 +8,7 @@ from duckdb import DuckDBPyConnection
 from openhound.core.lookup import LookupManager, logger
 
 from openhound_github.runner_ids import runner_group_node_id, runner_node_id
+from openhound_github.enterprise_team_ids import enterprise_team_node_id
 
 
 _SCHEMA_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -565,11 +566,23 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
-    def projected_enterprise_team_id(self, org_login: str, slug: str) -> str | None:
-        return self._find_single_object(
-            f"""SELECT node_id FROM {self.schema}.projected_enterprise_teams WHERE org_login = ? AND slug = ?""",
-            [org_login, slug],
+    def enterprise_team_node_id(self, enterprise_node_id: str, team_id: int) -> str:
+        """Prefer a native ID observed in this enterprise; otherwise derive it."""
+        rows = self._find_all_objects(
+            f"""SELECT DISTINCT t.node_id
+            FROM {self.schema}.projected_enterprise_teams t
+            JOIN {self.schema}.enterprise_organizations o ON lower(o.login) = lower(t.org_login)
+            WHERE o.enterprise_node_id = ? AND t.id = ? AND t.node_id IS NOT NULL
+            UNION
+            SELECT native_node_id FROM {self.schema}.enterprise_teams
+            WHERE enterprise_node_id = ? AND id = ? AND native_node_id IS NOT NULL""",
+            [enterprise_node_id, team_id, enterprise_node_id, team_id],
         )
+        if rows:
+            if len(rows) != 1:
+                raise ValueError("Conflicting native enterprise-team IDs in collected observations")
+            return str(rows[0][0])
+        return enterprise_team_node_id(enterprise_node_id, team_id)
 
     @lru_cache
     def external_group_for_team(

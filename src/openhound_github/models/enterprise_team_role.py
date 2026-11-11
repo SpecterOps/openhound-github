@@ -7,7 +7,6 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.enterprise_helpers import enterprise_team_node_id
 
 
 @dataclass
@@ -61,7 +60,8 @@ class EnterpriseTeamRole(BaseAsset):
 
     @property
     def enterprise_team_node_id(self) -> str:
-        return enterprise_team_node_id(self.enterprise_node_id, self.id)
+        """Resolve the native enterprise team containing this membership role."""
+        return self._lookup.enterprise_team_node_id(self.enterprise_node_id, self.id)
 
     @property
     def node_id(self) -> str:
