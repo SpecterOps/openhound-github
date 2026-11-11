@@ -18,6 +18,20 @@ TEAM_PERMISSION_MAP: dict[str, str] = {
 @app.asset(
     edges=[
         EdgeDef(
+            start=nk.ENTERPRISE_TEAM,
+            end=nk.REPO_ROLE,
+            kind=ek.HAS_ROLE,
+            description="Enterprise team has repository role",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.ENTERPRISE_TEAM,
+            end=nk.BRANCH,
+            kind=ek.CAN_WRITE_BRANCH,
+            description="Enterprise team can write branch",
+            traversable=True,
+        ),
+        EdgeDef(
             start=nk.USER,
             end=nk.REPO_ROLE,
             kind=ek.HAS_ROLE,
@@ -62,6 +76,16 @@ class RepoRoleAssignment(BaseAsset):
     repo_name: str
     base_role: str | None = None
     role_permissions: list[str] = Field(default_factory=list)
+    enterprise_node_id: str | None = None
+    enterprise_team_id: int | None = None
+
+    @property
+    def actor_node_id(self) -> str:
+        if self.enterprise_node_id is not None and self.enterprise_team_id is not None:
+            return self._lookup.enterprise_team_node_id(
+                self.enterprise_node_id, self.enterprise_team_id
+            )
+        return self.node_id
 
     @property
     def org_node_id(self) -> str | None:
@@ -104,7 +128,7 @@ class RepoRoleAssignment(BaseAsset):
             return
 
         branches = self._lookup.actor_gate_bypass(
-            self.node_id,
+            self.actor_node_id,
             self.repo_node_id,
             has_bypass_branch,
             has_push_protected,
@@ -112,7 +136,7 @@ class RepoRoleAssignment(BaseAsset):
         for (branch_id,) in branches:
             yield Edge(
                 kind=ek.CAN_WRITE_BRANCH,
-                start=EdgePath(value=self.node_id, match_by="id"),
+                start=EdgePath(value=self.actor_node_id, match_by="id"),
                 end=EdgePath(value=branch_id, match_by="id"),
                 properties=EdgeProperties(traversable=True),
             )
@@ -124,7 +148,7 @@ class RepoRoleAssignment(BaseAsset):
             role_node_id = f"{self.repo_node_id}_{self.role_name}"
             yield Edge(
                 kind=ek.HAS_ROLE,
-                start=EdgePath(value=self.node_id, match_by="id"),
+                start=EdgePath(value=self.actor_node_id, match_by="id"),
                 end=EdgePath(value=role_node_id, match_by="id"),
                 properties=EdgeProperties(traversable=True),
             )

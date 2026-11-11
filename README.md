@@ -277,3 +277,29 @@ After the first publication, a package administrator should verify the GHCR
 package's visibility and repository access. New packages default to private;
 make the package public if anonymous pulls are intended. If the package
 already exists, grant this repository's Actions workflows write access to it.
+
+### Enterprise team identities and repository access
+
+Breaking graph-model change, accompanied by OpenGraph schema `v1.5.0`
+(previously `v1.4.3`). Deploy the updated schema, saved searches, and collector
+together. The `feature/` release workflow selects a minor collector release;
+the collector package version is generated from the release tag.
+
+Enterprise teams use one native `ET_` node ID across all assigned organizations.
+Organization REST team observations are retained in `projected_enterprise_teams`
+for identity lookup but no longer emit synthetic `GH_Team` nodes. The collector
+prefers returned native IDs; otherwise it derives the observed MessagePack ID
+from the enterprise and team database IDs. Unrecognized enterprise encodings or
+conflicting observations fail rather than inventing a replacement identity.
+
+Repository grants are collected for each assigned organization using
+`GET /organizations/{org_id}/team/{team_id}/repos` with that organization's client.
+`GH_AssignedTo` links the enterprise team to organizations; `GH_HasRole` links it
+directly to repository roles. Organization client access is required for grants.
+
+Recollect, preprocess, and convert to include these grants. Existing BloodHound
+imports may retain old `GH_EnterpriseTeam_<enterprise>_<id>` and projected
+`GH_Team_<organization>_<ET_id>` nodes and their edges. Remove those old imports
+or rebuild the affected graph using your deployment's supported cleanup process
+before evaluating the new identity model; a new import alone does not guarantee
+removal. Ordinary organization team IDs are unchanged.

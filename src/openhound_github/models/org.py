@@ -314,7 +314,7 @@ class Organization(BaseAsset):
                 ghes_version=self.ghes_version,
                 query_organization_roles=f"MATCH (:GH_Organization {{node_id:'{oid}'}})-[:GH_Contains]->(n:GH_OrgRole) RETURN n",
                 query_users=f"MATCH (n:GH_User {{environmentid:'{oid}'}}) RETURN n",
-                query_teams=f"MATCH (n:GH_Team {{environmentid:'{oid}'}}) RETURN n",
+                query_teams=f"MATCH (n:GH_Team {{environmentid:'{oid}'}}) RETURN n UNION MATCH (n:GH_EnterpriseTeam)-[:GH_AssignedTo]->(:GH_Organization {{node_id:'{oid}'}}) RETURN n",
                 query_repositories=f"MATCH (n:GH_Repository {{environmentid:'{oid}'}}) RETURN n",
                 query_personal_access_tokens=(
                     f"MATCH p=(:GH_Organization {{node_id: '{oid}'}})-[:GH_Contains]->(token) "

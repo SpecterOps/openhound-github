@@ -2,7 +2,7 @@
 
 ## General Information
 
-Represents a GitHub team within the organization. Teams can have parent-child relationships, contain members with different roles (Member, Maintainer), and be assigned to repository roles.
+Represents a native GitHub organization team. Enterprise teams use `GH_EnterpriseTeam` rather than synthetic organization projections. Teams can have parent-child relationships, contain members with different roles (Member, Maintainer), and be assigned to repository roles.
 
 ## Properties
 
@@ -18,7 +18,7 @@ Represents a GitHub team within the organization. Teams can have parent-child re
 | `slug` | `string` | The team's URL-safe slug identifier. |
 | `description` | `string` | The team's description. |
 | `privacy` | `string` | The team's privacy level (e.g., `visible`, `secret`). |
-| `type` | `string` | The team type, such as `enterprise` for projected enterprise teams. |
+| `type` | `string` | The team type. |
 | `external_group_id` | `integer` | GitHub's org-scoped external IdP group identifier. |
 | `external_group_name` | `string` | The external IdP group name reported by GitHub. |
 | `environment_name` | `string` | The name of the environment (GitHub organization). |
@@ -33,14 +33,12 @@ Represents a GitHub team within the organization. Teams can have parent-child re
 
 ```mermaid
 graph LR
-    n0["GH_EnterpriseTeam"]
     n1["GH_Team"]
     n2["GH_Branch"]
     n3["GH_Environment"]
     n4["GH_OrgRole"]
     n5["GH_RepoRole"]
     n6["GH_TeamRole"]
-    n0 -->|GH_MemberOf| n1
     n1 -.->|GH_CanWriteBranch| n2
     n1 -.->|GH_ApprovesDeploymentTo| n3
     n1 -->|GH_CanDeployToEnvironment| n3

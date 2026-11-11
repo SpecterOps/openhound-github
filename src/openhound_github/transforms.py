@@ -144,6 +144,12 @@ def ensure_optional_input_tables(
             login VARCHAR,
             enterprise_slug VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS {schema}.projected_enterprise_teams (
+            id BIGINT, node_id VARCHAR, org_login VARCHAR
+        );
+        CREATE TABLE IF NOT EXISTS {schema}.enterprise_teams (
+            id BIGINT, enterprise_node_id VARCHAR, native_node_id VARCHAR
+        );
         CREATE TABLE IF NOT EXISTS {schema}.enterprise_scim_groups (
             id VARCHAR,
             display_name VARCHAR,
@@ -371,6 +377,11 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS login VARCHAR;
         ALTER TABLE {schema}.enterprise_users
             ADD COLUMN IF NOT EXISTS enterprise_slug VARCHAR;
+
+        ALTER TABLE {schema}.projected_enterprise_teams ADD COLUMN IF NOT EXISTS id BIGINT;
+        ALTER TABLE {schema}.projected_enterprise_teams ADD COLUMN IF NOT EXISTS node_id VARCHAR;
+        ALTER TABLE {schema}.projected_enterprise_teams ADD COLUMN IF NOT EXISTS org_login VARCHAR;
+        ALTER TABLE {schema}.enterprise_teams ADD COLUMN IF NOT EXISTS native_node_id VARCHAR;
 
         ALTER TABLE {schema}.enterprise_scim_groups
             ADD COLUMN IF NOT EXISTS id VARCHAR;

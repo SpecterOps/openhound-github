@@ -322,7 +322,7 @@ class Repository(BaseAsset):
                 query_protected_branches=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_Branch)<-[:GH_ProtectedBy]-(:GH_BranchProtectionRule) RETURN p",
                 query_branch_protection_rules=f"MATCH p=(:GH_Repository {{node_id: '{rid}'}})-[:GH_Contains]->(:GH_BranchProtectionRule) RETURN p",
                 query_roles=f"MATCH p=(:GH_RepoRole)-[*1..]->(:GH_Repository {{node_id: '{rid}'}}) RETURN p",
-                query_teams=f"MATCH p=(:GH_Team)-[:GH_MemberOf|GH_HasRole*1..]->(:GH_RepoRole)-[]->(:GH_Repository {{node_id: '{rid}'}}) RETURN p",
+                query_teams=f"MATCH p=(team)-[:GH_MemberOf|GH_HasRole*1..]->(:GH_RepoRole)-[]->(:GH_Repository {{node_id: '{rid}'}}) WHERE team:GH_Team OR team:GH_EnterpriseTeam RETURN p",
                 query_workflows=f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_Contains]->(:GH_Workflow)-[:GH_Contains]->(:GH_WorkflowJob)-[:GH_Contains]->(step:GH_WorkflowStep) OPTIONAL MATCH p1=(step)-[:GH_UsesSecret]->(:GH_Secret) OPTIONAL MATCH p2=(step)-[:GH_UsesVariable]->(:GH_Variable) RETURN p,p1,p2",
                 query_runners=(
                     f"MATCH p=(:GH_Repository {{node_id:'{rid}'}})-[:GH_CanUseRunner]->(:GH_RepoRunner) RETURN p "

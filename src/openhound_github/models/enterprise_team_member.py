@@ -4,7 +4,6 @@ from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperti
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.enterprise_helpers import enterprise_team_node_id
 
 
 @app.asset(
@@ -31,9 +30,7 @@ class EnterpriseTeamMember(BaseAsset):
 
     @property
     def role_node_id(self) -> str:
-        return (
-            f"{enterprise_team_node_id(self.enterprise_node_id, self.team_id)}_members"
-        )
+        return f"{self._lookup.enterprise_team_node_id(self.enterprise_node_id, self.team_id)}_members"
 
     @property
     def edges(self):

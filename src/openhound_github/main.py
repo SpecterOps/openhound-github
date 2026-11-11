@@ -76,6 +76,7 @@ def preproc(ctx: PreProcContext):
         "external_identities": "external_identities",
         "applications": "applications",
         "enterprise": "enterprise",
+        "enterprise_teams": "enterprise_teams",
         "enterprise_users": "enterprise_users",
         "enterprise_organizations": "enterprise_organizations",
         "enterprise_scim_groups": "enterprise_scim_groups",

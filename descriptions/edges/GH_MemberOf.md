@@ -2,13 +2,14 @@
 
 ## General Information
 
-The traversable GH_MemberOf edge represents team membership and projection relationships, linking a team role to its parent team, a child team to a parent team in nested team hierarchies, or a GH_EnterpriseTeam to its projected GH_Team in an organization. This edge is traversable because these relationships carry effective team membership context through the graph: a user who holds a role in a child team inherits the repository permissions of ancestor teams, and enterprise-managed team membership flows into the projected organization team.
+GH_MemberOf links a team role to its organization or enterprise team, or a child organization team to its parent. Enterprise team organization assignments use GH_AssignedTo; repository grants attach directly to the enterprise team.
+
+Team-role membership is traversable. Organization team nesting is emitted as non-traversable; consult the deployed relationship-kind configuration for pathfinding behavior.
 
 ## Edge Schema
 
 | Source | Destination | Traversable |
 | --- | --- | --- |
-| `GH_EnterpriseTeam` | `GH_Team` | `true` |
 | `GH_Team` | `GH_Team` | `false` |
 | `GH_TeamRole` | `GH_EnterpriseTeam` | `true` |
 | `GH_TeamRole` | `GH_Team` | `true` |
@@ -20,7 +21,6 @@ graph LR
     n0["GH_EnterpriseTeam"]
     n1["GH_Team"]
     n2["GH_TeamRole"]
-    n0 -->|GH_MemberOf| n1
     n1 -.->|GH_MemberOf| n1
     n2 -->|GH_MemberOf| n0
     n2 -->|GH_MemberOf| n1

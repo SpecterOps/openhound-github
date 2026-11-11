@@ -726,7 +726,7 @@ class RepoRole(BaseAsset):
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
                 query_explicit_users=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) RETURN p",
-                query_explicit_teams=f"MATCH p=(:GH_Team)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) RETURN p",
+                query_explicit_teams=f"MATCH p=(team)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) WHERE team:GH_Team OR team:GH_EnterpriseTeam RETURN p",
                 query_unrolled_members=(
                     f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_ReadRepoContents*1..]->(reporole:GH_RepoRole {{node_id:'{rid}'}}) "
                     f"MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) "

@@ -9,6 +9,7 @@ The traversable GH_HasRole edge represents the assignment of a user or team to a
 | Source | Destination | Traversable |
 | --- | --- | --- |
 | `GH_EnterpriseTeam` | `GH_EnterpriseRole` | `true` |
+| `GH_EnterpriseTeam` | `GH_RepoRole` | `true` |
 | `GH_Team` | `GH_OrgRole` | `true` |
 | `GH_Team` | `GH_RepoRole` | `true` |
 | `GH_User` | `GH_EnterpriseRole` | `true` |
@@ -27,6 +28,7 @@ graph LR
     n4["GH_RepoRole"]
     n5["GH_User"]
     n6["GH_TeamRole"]
+    n0 -->|GH_HasRole| n4
     n0 -->|GH_HasRole| n1
     n2 -->|GH_HasRole| n3
     n2 -->|GH_HasRole| n4

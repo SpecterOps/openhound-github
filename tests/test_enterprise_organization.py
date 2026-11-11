@@ -8,12 +8,15 @@ the full Organization node regardless of ingestion order:
     - explicitly collected org (present in lookup) -> collected=True
     - enterprise-only discovered org (absent)       -> collected=False
 """
+
 from unittest.mock import MagicMock
 
 from openhound_github.models import EnterpriseOrganization, EnterpriseTeamOrganization
 
 
-def _make_org(node_id: str = "ORG_NODE_1", login: str = "acme") -> EnterpriseOrganization:
+def _make_org(
+    node_id: str = "ORG_NODE_1", login: str = "acme"
+) -> EnterpriseOrganization:
     org = EnterpriseOrganization(
         id=node_id,
         login=login,
@@ -69,24 +72,20 @@ def test_collected_resolved_per_node_id_in_multi_org_enterprise() -> None:
     assert stub_org.as_node.properties.collected is False
 
 
-def test_enterprise_team_organization_uses_projected_team_node_id() -> None:
-    org_node_id = "MDEyOk9yZ2FuaXphdGlvbjE="
+def test_enterprise_team_organization_links_native_team_directly_to_org() -> None:
     assignment = EnterpriseTeamOrganization(
-        node_id=org_node_id,
+        node_id="ORG_1",
         login="github",
-        team_id=7,
-        projected_slug="ent:engineering",
-        enterprise_node_id="ENT_NODE_1",
+        team_id=16703656,
+        enterprise_node_id="E_kgDOAAiv9g",
         enterprise_slug="example-enterprise",
     )
     lookup = MagicMock()
-    lookup.projected_enterprise_team_id.return_value = "TEAM_NODE_1"
+    lookup.enterprise_team_node_id.return_value = "ET_kwDOAAiv9s4A_uCo"
     assignment._lookup = lookup
-
-    edge = next(assignment.member_of_team_edges)
-
-    lookup.projected_enterprise_team_id.assert_called_once_with(
-        "github", "ent:engineering"
-    )
-    assert edge.end.value == f"GH_Team_{org_node_id}_TEAM_NODE_1"
-    assert edge.end.match_by == "id"
+    edges = list(assignment.edges)
+    assert len(edges) == 1
+    assert edges[0].kind == "GH_AssignedTo"
+    assert edges[0].start.value == "ET_kwDOAAiv9s4A_uCo"
+    assert edges[0].end.value == "ORG_1"
+    lookup.enterprise_team_node_id.assert_called_once_with("E_kgDOAAiv9g", 16703656)
