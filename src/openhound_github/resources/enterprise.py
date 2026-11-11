@@ -25,7 +25,7 @@ from openhound_github.graphql import (
     ENTERPRISE_OIDC_QUERY,
 )
 from openhound_github.helpers import (
-    DEFAULT_GITHUB_REST_API_URL,
+    _rest_api_url,
     GraphQLCursorPaginator,
     graphql_client_and_path,
     scim_skip_reason,
@@ -591,6 +591,7 @@ def enterprise_organizations(enterprise_data: Enterprise, ctx: SourceContext):
     parallelized=True,
 )
 def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContext):
+    """Emit a SCIM scope and endpoint after a successful enterprise Users probe."""
     if not ctx.client or not ctx.enterprise_name:
         raise ValueError(
             "Enterprise SCIM collection requires a client and enterprise slug"
@@ -618,7 +619,7 @@ def enterprise_scim_organizations(enterprise_data: Enterprise, ctx: SourceContex
         "enterprise_node_id": enterprise_data.id,
         "enterprise_slug": ctx.enterprise_name,
         "scim_base_url": (
-            f"{getattr(ctx.client, 'base_url', DEFAULT_GITHUB_REST_API_URL).rstrip('/')}"
+            f"{_rest_api_url(ctx.client)}"
             f"/scim/v2/enterprises/{ctx.enterprise_name}/"
         ),
     }

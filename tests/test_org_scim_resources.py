@@ -57,9 +57,20 @@ def test_org_scim_uses_scim_count_pagination() -> None:
 
 
 @pytest.mark.parametrize(
-    "api_base", ["https://api.github.com/", "https://api.example.ghe.com/"]
+    "api_base, expected_base",
+    [
+        ("https://api.github.com/", "https://api.github.com"),
+        ("https://api.example.ghe.com/", "https://api.example.ghe.com"),
+        (None, "https://api.github.com"),
+        ("", "https://api.github.com"),
+        (" \t ", "https://api.github.com"),
+        ("  https://github.example/api/v3/  ", "https://github.example/api/v3"),
+    ],
 )
-def test_org_scim_organization_preserves_configured_endpoint(api_base) -> None:
+def test_org_scim_organization_preserves_configured_endpoint(
+    api_base, expected_base
+) -> None:
+    """Preserve the configured API host in organization SCIM endpoint metadata."""
     client = MagicMock()
     client.base_url = api_base
     client.paginate.return_value = [[]]
@@ -69,12 +80,13 @@ def test_org_scim_organization_preserves_configured_endpoint(api_base) -> None:
         {
             "org_login": "acme",
             "org_node_id": "O_CaseSensitive",
-            "scim_base_url": f"{api_base.rstrip('/')}/scim/v2/organizations/acme/",
+            "scim_base_url": f"{expected_base}/scim/v2/organizations/acme/",
         }
     ]
 
 
 def test_org_scim_organization_skips_unavailable_scope(caplog) -> None:
+    """Skip organization scopes whose SCIM endpoint returns not found."""
     client = _HTTPErrorPaginateClient(status_code=404)
     organization = SimpleNamespace(login="acme", node_id="O_1")
 

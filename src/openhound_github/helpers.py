@@ -26,6 +26,15 @@ DEFAULT_GITHUB_REST_API_URL = "https://api.github.com"
 DEFAULT_GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
 
 
+def _rest_api_url(client: RESTClient) -> str:
+    """Normalize the client's REST base URL, defaulting missing or blank values."""
+    base_url = getattr(client, "base_url", None)
+    return (
+        str(base_url or DEFAULT_GITHUB_REST_API_URL).strip().rstrip("/")
+        or DEFAULT_GITHUB_REST_API_URL
+    )
+
+
 class GraphQLPaginationError(RuntimeError):
     pass
 

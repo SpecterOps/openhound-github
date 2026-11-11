@@ -1,11 +1,33 @@
 import json
+from types import SimpleNamespace
 
+import pytest
 import requests
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.requests.retry import Client
 from dlt.sources.helpers.requests.session import Session
 
-from openhound_github.helpers import github_retry_policy
+from openhound_github.helpers import _rest_api_url, github_retry_policy
+
+
+@pytest.mark.parametrize(
+    "base_url, expected",
+    [
+        (None, "https://api.github.com"),
+        ("", "https://api.github.com"),
+        (" \t ", "https://api.github.com"),
+        ("https://api.example.ghe.com/", "https://api.example.ghe.com"),
+        ("  https://github.example/api/v3/  ", "https://github.example/api/v3"),
+    ],
+)
+def test_rest_api_url_normalizes_optional_client_base(base_url, expected):
+    """Normalize absent or blank bases and preserve custom API hosts and paths."""
+    assert _rest_api_url(SimpleNamespace(base_url=base_url)) == expected
+
+
+def test_rest_api_url_defaults_when_base_attribute_is_missing():
+    """Use GitHub's default API URL when a client supplies no base attribute."""
+    assert _rest_api_url(SimpleNamespace()) == "https://api.github.com"
 
 
 def graphql_response(

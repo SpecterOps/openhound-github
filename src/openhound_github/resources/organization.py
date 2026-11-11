@@ -30,7 +30,7 @@ from openhound_github.github_retry import (
 )
 from openhound_github.helpers import (
     AdaptiveGraphQLPageError,
-    DEFAULT_GITHUB_REST_API_URL,
+    _rest_api_url,
     GraphQLCursorPaginator,
     adaptive_graphql_paginate,
     graphql_client_and_path,
@@ -170,11 +170,6 @@ def _graphql_client_for_org(
         if org.org_name == org_login:
             return graphql_client_and_path(org.client, org.graphql_client)
     return graphql_client_and_path(ctx.client, ctx.graphql_client)
-
-
-def _rest_api_url(client: RESTClient) -> str:
-    base_url = getattr(client, "base_url", DEFAULT_GITHUB_REST_API_URL)
-    return str(base_url).strip().rstrip("/") or DEFAULT_GITHUB_REST_API_URL
 
 
 def _encode_path_segment(value: str) -> str:
@@ -2460,6 +2455,7 @@ def scim_users(scim_organization: ScimOrganization, ctx: SourceContext):
     parallelized=True,
 )
 def org_scim_organizations(org: Organization, ctx: SourceContext):
+    """Emit a SCIM scope and endpoint after a successful organization Users probe."""
     org_context = _org_context_for_login(ctx, org.login)
     if not org_context:
         raise ValueError(
