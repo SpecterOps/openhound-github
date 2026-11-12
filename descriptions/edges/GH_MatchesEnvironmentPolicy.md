@@ -8,12 +8,6 @@ This edge is emitted when a branch name matches the pattern defined by a GH_Envi
 
 GH_MatchesEnvironmentPolicy is primarily used as supporting evidence for computed GH_CanDeployToEnvironment edges.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_Branch` | `GH_EnvironmentBranchPolicy` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -22,3 +16,7 @@ graph LR
     n1["GH_EnvironmentBranchPolicy"]
     n0 -.->|GH_MatchesEnvironmentPolicy| n1
 ```
+
+## References
+
+- [Deployment environments API](https://docs.github.com/en/rest/deployments/environments)

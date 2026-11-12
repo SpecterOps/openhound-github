@@ -4,12 +4,6 @@
 
 The non-traversable GH_JumpMergeQueue edge represents a role's ability to jump ahead of other entries in the merge queue. This permission is available to Admin roles and custom roles that have been granted this specific permission. Merge queues enforce an ordered sequence of CI checks and merges; jumping the queue allows a principal to prioritize their changes ahead of others. While less severe than bypassing protections entirely, this permission can be used to accelerate the landing of malicious changes before other queued entries are reviewed or tested.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_RepoRole` | `GH_Repository` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_Repository"]
     n0 -.->|GH_JumpMergeQueue| n1
 ```
+
+## References
+
+- [Repository roles](https://docs.github.com/en/organizations/managing-access-to-your-organizations-repositories/repository-roles-for-an-organization)

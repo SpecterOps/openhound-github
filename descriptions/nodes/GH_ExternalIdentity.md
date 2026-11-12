@@ -4,28 +4,6 @@
 
 Represents an external identity collected through a SAML or OIDC provider, with a linked GitHub user when available. External identities map corporate user accounts (from providers like Okta, Azure AD, etc.) to GitHub user accounts, enabling single sign-on authentication. SAML attributes, SCIM attributes, and the linked user may be absent.
 
-## Properties
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `name` | `string` | The node name used for matching and display. |
-| `displayname` | `string` | The human-readable display name. |
-| `environmentid` | `string` | The identifier of the GitHub environment where this node was collected. |
-| `last_seen` | `datetime` | The timestamp when this node was last observed during collection. |
-| `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
-| `guid` | `string` | The GUID of the external identity. |
-| `saml_identity_username` | `string` | The username from the SAML identity. |
-| `saml_identity_name_id` | `string` | The SAML NameID attribute. |
-| `saml_identity_given_name` | `string` | The given name from the SAML identity. |
-| `saml_identity_family_name` | `string` | The family name from the SAML identity. |
-| `scim_identity_username` | `string` | The username from the SCIM identity. |
-| `scim_identity_given_name` | `string` | The given name from the SCIM identity. |
-| `scim_identity_family_name` | `string` | The family name from the SCIM identity. |
-| `github_username` | `string` | The GitHub login of the linked user. |
-| `github_user_id` | `string` | The GraphQL ID of the linked GitHub user. |
-| `environment_name` | `string` | The name of the environment (GitHub organization or enterprise). |
-| `query_mapped_users` | `string` | Query for mapped users. |
-
 ## Diagram
 
 ```mermaid
@@ -36,3 +14,7 @@ graph LR
     n0 -.->|GH_MapsToUser| n1
     n2 -.->|GH_HasExternalIdentity| n0
 ```
+
+## References
+
+- [SAML single sign-on](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/about-authentication-with-single-sign-on)

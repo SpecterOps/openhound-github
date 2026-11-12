@@ -11,10 +11,6 @@ MATCH (provider:GH_IdentityProvider)
 RETURN provider
 ```
 
-## Properties
-
-This secondary kind adds no properties. Nodes retain the properties defined by their provider-specific kind.
-
 ## Diagram
 
 ```mermaid
@@ -22,3 +18,7 @@ graph LR
     provider["GH_IdentityProvider"] -.->|GH_HasExternalIdentity| identity["GH_ExternalIdentity"]
     identity -.->|GH_MapsToUser| user["GH_User"]
 ```
+
+## References
+
+- [Enterprise roles](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/enterprise-roles)

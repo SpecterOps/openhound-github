@@ -4,12 +4,6 @@
 
 The non-traversable GH_WriteOrganizationActionsVariables edge represents that a role can write organization-level GitHub Actions variables. This edge is dynamically generated from custom organization role permissions discovered by the collector. Organization-level variables are available to workflows across multiple repositories and often contain configuration values such as environment URLs, feature flags, and service endpoints. An attacker with this permission could overwrite existing variables to redirect workflows to malicious endpoints or alter application behavior.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_OrgRole` | `GH_Organization` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,8 @@ graph LR
     n1["GH_Organization"]
     n0 -.->|GH_WriteOrganizationActionsVariables| n1
 ```
+
+## References
+
+- [Organization roles](https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/roles-in-an-organization)
+- [Custom organization role API](https://docs.github.com/en/enterprise-cloud@latest/rest/orgs/organization-roles)

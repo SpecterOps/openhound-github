@@ -4,12 +4,6 @@
 
 The non-traversable GH_EditRepoProtections edge represents a role's ability to edit or remove branch protection rules on the repository. This permission is available to Admin roles and custom roles that have been granted this specific permission. Modifying a branch protection rule is an indirect bypass -- removing or weakening protections opens the branch to direct push or unreviewed merges, making this a high-severity permission from a security perspective. Attack paths that include this edge can escalate to full branch write access by first disabling protections.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_RepoRole` | `GH_Repository` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_Repository"]
     n0 -.->|GH_EditRepoProtections| n1
 ```
+
+## References
+
+- [Branch protection API](https://docs.github.com/en/rest/branches/branch-protection)

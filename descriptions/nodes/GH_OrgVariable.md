@@ -4,22 +4,6 @@
 
 Represents an organization-level GitHub Actions variable. All and private/internal visibility uses shared organization-variable GH_Scope nodes; arbitrary selected visibility uses direct GH_HasVariable relationships from repositories. Unlike secrets, variable values are readable via the API.
 
-## Properties
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `name` | `string` | The node name used for matching and display. |
-| `displayname` | `string` | The human-readable display name. |
-| `environmentid` | `string` | The identifier of the GitHub environment where this node was collected. |
-| `last_seen` | `datetime` | The timestamp when this node was last observed during collection. |
-| `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
-| `visibility` | `string` | The variable's visibility scope: `all` (all repos), `private` (private and internal repos), or `selected` (specific repos). |
-| `environment_name` | `string` | The name of the environment (GitHub organization). |
-| `value` | `string` | The plaintext value of the variable. |
-| `created_at` | `string` | When the variable was created. |
-| `updated_at` | `string` | When the variable was last updated. |
-| `query_visible_repositories` | `string` | Query for visible repositories. |
-
 ## Diagram
 
 ```mermaid
@@ -36,3 +20,7 @@ graph LR
     n4 -.->|GH_UsesVariable| n1
     n5 -.->|GH_UsesVariable| n1
 ```
+
+## References
+
+- [Actions variables API](https://docs.github.com/en/rest/actions/variables)

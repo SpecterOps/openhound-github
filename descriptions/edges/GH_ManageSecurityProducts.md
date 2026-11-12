@@ -4,12 +4,6 @@
 
 The non-traversable GH_ManageSecurityProducts edge represents a role's ability to manage security product settings on the repository. This permission is available to Admin roles and custom roles that have been granted this specific permission. Managing security products allows enabling or disabling features such as secret scanning, code scanning, and Dependabot alerts. An attacker with this permission could disable security features to prevent detection of vulnerabilities or leaked secrets, making this a high-severity permission for security posture management.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_RepoRole` | `GH_Repository` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_Repository"]
     n0 -.->|GH_ManageSecurityProducts| n1
 ```
+
+## References
+
+- [Repository roles](https://docs.github.com/en/organizations/managing-access-to-your-organizations-repositories/repository-roles-for-an-organization)

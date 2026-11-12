@@ -4,12 +4,6 @@
 
 The non-traversable GH_ManageDeployKeys edge represents a role's ability to create, modify, and delete deploy keys for the repository. This permission is available to Admin roles and custom roles that have been granted this specific permission. Deploy keys provide SSH-based access to the repository, and a deploy key with write access can push commits directly without going through the GitHub web interface or API authentication. Managing deploy keys is security-significant because it enables the creation of persistent, credential-based access that operates outside the normal user authentication flow.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_RepoRole` | `GH_Repository` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_Repository"]
     n0 -.->|GH_ManageDeployKeys| n1
 ```
+
+## References
+
+- [Deployment environments API](https://docs.github.com/en/rest/deployments/environments)

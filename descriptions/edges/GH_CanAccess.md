@@ -4,17 +4,6 @@
 
 The non-traversable GH_CanAccess edge indicates that a personal access token, app installation, or deploy key has been granted access to a repository, reusable scope, or organization. All-repository app installations and PATs point to an organization-scoped GH_Scope with `scope_type=repository` instead of repeating an edge to every repository. This edge represents access scope rather than a direct attack path.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_AppInstallation` | `GH_Repository` | `false` |
-| `GH_AppInstallation` | `GH_Scope` | `false` |
-| `GH_DeployKey` | `GH_Repository` | `false` |
-| `GH_PersonalAccessToken` | `GH_Organization` | `false` |
-| `GH_PersonalAccessToken` | `GH_Repository` | `false` |
-| `GH_PersonalAccessToken` | `GH_Scope` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -32,3 +21,8 @@ graph LR
     n4 -.->|GH_CanAccess| n1
     n4 -.->|GH_CanAccess| n2
 ```
+
+## References
+
+- [Personal access token API](https://docs.github.com/en/rest/orgs/personal-access-tokens)
+- [GitHub App installations API](https://docs.github.com/en/rest/apps/installations)

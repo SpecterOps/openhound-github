@@ -4,12 +4,6 @@
 
 The non-traversable GH_PushProtectedBranch edge represents a role's ability to push directly to branches that are protected by push restrictions. This permission is available to Admin and Maintain roles. This edge bypasses the push gate of branch protection, allowing direct commits to protected branches without going through the pull request workflow. Unlike merge gate bypasses (such as GH_BypassBranchProtection), this push gate bypass is NOT suppressed by the `enforce_admins` setting on the branch protection rule, making it a particularly potent permission.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_RepoRole` | `GH_Repository` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_Repository"]
     n0 -.->|GH_PushProtectedBranch| n1
 ```
+
+## References
+
+- [Branch protection API](https://docs.github.com/en/rest/branches/branch-protection)

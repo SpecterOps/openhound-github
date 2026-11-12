@@ -6,12 +6,6 @@ The non-traversable GH_AssignedTo edge represents an enterprise-scoped team bein
 
 This edge is not traversable because assignment alone does not directly grant a principal a privilege path.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_EnterpriseTeam` | `GH_Organization` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -20,3 +14,7 @@ graph LR
     n1["GH_Organization"]
     n0 -.->|GH_AssignedTo| n1
 ```
+
+## References
+
+- [Repository roles](https://docs.github.com/en/organizations/managing-access-to-your-organizations-repositories/repository-roles-for-an-organization)

@@ -4,12 +4,6 @@
 
 The non-traversable GH_ReadOrganizationCustomRepoRole edge represents that a role can read custom repository role definitions. This edge is dynamically generated from custom organization role permissions discovered by the collector. Reading custom repo role definitions allows a user to enumerate the permissions granted to each custom repository role, which provides reconnaissance value for understanding repository-level access controls and identifying roles that grant elevated repository permissions.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_OrgRole` | `GH_Organization` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,8 @@ graph LR
     n1["GH_Organization"]
     n0 -.->|GH_ReadOrganizationCustomRepoRole| n1
 ```
+
+## References
+
+- [Organization roles](https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/roles-in-an-organization)
+- [Custom organization role API](https://docs.github.com/en/enterprise-cloud@latest/rest/orgs/organization-roles)

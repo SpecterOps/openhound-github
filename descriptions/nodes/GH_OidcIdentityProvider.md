@@ -6,18 +6,6 @@ Represents an OIDC identity provider configured for a GitHub Enterprise account.
 
 The node carries `GH_OidcIdentityProvider`, the shared secondary kind `GH_IdentityProvider`, and the source kind `GitHub`.
 
-## Properties
-
-| Property | Description |
-| --- | --- |
-| `node_id` | GitHub's native GraphQL provider ID. |
-| `provider_type` | The OIDC provider type returned by GitHub. |
-| `tenant_id` | The identity provider's tenant ID. |
-| `environmentid` | The GitHub Enterprise node ID. |
-| `environment_name` | The enterprise name. |
-| `github_deployment_id` | The GitHub deployment identifier. |
-| `github_web_origin` | The GitHub web origin. |
-
 ## Relationships
 
 `GH_Enterprise` connects to this node through the non-traversable `GH_HasOidcIdentityProvider` relationship. Provider collection does not emit SAML service provider or SAML account relationships.
@@ -32,3 +20,7 @@ graph LR
     provider -.->|GH_HasExternalIdentity| identity["GH_ExternalIdentity"]
     identity -.->|GH_MapsToUser| user["GH_User"]
 ```
+
+## References
+
+- [Enterprise roles](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/enterprise-roles)

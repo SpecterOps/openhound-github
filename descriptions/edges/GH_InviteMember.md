@@ -4,12 +4,6 @@
 
 The non-traversable GH_InviteMember edge represents that a role has the ability to invite new members to the organization. This permission is typically restricted to Owners, as inviting members expands the organization's trust boundary by granting new users access to internal resources. An attacker with this permission could invite a controlled account to gain persistent access to the organization's repositories, teams, and secrets.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_OrgRole` | `GH_Organization` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,8 @@ graph LR
     n1["GH_Organization"]
     n0 -.->|GH_InviteMember| n1
 ```
+
+## References
+
+- [Organization roles](https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/roles-in-an-organization)
+- [Custom organization role API](https://docs.github.com/en/enterprise-cloud@latest/rest/orgs/organization-roles)

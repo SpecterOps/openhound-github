@@ -4,12 +4,6 @@
 
 The non-traversable GH_TransferRepository edge represents that a role has the ability to transfer repositories to or from the organization. This permission is typically restricted to Owners, as transferring a repository can move it outside of the organization's security controls, branch protection rules, and audit logging. An attacker with this permission could transfer a repository to an organization they control, effectively exfiltrating the codebase and its associated secrets.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_OrgRole` | `GH_Organization` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,8 @@ graph LR
     n1["GH_Organization"]
     n0 -.->|GH_TransferRepository| n1
 ```
+
+## References
+
+- [Organization roles](https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/roles-in-an-organization)
+- [Custom organization role API](https://docs.github.com/en/enterprise-cloud@latest/rest/orgs/organization-roles)

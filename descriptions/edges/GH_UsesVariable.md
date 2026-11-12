@@ -21,17 +21,6 @@ The edge carries a `context` property indicating where the reference was found:
 - `env` — inside the step's `env:` block
 - `run` — inline within a `run:` shell script
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_WorkflowJob` | `GH_EnvironmentVariable` | `false` |
-| `GH_WorkflowJob` | `GH_OrgVariable` | `false` |
-| `GH_WorkflowJob` | `GH_RepoVariable` | `false` |
-| `GH_WorkflowStep` | `GH_EnvironmentVariable` | `false` |
-| `GH_WorkflowStep` | `GH_OrgVariable` | `false` |
-| `GH_WorkflowStep` | `GH_RepoVariable` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -48,3 +37,7 @@ graph LR
     n4 -.->|GH_UsesVariable| n2
     n4 -.->|GH_UsesVariable| n3
 ```
+
+## References
+
+- [Actions variables API](https://docs.github.com/en/rest/actions/variables)

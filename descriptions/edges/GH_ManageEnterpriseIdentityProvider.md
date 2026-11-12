@@ -4,12 +4,6 @@
 
 [Enterprise] Enterprise role can manage the enterprise identity provider.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_EnterpriseRole` | `GH_Enterprise` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_Enterprise"]
     n0 -.->|GH_ManageEnterpriseIdentityProvider| n1
 ```
+
+## References
+
+- [Enterprise roles](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/enterprise-roles)

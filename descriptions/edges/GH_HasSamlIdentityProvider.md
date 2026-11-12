@@ -4,13 +4,6 @@
 
 The non-traversable GH_HasSamlIdentityProvider edge represents the relationship between an organization and its SAML identity provider configuration. This edge links an organization to the SAML SSO provider used for authentication and user provisioning. SAML identity providers are a critical security component because they establish the trust boundary between an external identity provider (such as Entra ID or Okta) and the GitHub organization. Understanding this relationship is essential for mapping cross-platform attack paths where compromise of the identity provider could lead to access within the GitHub organization.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_Enterprise` | `GH_SamlIdentityProvider` | `false` |
-| `GH_Organization` | `GH_SamlIdentityProvider` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -21,3 +14,8 @@ graph LR
     n0 -.->|GH_HasSamlIdentityProvider| n1
     n2 -.->|GH_HasSamlIdentityProvider| n1
 ```
+
+## References
+
+- [SAML single sign-on](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/about-authentication-with-single-sign-on)
+- [Enterprise roles](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/enterprise-roles)

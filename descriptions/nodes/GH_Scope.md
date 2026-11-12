@@ -8,21 +8,6 @@ Arbitrary app `selected` and PAT `subset` selections are not repository-scope no
 
 Repositories receive capability boundary edges only when the target scope has at least one matching collected runner group, organization secret, or organization variable. Populated organization-secret scopes similarly receive GH_CanReadSecret from the owners role and, where repository creation policy permits it, the members role. This avoids expanding empty scope families in sparse organizations while retaining owner exposure when the organization currently has no repositories.
 
-## Properties
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `name` | `string` | The node name used for matching and display. |
-| `displayname` | `string` | The human-readable display name. |
-| `environmentid` | `string` | The identifier of the GitHub environment where this node was collected. |
-| `last_seen` | `datetime` | The timestamp when this node was last observed during collection. |
-| `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
-| `collected` | `boolean` | The collected value. |
-| `scope_type` | `string` | The scope type value. |
-| `scope` | `string` | The scope value. |
-| `member_count` | `integer` | Number of collected assets reached through outgoing `GH_ScopedTo` edges. |
-| `environment_name` | `string` | The environment name value. |
-
 ## Diagram
 
 ```mermaid
@@ -50,3 +35,7 @@ graph LR
     n1 -->|GH_ScopedTo| n9
     n1 -->|GH_ScopedTo| n6
 ```
+
+## References
+
+- [Organization roles](https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/roles-in-an-organization)

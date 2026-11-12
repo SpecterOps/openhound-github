@@ -12,34 +12,6 @@ Enterprise collection includes the authenticating collector app's installation, 
 
 `environment_slug` identifies the target account for both installation types. `target_type` distinguishes organization and enterprise targets. Older records using `org_login` or `enterprise_name` remain readable; these fields are no longer used for new installation context. Organization repository access is evaluated only for organization targets.
 
-## Properties
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `name` | `string` | The node name used for matching and display. |
-| `displayname` | `string` | The human-readable display name. |
-| `environment_slug` | `string` | The organization login or enterprise slug of the installation target. |
-| `environmentid` | `string` | The identifier of the GitHub environment where this node was collected. |
-| `last_seen` | `datetime` | The timestamp when this node was last observed during collection. |
-| `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
-| `id` | `integer` | The GitHub installation ID. |
-| `app_id` | `integer` | The GitHub App's numeric ID (shared across all installations of the same app). |
-| `app_slug` | `string` | The app's URL-friendly slug identifier. |
-| `description` | `string` | The app's description. |
-| `html_url` | `string` | URL to the app's GitHub page. |
-| `access_tokens_url` | `string` | API URL to create installation access tokens. |
-| `repositories_url` | `string` | API URL to list repositories accessible to this installation. |
-| `repository_selection` | `string` | Whether the app has access to `all` repositories or `selected` repositories. |
-| `target_type` | `string` | The target type of the installation (e.g., `Organization` or `Enterprise`). |
-| `permissions` | `list[string]` | Permissions granted to the installation in `scope:access` form. |
-| `events` | `string` | JSON string of the webhook events the app subscribes to. |
-| `created_at` | `datetime` | When the app was installed. |
-| `updated_at` | `datetime` | When the installation was last updated. |
-| `suspended_at` | `datetime` | When the installation was suspended, if applicable. |
-| `environment_name` | `string` | The name of the environment (GitHub organization or enterprise) where the app is installed. |
-| `query_repositories` | `string` | Query for repositories. |
-| `query_app` | `string` | Query for app. |
-
 ## Diagram
 
 ```mermaid
@@ -56,3 +28,7 @@ graph LR
     n5["GH_Enterprise"]
     n5 -.->|GH_Contains| n1
 ```
+
+## References
+
+- [GitHub App installations API](https://docs.github.com/en/rest/apps/installations)

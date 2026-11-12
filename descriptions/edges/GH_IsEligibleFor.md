@@ -6,13 +6,6 @@ The non-traversable GH_IsEligibleFor edge represents that a repository is within
 
 For runner groups, this edge evaluates the group's `visibility`, selected repository assignments, and `allows_public_repositories` setting. It does not prove that workflows in the repository can dispatch to the group's runners, because GitHub Actions may be disabled for the repository or the runner group may be restricted to selected workflows.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_Repository` | `GH_OrgRunnerGroup` | `false` |
-| `GH_Repository` | `GH_Scope` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -23,3 +16,7 @@ graph LR
     n0 -.->|GH_IsEligibleFor| n1
     n0 -.->|GH_IsEligibleFor| n2
 ```
+
+## References
+
+- [Repository roles](https://docs.github.com/en/organizations/managing-access-to-your-organizations-repositories/repository-roles-for-an-organization)

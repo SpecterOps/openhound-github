@@ -6,34 +6,6 @@ Represents a GitHub App definition — the registered application entity. The ap
 
 App definitions are retrieved via `GET /apps/{app_slug}` after discovering app slugs from organization installations or the collector app's enterprise installation. Authenticated lookup can also retrieve private/internal apps where GitHub permits access. The `permissions` property records requested app permissions; each installation separately records its granted permissions.
 
-## Properties
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `name` | `string` | The node name used for matching and display. |
-| `displayname` | `string` | The human-readable display name. |
-| `environment_slug` | `string` | The organization login or enterprise slug where the app was collected. |
-| `environmentid` | `string` | The identifier of the GitHub environment where this node was collected. |
-| `last_seen` | `datetime` | The timestamp when this node was last observed during collection. |
-| `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
-| `id` | `integer` | The GitHub App's numeric ID. |
-| `client_id` | `string` | The app's OAuth client ID. |
-| `slug` | `string` | The app's URL-friendly slug identifier. |
-| `description` | `string` | The app's description. |
-| `external_url` | `string` | The app's external homepage URL. |
-| `html_url` | `string` | URL to the app's GitHub page. |
-| `owner_login` | `string` | The login of the user or organization that owns the app. |
-| `owner_node_id` | `string` | The node_id of the user or organization that owns the app. |
-| `owner_type` | `string` | The type of the owner (e.g., `User`, `Organization`). |
-| `permissions` | `list[string]` | Requested app permissions in `scope:access` form. |
-| `registration_origin` | `string` | Whether the app is tenant-owned, third-party, or unknown. |
-| `events` | `list[string]` | JSON string of the default webhook events the app subscribes to. |
-| `installations_count` | `integer` | The total number of installations of this app across all organizations. |
-| `created_at` | `datetime` | When the app was created. |
-| `updated_at` | `datetime` | When the app was last updated. |
-| `query_owner` | `string` | Query for the account that registered the app. |
-| `query_installations` | `string` | Query for installations. |
-
 ## Diagram
 
 ```mermaid
@@ -48,3 +20,7 @@ graph LR
     n3 -->|GH_Owns| n0
     n4 -->|GH_Owns| n0
 ```
+
+## References
+
+- [GitHub App installation authentication](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation)

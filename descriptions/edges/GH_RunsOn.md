@@ -8,12 +8,6 @@ This edge is schedulability evidence, not historical execution evidence. It does
 
 The collector emits GH_RunsOn only for static selectors. Dynamic selectors that contain GitHub Actions expressions such as `${{ matrix.runner }}` or `${{ inputs.runner }}` are intentionally left unresolved in this first implementation.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_WorkflowJob` | `GH_Runner` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -22,3 +16,8 @@ graph LR
     n1["GH_Runner"]
     n0 -.->|GH_RunsOn| n1
 ```
+
+## References
+
+- [Secure use of GitHub Actions](https://docs.github.com/en/actions/reference/security/secure-use)
+- [Workflow jobs API](https://docs.github.com/en/rest/actions/workflow-jobs)

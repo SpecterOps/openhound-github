@@ -2,7 +2,7 @@
 
 ## General Information
 
-The traversable GH_CallsWorkflow edge links a workflow job to a reusable workflow it invokes via the `uses:` key at the job level. This edge captures the reusable workflow call graph, enabling analysts to trace inherited permissions and secret access through called workflows.
+The non-traversable GH_CallsWorkflow edge links a workflow job to a reusable workflow it invokes via the `uses:` key at the job level. This edge captures the reusable workflow call graph, enabling analysts to trace inherited permissions and secret access through called workflows.
 
 ### Local vs. remote reusable workflows
 
@@ -10,12 +10,6 @@ The traversable GH_CallsWorkflow edge links a workflow job to a reusable workflo
 - **Remote** (`org/repo/.github/workflows/file.yml@ref`): the destination is matched by the full reference string. If the called workflow has not been collected, the edge destination will not resolve.
 
 The `reusable_ref` property on the edge always contains the raw `uses:` value from the workflow file.
-
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_WorkflowJob` | `GH_Workflow` | `false` |
 
 ## Diagram
 
@@ -25,3 +19,8 @@ graph LR
     n1["GH_Workflow"]
     n0 -.->|GH_CallsWorkflow| n1
 ```
+
+## References
+
+- [Secure use of GitHub Actions](https://docs.github.com/en/actions/reference/security/secure-use)
+- [Workflow jobs API](https://docs.github.com/en/rest/actions/workflow-jobs)

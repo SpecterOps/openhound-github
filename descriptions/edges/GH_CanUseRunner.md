@@ -8,14 +8,6 @@ The collector derives this edge from the same underlying eligibility policy repr
 
 Organization and inherited enterprise-backed access terminate at the organization-facing GH_OrgRunnerGroup, then continue through GH_HasRunner for native organization runners or through GH_InheritedFrom and GH_HasRunner for inherited enterprise runners. Repository-scoped runners currently receive GH_CanUseRunner directly from their containing repository and are not part of this runner-group traversability change.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_Branch` | `GH_OrgRunnerGroup` | `true` |
-| `GH_Repository` | `GH_OrgRunnerGroup` | `true` |
-| `GH_Repository` | `GH_RepoRunner` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -28,3 +20,55 @@ graph LR
     n2 -->|GH_CanUseRunner| n1
     n2 -.->|GH_CanUseRunner| n3
 ```
+
+## Abuse Info
+
+Control of an eligible repository or branch can submit a job to the destination runner execution surface. This is a scheduling capability; arbitrary host control depends on the runner isolation boundary and the job actually being accepted.
+
+Abuse using GitHub UI:
+
+Inspect the repository Actions runner list, group restrictions and the selected runner on the controlled job. A queued job is not proof of successful execution.
+
+Abuse using API:
+
+1. Authenticate in the source context and set the exact destination identifiers. These examples require Bash, curl and jq. URL-encode path values that contain reserved characters. Use the configured server API root for GitHub Enterprise Server.
+
+```bash
+set -euo pipefail
+export GITHUB_API="https://api.github.com"
+export GITHUB_TOKEN="REPLACE_WITH_AUTHORIZED_TOKEN"
+export OWNER="controlled-org"
+export REPO="controlled-repo"
+export RUN_ID="1"
+api() {
+  curl --fail-with-body -sS \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "$GITHUB_API$1"
+}
+```
+
+2. Check the source grant or execution context. Successful JSON reads return HTTP 200; authorization failures do not validate the path.
+
+```bash
+api "/repos/$OWNER/$REPO/actions/runners?per_page=100" | jq '{total_count,runners:[.runners[]|{id,name,status,labels}]}'
+```
+
+3. Verify the destination or adjacent control, then interpret the result within the edge's scope. Paginated listings require following all pages when used for complete coverage.
+
+```bash
+api "/repos/$OWNER/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" | jq '.jobs[]|{id,name,runner_id,runner_group_id,conclusion}'
+```
+
+Use an already authorized controlled run to compare the runner/group IDs and labels. Review group allowed-workflow restrictions and branch selection before dispatch. Direct repository-runner registrations are descriptive in the current emitter; concrete scheduling and interception edges must be checked independently.
+
+## Opsec Considerations
+
+Job logs, runner diagnostics and host EDR show different parts of this path. Scheduling a job creates run history; the read-only verification here does not change runner membership.
+
+## References
+
+- [Self-hosted runners API](https://docs.github.com/en/rest/actions/self-hosted-runners)
+- [Self-hosted runner groups API](https://docs.github.com/en/rest/actions/self-hosted-runner-groups)
+- [Workflow jobs API](https://docs.github.com/en/rest/actions/workflow-jobs)

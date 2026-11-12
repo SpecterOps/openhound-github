@@ -4,12 +4,6 @@
 
 The non-traversable GH_OrgReviewAndManageSecretScanningClosureRequests edge represents that a role can review and manage secret scanning alert closure requests at the organization level. This edge is dynamically generated from custom organization role permissions discovered by the collector. Alert closure requests are part of the workflow for closing secret scanning alerts, and this permission controls who can approve or deny those requests. An attacker with this permission could approve closure requests to suppress alerts about actively leaked credentials, undermining the organization's secret scanning remediation process.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_OrgRole` | `GH_Organization` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_Organization"]
     n0 -.->|GH_OrgReviewAndManageSecretScanningClosureRequests| n1
 ```
+
+## References
+
+- [Secret scanning API](https://docs.github.com/en/rest/secret-scanning/secret-scanning)

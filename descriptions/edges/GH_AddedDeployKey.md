@@ -4,12 +4,6 @@
 
 User added this repository deploy key.
 
-## Edge Schema
-
-| Source | Destination | Traversable |
-| --- | --- | --- |
-| `GH_User` | `GH_DeployKey` | `false` |
-
 ## Diagram
 
 ```mermaid
@@ -18,3 +12,7 @@ graph LR
     n1["GH_DeployKey"]
     n0 -.->|GH_AddedDeployKey| n1
 ```
+
+## References
+
+- [Deployment environments API](https://docs.github.com/en/rest/deployments/environments)
