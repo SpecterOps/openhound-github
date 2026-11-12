@@ -8,9 +8,9 @@ The traversable GH_SyncedTo edge is a hybrid edge that maps an external IdP user
 
 ```mermaid
 graph LR
-    n0["External identity"]
-    n1["GH_User"]
-    n0 -->|GH_SyncedTo| n1
+    azure["AZUser"] -->|GH_SyncedTo| github["GH_User"]
+    okta["Okta_User"] -->|GH_SyncedTo| github
+    ping["PingOne_User"] -->|GH_SyncedTo| github
 ```
 
 ## Abuse Info
@@ -62,4 +62,5 @@ Use IdP authentication/provisioning logs, GitHub SSO events and organization mem
 ## References
 
 - [SAML single sign-on](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/about-authentication-with-single-sign-on)
+- [SCIM account linking and provisioning state](https://docs.github.com/en/enterprise-cloud@latest/rest/scim/scim)
 - [Enterprise SCIM API](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/scim)

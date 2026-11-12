@@ -8,9 +8,14 @@ The traversable GH_CanAssumeIdentity edge is a hybrid edge connecting GitHub OID
 
 ```mermaid
 graph LR
-    n0["GH_Repository"]
-    n1["External cloud identity"]
-    n0 -->|GH_CanAssumeIdentity| n1
+    repo["GH_Repository"] -->|GH_CanAssumeIdentity| aws["AWS_Role"]
+    branch["GH_Branch"] -->|GH_CanAssumeIdentity| aws
+    environment["GH_Environment"] -->|GH_CanAssumeIdentity| aws
+    role["GH_OrgRole"] -->|GH_CanAssumeIdentity| aws
+    repo -->|GH_CanAssumeIdentity| azure["AZFederatedIdentityCredential"]
+    branch -->|GH_CanAssumeIdentity| azure
+    environment -->|GH_CanAssumeIdentity| azure
+    role -->|GH_CanAssumeIdentity| azure
 ```
 
 ## Abuse Info
@@ -63,4 +68,7 @@ Correlate GitHub job IDs and OIDC claims with destination cloud sign-in/token ex
 ## References
 
 - [OpenID Connect in GitHub Actions](https://docs.github.com/en/actions/concepts/security/openid-connect)
+- [GitHub OIDC claims and token permissions](https://docs.github.com/en/actions/reference/security/oidc)
 - [Workflow jobs API](https://docs.github.com/en/rest/actions/workflow-jobs)
+- [AWS role trust for GitHub OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)
+- [Microsoft Entra workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation)

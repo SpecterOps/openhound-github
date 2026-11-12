@@ -13,9 +13,12 @@ graph LR
     n2["GH_ExternalIdentity"]
     n0 -.->|GH_MapsToUser| n1
     n2 -.->|GH_MapsToUser| n1
+    n2 -.->|GH_MapsToUser| azure["AZUser"]
+    n2 -.->|GH_MapsToUser| okta["Okta_User"]
+    n2 -.->|GH_MapsToUser| ping["PingOne_User"]
 ```
 
 ## References
 
 - [SAML single sign-on](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/about-authentication-with-single-sign-on)
-- [Enterprise roles](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/enterprise-roles)
+- [SCIM account linking](https://docs.github.com/en/enterprise-cloud@latest/rest/scim/scim)
