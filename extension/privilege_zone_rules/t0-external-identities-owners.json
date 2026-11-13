@@ -1,4 +1,5 @@
 {
+  "key": "GH_t0_external_identities_owners",
   "name": "GitHub: Tier Zero External Identities (Owner-Mapped)",
   "description": "External identities from SAML/SCIM providers that map to GitHub users holding the owners role. Compromise of these external identities in the identity provider grants organizational owner access to GitHub via SSO.",
   "cypher": "MATCH (n:GH_ExternalIdentity)-[:GH_MapsToUser]->(:GH_User)-[:GH_HasRole]->(:GH_OrgRole {short_name:'owners'})\nRETURN n",
