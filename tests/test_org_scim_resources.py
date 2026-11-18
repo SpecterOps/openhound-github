@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import requests
 import pytest
 
+from openhound_github.models import ScimOrganization, ScimUser
 from openhound_github.resources.organization import (
     OrgContext,
     SourceContext,
@@ -141,3 +142,24 @@ def test_org_scim_users_are_bound_to_successful_scim_scope() -> None:
 
     assert resources["org_scim_organizations"]._pipe.parent.name == "organizations"
     assert resources["scim_users"]._pipe.parent.name == "org_scim_organizations"
+
+
+def test_org_scim_users_inherit_scope_endpoint_and_containment() -> None:
+    client = MagicMock()
+    client.base_url = "https://github.example/api/v3/"
+    client.paginate.return_value = [[{"id": "u1", "active": False}]]
+    ctx = _ctx(client)
+    scope_data = next(org_scim_organizations.__wrapped__(
+        SimpleNamespace(login="acme", node_id="O_1"), ctx
+    ))
+    scope = ScimOrganization(**scope_data)
+    row = next(scim_users.__wrapped__(scope, ctx))
+    user = ScimUser(**row)
+
+    expected_url = "https://github.example/api/v3/scim/v2/organizations/acme/"
+    assert row["scim_base_url"] == expected_url
+    assert scope.as_node.id == expected_url
+    assert user.as_node.properties.environmentid == expected_url
+    containment = next(user.edges)
+    assert containment.start.value == scope.as_node.id
+    assert containment.end.value == user.as_node.id

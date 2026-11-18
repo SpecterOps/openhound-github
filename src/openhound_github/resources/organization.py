@@ -2455,6 +2455,7 @@ def scim_users(scim_organization: ScimOrganization, ctx: SourceContext):
             yield {
                 **user,
                 "org_login": org_name,
+                "scim_base_url": scim_organization.scim_base_url,
             }
     except Exception as e:
         _log_org_scim_failure("scim_users", org_name, e)
