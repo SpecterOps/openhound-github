@@ -1,4 +1,5 @@
 import json
+from unittest.mock import Mock
 
 import pytest
 from dlt.sources.helpers.rest_client.client import RESTClient
@@ -71,3 +72,47 @@ def test_branches_and_protection_rules_follow_initial_page_cursor(monkeypatch, i
     )
     assert [call["after"] for call in calls if "after" in call] == expected_overflow
     assert repository.refs.total_count == total
+
+
+@pytest.mark.parametrize("overflow_before_failure", [False, True])
+def test_protection_rules_retain_discovered_ids_after_branch_failure(
+    monkeypatch, caplog, overflow_before_failure
+):
+    repository = RepositoryQL(
+        id="R_1", name="repo", org_login="acme",
+        refs={
+            "nodes": [{"id": "B_1", "name": "main", "target": {"oid": "sha"},
+                       "branchProtectionRule": {"id": "RULE_initial"}}],
+            "totalCount": 202,
+            "pageInfo": {"hasNextPage": True, "endCursor": "cursor"},
+        },
+    )
+    client = RESTClient("https://api.github.com")
+    ctx = SourceContext(
+        client=client, organizations=[OrgContext(client=client, org_name="acme")]
+    )
+
+    def failing_pages(*args, **kwargs):
+        if overflow_before_failure:
+            yield [{"repository": {"refs": {"nodes": [
+                {"id": "B_2", "name": "release",
+                 "branchProtectionRule": {"id": "RULE_overflow"}},
+            ]}}}]
+        raise RuntimeError("overflow unavailable")
+
+    expected_ids = {"RULE_initial"}
+    if overflow_before_failure:
+        expected_ids.add("RULE_overflow")
+    post = Mock(return_value=Mock(
+        json=lambda: {"data": {"nodes": [{"id": rule_id} for rule_id in expected_ids]}}
+    ))
+    monkeypatch.setattr(client, "paginate", failing_pages)
+    monkeypatch.setattr(client, "post", post)
+
+    rules = list(branch_protection_rules.__wrapped__(repository, ctx))
+
+    assert {rule["id"] for rule in rules} == expected_ids
+    post.assert_called_once()
+    assert set(post.call_args.kwargs["json"]["variables"]["ids"]) == expected_ids
+    assert "collection gap for 'acme/repo'" in caplog.text
+    assert "overflow unavailable" in caplog.text

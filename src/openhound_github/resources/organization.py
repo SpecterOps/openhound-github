@@ -1434,14 +1434,24 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
     # Note: multiple branches can reference the same branch protection rule
     # so use a set to prevent duplicates
     rule_ids_seen: set[str] = set()
-    for branch in _repository_branches(repository, ctx):
-        protection_rule = branch.get("branch_protection_rule") or branch.get(
-            "branchProtectionRule"
+    try:
+        for branch in _repository_branches(repository, ctx):
+            protection_rule = branch.get("branch_protection_rule") or branch.get(
+                "branchProtectionRule"
+            )
+            if protection_rule:
+                rule_id = protection_rule.get("id")
+                if rule_id:
+                    rule_ids_seen.add(rule_id)
+    except Exception as exc:
+        logger.warning(
+            "Branch protection rule collection gap for '%s/%s': branch discovery failed; "
+            "continuing with %d collected rule IDs: %s",
+            repository.org_login,
+            repository.name,
+            len(rule_ids_seen),
+            exc,
         )
-        if protection_rule:
-            rule_id = protection_rule.get("id")
-            if rule_id:
-                rule_ids_seen.add(rule_id)
 
     rule_ids_list = list(rule_ids_seen)
     client, graphql_path = _graphql_client_for_org(ctx, repository.org_login)
