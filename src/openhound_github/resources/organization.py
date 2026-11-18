@@ -29,10 +29,9 @@ from openhound_github.github_retry import (
     is_secondary_rate_limit_response,
 )
 from openhound_github.helpers import (
-    AdaptiveGraphQLPageError,
     _rest_api_url,
     GraphQLCursorPaginator,
-    adaptive_graphql_paginate,
+    graphql_repository_batches,
     graphql_client_and_path,
     scim_skip_reason,
 )
@@ -101,6 +100,7 @@ from openhound_github.models.saml_helpers import (
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class OrgContext:
     client: RESTClient
@@ -130,6 +130,9 @@ class SourceContext:
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     team_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    repository_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    graphql_repository_batch_size: int = 50
+    graphql_initial_branch_count: int = 50
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -1045,6 +1048,28 @@ def actions_permissions(ctx):
             continue
 
 
+def _rest_repositories_for_org(
+    ctx: SourceContext, org: OrgContext
+) -> list[dict[str, Any]]:
+    """Share a REST inventory snapshot between repository collectors."""
+    with ctx.cache_lock:
+        if org.org_name not in ctx.repository_rest_cache:
+            inventory: list[dict[str, Any]] = []
+            try:
+                for page in org.client.paginate(
+                    f"/orgs/{org.org_name}/repos", params={"per_page": 100}
+                ):
+                    inventory.extend(page)
+            except Exception:
+                logger.exception(
+                    "Incomplete REST repository inventory for organization '%s' after %d repositories",
+                    org.org_name,
+                    len(inventory),
+                )
+            ctx.repository_rest_cache[org.org_name] = inventory
+        return ctx.repository_rest_cache[org.org_name]
+
+
 @app.resource(name="repositories", columns=Repository, parallelized=True)
 def repositories(ctx: SourceContext):
     """Fetch repositories for the organization.
@@ -1086,27 +1111,24 @@ def repositories(ctx: SourceContext):
                         repo["node_id"] for repo in page if repo.get("node_id")
                     )
 
-            for page in client.paginate(
-                f"/orgs/{org_name}/repos", params={"per_page": 100}
-            ):
-                for repo in page:
-                    repo_node_id = repo.get("node_id")
-                    actions_enabled = actions.get("enabled_repositories") == "all" or (
-                        enabled_repo_ids is not None and repo_node_id in enabled_repo_ids
-                    )
-                    self_hosted_runners_enabled = runner_settings.get(
-                        "enabled_repositories"
-                    ) == "all" or (
-                        runner_enabled_repo_ids is not None
-                        and repo_node_id in runner_enabled_repo_ids
-                    )
-                    yield {
-                        **repo,
-                        "database_id": repo.get("id"),
-                        "actions_enabled": actions_enabled,
-                        "self_hosted_runners_enabled": self_hosted_runners_enabled,
-                        "org_login": org_name,
-                    }
+            for repo in _rest_repositories_for_org(ctx, org):
+                repo_node_id = repo.get("node_id")
+                actions_enabled = actions.get("enabled_repositories") == "all" or (
+                    enabled_repo_ids is not None and repo_node_id in enabled_repo_ids
+                )
+                self_hosted_runners_enabled = runner_settings.get(
+                    "enabled_repositories"
+                ) == "all" or (
+                    runner_enabled_repo_ids is not None
+                    and repo_node_id in runner_enabled_repo_ids
+                )
+                yield {
+                    **repo,
+                    "database_id": repo.get("id"),
+                    "actions_enabled": actions_enabled,
+                    "self_hosted_runners_enabled": self_hosted_runners_enabled,
+                    "org_login": org_name,
+                }
         except Exception as e:
             logger.error(
                 f"Error in resource 'repositories' processing organization '{org_name}': {e}",
@@ -1287,82 +1309,47 @@ def repository_roles(repository: Repository, roles: Iterable[dict[str, Any]]):
 
 @app.resource(name="repositories_graphql", columns=RepositoryQL, parallelized=True)
 def repositories_graphql(ctx: SourceContext):
-    """Fetch repositories with branch and protection rule metadata via GraphQL.
-
-    Uses the organization repositories connection to retrieve branches with their
-    associated branch protection rule IDs, used as input for the branches and
-    branch_protection_rules transformers.
-
-    Args:
-        ctx (SourceContext): The shared context containing the REST client and organization name.
-
-    Yields:
-        RepositoryQL (RepositoryQL): Repository record with nested branch ref data.
-    """
+    """Enrich the REST inventory using explicit, recoverable GraphQL batches."""
     for org in ctx.organizations:
-        org_name = org.org_name
-        client, graphql_path = _graphql_client_for_org(ctx, org_name)
-        repository_cursor: str | None = None
-        emitted_repositories = 0
-        try:
-            for page_data in adaptive_graphql_paginate(
-                client,
-                graphql_path=graphql_path,
-                query=REPO_REFS_QUERY,
-                variables={"login": org_name, "after": None},
-                page_info_path="data.organization.repositories.pageInfo",
-                resource_name="repositories_graphql",
-                scope_name="organization",
-                scope_value=org_name,
-                log=logger,
-            ):
-                repos_page = page_data["organization"]["repositories"]
-                for repo in repos_page["nodes"]:
-                    repo_record = {**repo}
-                    branch_rulesets = repo_record.pop("branchRulesets", None) or {}
-                    environments = repo_record.pop("environments", None) or {}
-                    deploy_keys = repo_record.pop("deployKeys", None) or {}
-                    refs = repo_record.get("refs") or {}
-                    emitted_repositories += 1
-                    yield {
-                        **repo_record,
-                        "branch_ruleset_count": branch_rulesets.get("totalCount"),
-                        "branch_count": refs.get("totalCount"),
-                        "environment_count": environments.get("totalCount"),
-                        "deploy_key_count": deploy_keys.get("totalCount"),
-                        "org_login": org_name,
-                    }
-
-                page_info = repos_page.get("pageInfo") or {}
-                if isinstance(page_info, dict):
-                    repository_cursor = page_info.get("endCursor")
-        except Exception as e:
-            failure = e.error if isinstance(e, AdaptiveGraphQLPageError) else e
-            failure_cursor = (
-                e.cursor if isinstance(e, AdaptiveGraphQLPageError) else repository_cursor
-            )
-            page_size = e.page_size if isinstance(e, AdaptiveGraphQLPageError) else None
-            logger.error(
-                "Error in resource 'repositories_graphql' processing organization '%s' "
-                "at repository cursor %r with page size %r after emitting %d repositories "
-                "(%s): %s",
-                org_name,
-                failure_cursor,
-                page_size,
-                emitted_repositories,
-                type(failure).__name__,
-                failure,
-                extra={
-                    "resource": "repositories_graphql",
-                    "phase": "resource_iteration",
-                    "org_name": org_name,
-                    "repository_cursor": failure_cursor,
-                    "page_size": page_size,
-                    "emitted_repositories": emitted_repositories,
-                    "error_type": type(failure).__name__,
-                },
-            )
-            continue
+        client, graphql_path = _graphql_client_for_org(ctx, org.org_name)
+        inventory = _rest_repositories_for_org(ctx, org)
+        repository_ids = list(
+            dict.fromkeys(repo["node_id"] for repo in inventory if repo.get("node_id"))
+        )
+        for repo in inventory:
+            if not repo.get("node_id"):
+                logger.error(
+                    "GraphQL repository collection gap for '%s': missing node_id",
+                    repo.get("full_name", org.org_name),
+                )
+        names = {
+            repo.get("node_id"): repo.get("full_name", repo.get("name"))
+            for repo in inventory
+        }
+        for repo in graphql_repository_batches(
+            client,
+            query=REPO_REFS_QUERY,
+            repository_ids=repository_ids,
+            graphql_path=graphql_path,
+            org_name=org.org_name,
+            repository_names=names,
+            batch_size=ctx.graphql_repository_batch_size,
+            initial_branch_count=ctx.graphql_initial_branch_count,
+            log=logger,
+        ):
+            repo_record = {**repo}
+            branch_rulesets = repo_record.pop("branchRulesets", None) or {}
+            environments = repo_record.pop("environments", None) or {}
+            deploy_keys = repo_record.pop("deployKeys", None) or {}
+            refs = repo_record.get("refs") or {}
+            yield {
+                **repo_record,
+                "branch_ruleset_count": branch_rulesets.get("totalCount"),
+                "branch_count": refs.get("totalCount"),
+                "environment_count": environments.get("totalCount"),
+                "deploy_key_count": deploy_keys.get("totalCount"),
+                "org_login": org.org_name,
+            }
 
 
 @app.transformer(name="branches", columns=Branch, parallelized=True)
@@ -1370,7 +1357,7 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
     """Yield branches for a repository.
 
     Processes branches from the initial repository query and handles overflow
-    pagination for repos with more than 100 branches via a follow-up GraphQL query.
+    pagination beyond the configured initial branch count via a follow-up GraphQL query.
 
     Args:
         repository (RepositoryQL): The repository with refs data.
@@ -1379,6 +1366,11 @@ def branches(repository: RepositoryQL, ctx: SourceContext):
     Yields:
         Branch (Branch): Branch record.
     """
+    yield from _repository_branches(repository, ctx)
+
+
+def _repository_branches(repository: RepositoryQL, ctx: SourceContext):
+    """Yield initial and overflow refs for branch and protection-rule collection."""
     paginator = GraphQLCursorPaginator(
         page_info_path="data.repository.refs.pageInfo",
         cursor_variable="after",
@@ -1442,11 +1434,24 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
     # Note: multiple branches can reference the same branch protection rule
     # so use a set to prevent duplicates
     rule_ids_seen: set[str] = set()
-    for branch in repository.refs.nodes:
-        if branch.branch_protection_rule:
-            rule_id = branch.branch_protection_rule.get("id")
-            if rule_id:
-                rule_ids_seen.add(rule_id)
+    try:
+        for branch in _repository_branches(repository, ctx):
+            protection_rule = branch.get("branch_protection_rule") or branch.get(
+                "branchProtectionRule"
+            )
+            if protection_rule:
+                rule_id = protection_rule.get("id")
+                if rule_id:
+                    rule_ids_seen.add(rule_id)
+    except Exception as exc:
+        logger.warning(
+            "Branch protection rule collection gap for '%s/%s': branch discovery failed; "
+            "continuing with %d collected rule IDs: %s",
+            repository.org_login,
+            repository.name,
+            len(rule_ids_seen),
+            exc,
+        )
 
     rule_ids_list = list(rule_ids_seen)
     client, graphql_path = _graphql_client_for_org(ctx, repository.org_login)
@@ -2329,6 +2334,7 @@ def external_identities(ctx: SourceContext):
             )
             continue
 
+
 @app.transformer(name="saml_service_provider", columns=SamlServiceProvider, parallelized=True)
 def saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
     """Transform SAML provider data into a normalized SAML interface representation.
@@ -2351,6 +2357,7 @@ def saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
         "github_web_origin": saml_provider.get("github_web_origin"),
     }
 
+
 @app.transformer(name="saml_assertion_consumer_service", columns=SamlAssertionConsumerService, parallelized=True)
 def saml_assertion_consumer_service(saml_provider: SamlProvider, ctx: SourceContext):
     yield {
@@ -2361,6 +2368,7 @@ def saml_assertion_consumer_service(saml_provider: SamlProvider, ctx: SourceCont
         "github_deployment_id": saml_provider.get("github_deployment_id"),
         "github_web_origin": saml_provider.get("github_web_origin"),
     }
+
 
 @app.transformer(name="saml_issuer", columns=SamlIssuer, parallelized=True)
 def saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
@@ -2377,6 +2385,7 @@ def saml_issuer(saml_provider: SamlProvider, ctx: SourceContext):
         "github_deployment_id": saml_provider.get("github_deployment_id"),
         "github_web_origin": saml_provider.get("github_web_origin"),
     }
+
 
 def iter_organization_scim_users(
     client: RESTClient,

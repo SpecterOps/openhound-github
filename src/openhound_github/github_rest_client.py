@@ -18,10 +18,11 @@ class GraphQLPageRetryBudget:
     """Share transient failures across page sizes without changing other requests."""
 
     failures: int = 0
+    max_failures: int = 3
 
     @property
     def exhausted(self) -> bool:
-        return self.failures >= 3
+        return self.failures >= self.max_failures
 
     @contextmanager
     def activate(self):
@@ -69,6 +70,9 @@ def github_http_session(retry_condition):
     """Bound transient failures while retaining DLT's existing retry policy."""
     session = requests.Client(
         request_timeout=(10, 30),
+        # send_with_status_check below raises after retries for both RESTClient
+        # and direct session calls; disable Session.request's duplicate check.
+        raise_for_status=False,
         status_codes=tuple(range(500, 600)),
         retry_condition=retry_condition,
     ).session

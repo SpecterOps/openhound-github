@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 from collections.abc import Iterator
 from typing import Any, Optional, overload
@@ -222,6 +223,216 @@ def _graphql_gateway_status(exception: BaseException) -> int | None:
     return None
 
 
+def graphql_repository_batches(
+    client: RESTClient,
+    *,
+    query: str,
+    repository_ids: list[str],
+    graphql_path: str = "/graphql",
+    org_name: str,
+    repository_names: dict[str, str] | None = None,
+    batch_size: int = 50,
+    initial_branch_count: int = 50,
+    log: logging.Logger | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Fetch explicit IDs, splitting failed batches while retaining good nodes.
+
+    Gateway failures split batches larger than 25 immediately. At 25 or fewer
+    IDs, allow two delayed retries before isolating failures by bisection.
+    Descendants of an exhausted batch get one gateway attempt each, bounding
+    recovery work during a sustained outage. HTTP retries for other transient
+    failures, rate limits, and credential refresh retain their existing policy.
+    """
+    if type(batch_size) is not int or not 1 <= batch_size <= 100:
+        raise ValueError("batch_size must be an integer between 1 and 100")
+    if type(initial_branch_count) is not int or not 1 <= initial_branch_count <= 100:
+        raise ValueError("initial_branch_count must be an integer between 1 and 100")
+    batch_logger = log or logger
+    names = repository_names or {}
+    stats = {
+        "initial_batches": 0, "batch_attempts": 0, "failed_batch_attempts": 0,
+        "splits": 0, "successful_initial_batches": 0, "recovered_initial_batches": 0,
+        "incomplete_initial_batches": 0, "emitted_repositories": 0,
+        "request_seconds": 0.0,
+    }
+    unresolved_ids: set[str] = set()
+
+    def request_finished(started: float, attempt_id: int, status: int | None,
+                         outcome: str, error_type: str | None = None) -> None:
+        elapsed = time.monotonic() - started
+        stats["request_seconds"] += elapsed
+        batch_logger.debug(
+            "GraphQL repository batch request finished: organization=%s batch=%d "
+            "attempt=%d outcome=%s HTTP=%s duration_seconds=%.3f error_type=%s",
+            org_name, stats["initial_batches"], attempt_id, outcome, status, elapsed, error_type,
+            extra={"resource": "repositories_graphql", "org_name": org_name,
+                   "batch_number": stats["initial_batches"], "batch_attempt": attempt_id,
+                   "http_status": status, "duration_seconds": elapsed,
+                   "outcome": outcome, "error_type": error_type},
+        )
+
+    def gap(ids: list[str], reason: str) -> None:
+        unresolved_ids.update(ids)
+        batch_logger.error(
+            "GraphQL repository collection gap for organization '%s': %s; "
+            "unresolved repositories: %s; continuing remaining batches",
+            org_name,
+            reason,
+            [names.get(node_id) or node_id for node_id in ids],
+            extra={
+                "resource": "repositories_graphql",
+                "phase": "resource_iteration",
+                "org_name": org_name,
+                "repository_ids": ids,
+            },
+        )
+
+    def collect(ids: list[str], allow_gateway_retries: bool = True):
+        budget = GraphQLPageRetryBudget()
+        for attempt in range(3 if len(ids) <= 25 and allow_gateway_retries else 1):
+            stats["batch_attempts"] += 1
+            attempt_id = stats["batch_attempts"]
+            batch_logger.debug(
+                "GraphQL repository batch request started: organization=%s batch=%d "
+                "attempt=%d size=%d initial_branch_count=%d repository_ids=%s repositories=%s",
+                org_name, stats["initial_batches"], attempt_id, len(ids), initial_branch_count,
+                ids, [names.get(node_id) or node_id for node_id in ids],
+                extra={"resource": "repositories_graphql", "org_name": org_name,
+                       "batch_number": stats["initial_batches"], "batch_attempt": attempt_id,
+                       "batch_size": len(ids), "initial_branch_count": initial_branch_count,
+                       "repository_ids": ids},
+            )
+            started = time.monotonic()
+            response = None
+            try:
+                with budget.activate():
+                    response = client.post(
+                        graphql_path, json={"query": query, "variables": {"ids": ids, "branch_count": initial_branch_count}}
+                    )
+                response.raise_for_status()
+                payload = response.json()
+                request_finished(started, attempt_id, response.status_code, "response")
+                break
+            except Exception as error:
+                stats["failed_batch_attempts"] += 1
+                error_response = getattr(error, "response", None)
+                status = getattr(error_response if error_response is not None else response, "status_code", None)
+                request_finished(started, attempt_id, status, "failed", type(error).__name__)
+                gateway = _graphql_gateway_status(error)
+                if (
+                    gateway is not None
+                    and len(ids) <= 25
+                    and allow_gateway_retries
+                    and attempt < 2
+                ):
+                    budget.max_failures = budget.failures + 1
+                    delay = random.uniform(1, 2) if attempt == 0 else 15
+                    batch_logger.warning(
+                        "Retrying GraphQL repository batch of %d for organization '%s' "
+                        "in %.2f seconds after HTTP %d",
+                        len(ids),
+                        org_name,
+                        delay,
+                        gateway,
+                    )
+                    time.sleep(delay)
+                    continue
+                if gateway is not None and len(ids) > 1:
+                    batch_logger.warning(
+                        "Splitting failed GraphQL repository batch of %d for organization '%s' after HTTP %d",
+                        len(ids),
+                        org_name,
+                        gateway,
+                    )
+                    stats["splits"] += 1
+                    midpoint = len(ids) // 2
+                    retry_children = allow_gateway_retries and len(ids) > 25
+                    yield from collect(ids[:midpoint], retry_children)
+                    yield from collect(ids[midpoint:], retry_children)
+                else:
+                    gap(ids, f"{type(error).__name__}: {error}")
+                return
+
+        if not isinstance(payload, dict):
+            stats["failed_batch_attempts"] += 1
+            gap(ids, "GraphQL response must be an object")
+            return
+        data = payload.get("data")
+        nodes = data.get("nodes") if isinstance(data, dict) else None
+        errors = payload.get("errors") or []
+        # Never accept a repository whose nested metadata has a GraphQL error.
+        failed_indices = set()
+        unscoped_error = False
+        for error in errors:
+            path = error.get("path") or []
+            if len(path) >= 2 and path[0] == "nodes" and isinstance(path[1], int):
+                failed_indices.add(path[1])
+            else:
+                unscoped_error = True
+        returned: dict[str, dict[str, Any]] = {}
+        if isinstance(nodes, list) and not unscoped_error:
+            for index, node in enumerate(nodes):
+                if (
+                    index not in failed_indices
+                    and isinstance(node, dict)
+                    and node.get("id") in ids
+                ):
+                    returned[node["id"]] = node
+        for node_id in ids:
+            if node_id in returned:
+                yield returned[node_id]
+        missing = [node_id for node_id in ids if node_id not in returned]
+        batch_logger.debug(
+            "GraphQL repository batch result: organization=%s batch=%d attempt=%d "
+            "returned=%d unresolved=%d",
+            org_name, stats["initial_batches"], attempt_id, len(returned), len(missing),
+        )
+        if missing:
+            stats["failed_batch_attempts"] += 1
+            if len(ids) == 1:
+                gap(missing, "missing, inaccessible, or incomplete GraphQL node")
+            else:
+                # Retry only unresolved IDs; already emitted results are retained.
+                stats["splits"] += int(len(missing) > 1)
+                midpoint = max(1, len(missing) // 2)
+                yield from collect(missing[:midpoint], False)
+                if missing[midpoint:]:
+                    yield from collect(missing[midpoint:], False)
+
+    unique_ids = list(dict.fromkeys(repository_ids))
+    for start in range(0, len(unique_ids), batch_size):
+        stats["initial_batches"] += 1
+        batch_ids = unique_ids[start : start + batch_size]
+        attempts_before = stats["batch_attempts"]
+        emitted = 0
+        for row in collect(batch_ids):
+            emitted += 1
+            stats["emitted_repositories"] += 1
+            yield row
+        if emitted != len(batch_ids):
+            stats["incomplete_initial_batches"] += 1
+        elif stats["batch_attempts"] - attempts_before > 1:
+            stats["recovered_initial_batches"] += 1
+        else:
+            stats["successful_initial_batches"] += 1
+
+    batch_logger.info(
+        "GraphQL repository collection summary for organization '%s': "
+        "requested=%d emitted=%d unresolved=%d initial_batches=%d "
+        "successful_initial_batches=%d recovered_initial_batches=%d "
+        "incomplete_initial_batches=%d batch_attempts=%d failed_batch_attempts=%d "
+        "splits=%d request_seconds=%.3f",
+        org_name, len(unique_ids), stats["emitted_repositories"], len(unresolved_ids),
+        stats["initial_batches"], stats["successful_initial_batches"],
+        stats["recovered_initial_batches"], stats["incomplete_initial_batches"],
+        stats["batch_attempts"], stats["failed_batch_attempts"], stats["splits"],
+        stats["request_seconds"],
+        extra={"resource": "repositories_graphql", "org_name": org_name,
+               "requested_repositories": len(unique_ids),
+               "unresolved_repositories": len(unresolved_ids), **stats},
+    )
+
+
 def adaptive_graphql_paginate(
     client: RESTClient,
     *,
@@ -241,8 +452,9 @@ def adaptive_graphql_paginate(
     """Yield GraphQL pages while adapting connection size after gateway failures.
 
     HTTP retries and smaller-page recovery share three transient attempts per
-    page. Gateway errors return immediately so the next attempt can shrink the
-    page; rate-limit and credential-refresh retries retain their existing policy.
+    page. Gateway failures at the smallest size receive up to two additional
+    attempts with backoff. Rate-limit and credential-refresh retries retain
+    their existing policy.
     """
     if not page_sizes or any(page_size <= 0 for page_size in page_sizes):
         raise ValueError("page_sizes must contain positive integers")
@@ -264,16 +476,12 @@ def adaptive_graphql_paginate(
             probing_base_page_size = False
         elif probe_base_page_size:
             candidate_sizes = (base_page_size,) + tuple(
-                page_size
-                for page_size in page_sizes
-                if page_size <= stable_page_size
+                page_size for page_size in page_sizes if page_size <= stable_page_size
             )
             probing_base_page_size = True
         else:
             candidate_sizes = tuple(
-                page_size
-                for page_size in page_sizes
-                if page_size <= stable_page_size
+                page_size for page_size in page_sizes if page_size <= stable_page_size
             )
             probing_base_page_size = False
 
@@ -282,7 +490,11 @@ def adaptive_graphql_paginate(
         successful_page_size: int | None = None
         retry_budget = GraphQLPageRetryBudget()
 
-        for index, page_size in enumerate(candidate_sizes):
+        # Reserve two retries for gateway failures at the smallest size, even
+        # when shrinking the connection consumed the shared transient budget.
+        attempt_sizes = candidate_sizes + (page_sizes[-1],) * 2
+        smallest_size_retries = 0
+        for index, page_size in enumerate(attempt_sizes):
             request_variables = {
                 **variables,
                 cursor_variable: cursor,
@@ -313,16 +525,30 @@ def adaptive_graphql_paginate(
                 break
             except Exception as error:
                 status_code = _graphql_gateway_status(error)
+                retry_smallest_size = (
+                    status_code is not None
+                    and page_size == page_sizes[-1]
+                    and smallest_size_retries < 2
+                )
                 next_page_size = (
-                    candidate_sizes[index + 1]
+                    attempt_sizes[index + 1]
                     if (
                         status_code is not None
-                        and index + 1 < len(candidate_sizes)
-                        and not retry_budget.exhausted
+                        and index + 1 < len(attempt_sizes)
+                        and (not retry_budget.exhausted or retry_smallest_size)
                     )
                     else None
                 )
                 if next_page_size is not None:
+                    if retry_smallest_size:
+                        smallest_size_retries += 1
+                        # Each reserved attempt can issue only one additional
+                        # transient send through the HTTP retry layer.
+                        retry_budget.max_failures = retry_budget.failures + 1
+                        delay = (
+                            random.uniform(1, 2) if smallest_size_retries == 1 else 15
+                        )
+                        time.sleep(delay)
                     scope = (
                         f" {scope_name} '{scope_value}'"
                         if scope_name and scope_value

@@ -285,33 +285,30 @@ query TeamMembersOverflow($login: String!, $slug: String!, $count: Int!, $after:
 """
 
 REPO_REFS_QUERY = """
-query RepoRefs($login: String!, $count: Int!, $after: String) {
-    organization(login: $login) {
-        repositories(first: $count, after: $after) {
-            nodes {
-                id
-                name
-                branchRulesets: rulesets(first: 1, includeParents: true, targets: [BRANCH]) {
-                    totalCount
-                }
-                refs(first: 100, refPrefix: "refs/heads/") {
-                    totalCount
-                    nodes {
-                        id
-                        name
-                        target { oid }
-                        branchProtectionRule { id }
-                    }
-                    pageInfo { endCursor hasNextPage }
-                }
-                environments(first: 1) {
-                    totalCount
-                }
-                deployKeys(first: 1) {
-                    totalCount
-                }
+query RepoRefs($ids: [ID!]!, $branch_count: Int!) {
+    nodes(ids: $ids) {
+        ... on Repository {
+            id
+            name
+            branchRulesets: rulesets(first: 1, includeParents: true, targets: [BRANCH]) {
+                totalCount
             }
-            pageInfo { endCursor hasNextPage }
+            refs(first: $branch_count, refPrefix: "refs/heads/") {
+                totalCount
+                nodes {
+                    id
+                    name
+                    target { oid }
+                    branchProtectionRule { id }
+                }
+                pageInfo { endCursor hasNextPage }
+            }
+            environments(first: 1) {
+                totalCount
+            }
+            deployKeys(first: 1) {
+                totalCount
+            }
         }
     }
 }

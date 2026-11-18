@@ -542,3 +542,40 @@ def test_enterprise_app_source_uses_selected_auth_endpoint_and_both_api_clients(
     assert ctx.graphql_client.base_url == "https://ghe.example/api/graphql"
     assert ctx.organizations[0].client.base_url == "https://ghe.example/api/v3"
     assert ctx.organizations[0].graphql_client.base_url == "https://ghe.example/api/graphql"
+
+
+@pytest.mark.parametrize("setting", ["graphql_repository_batch_size", "graphql_initial_branch_count"])
+@pytest.mark.parametrize("configured_size", [None, "10", "100"])
+def test_source_resolves_repository_batch_size_from_environment(monkeypatch, tmp_path, configured_size, setting):
+    source_module = importlib.import_module("openhound_github.source")
+    captured = []
+    monkeypatch.chdir(tmp_path)
+    key = "SOURCES__GITHUB__" + setting.upper()
+    if configured_size is None:
+        monkeypatch.delenv(key, raising=False)
+    else:
+        monkeypatch.setenv(key, configured_size)
+    monkeypatch.setattr(source_module, "organization_resources", lambda ctx: captured.append(ctx) or ())
+    monkeypatch.setattr(source_module, "_apply_github_deployment_metadata", lambda *args: None)
+    monkeypatch.setattr(source_module, "_canonicalize_org_names", lambda *args: None)
+    monkeypatch.setattr(source_module, "enterprise_resources", lambda ctx: captured.append(ctx) or ())
+    monkeypatch.setattr(source_module.GithubApp, "installations", property(lambda self: iter(())))
+    source_module.source(
+        credentials=GithubTokenCredentials(token="test", org_name="example", enterprise_name=""),
+        emit_legacy_scim_correlations=False,
+    )
+    assert getattr(captured[0], setting) == int(configured_size or 50)
+
+
+@pytest.mark.parametrize("batch_size", [0, 101, True])
+def test_source_rejects_invalid_repository_batch_size(batch_size):
+    source_module = importlib.import_module("openhound_github.source")
+    with pytest.raises(ValueError, match="graphql_repository_batch_size"):
+        source_module.source.__wrapped__(graphql_repository_batch_size=batch_size)
+
+
+@pytest.mark.parametrize("branch_count", [0, 101, True])
+def test_source_rejects_invalid_initial_branch_count(branch_count):
+    source_module = importlib.import_module("openhound_github.source")
+    with pytest.raises(ValueError, match="graphql_initial_branch_count"):
+        source_module.source.__wrapped__(graphql_initial_branch_count=branch_count)
