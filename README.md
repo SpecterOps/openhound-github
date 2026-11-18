@@ -61,13 +61,84 @@ Both values must be provided together when overriding the GitHub.com defaults.
 Endpoint URLs must use HTTPS and share the same origin. GitHub App
 `credentials.api_uri` may override only the path on that same origin.
 
+### GraphQL repository batch size
+
+Repository metadata is queried in batches of 50 repositories by default. Override
+this in `.dlt/config.toml`:
+
+```toml
+[sources.github]
+graphql_repository_batch_size = 50
+```
+
+Or set `SOURCES__GITHUB__GRAPHQL_REPOSITORY_BATCH_SIZE`. The setting accepts integers
+from 1 to 100 and controls repositories per request. Gateway failures split batches larger than 25.
+At 25 or fewer repositories, two retries wait 1–2 seconds and 15 seconds before
+further splitting isolates failures. Unresolved repositories are logged and
+collection continues with the remaining batches.
+
+### Initial branches per repository
+
+The initial GraphQL query fetches up to 50 branches per repository by default.
+Set `graphql_initial_branch_count` in `.dlt/config.toml`, or use
+`SOURCES__GITHUB__GRAPHQL_INITIAL_BRANCH_COUNT`, to choose a value from 1 to 100:
+
+```toml
+[sources.github]
+graphql_repository_batch_size = 50
+graphql_initial_branch_count = 10
+```
+
+This setting changes the initial query size, not the total branches collected.
+Remaining branches are fetched in pages of 100. GitHub-reported branch totals
+and branch protection rule discovery are preserved.
+
+Start with 50. Try 25 or 10 if initial repository queries repeatedly time out or
+need splitting, particularly when many repositories have numerous branches.
+Smaller initial limits reduce query payloads but add overflow requests; branch
+collection and protection-rule discovery currently fetch overflow separately.
+A larger limit can help when overflow requests dominate and initial queries
+already succeed reliably. Compare elapsed time, gateway failures, and per-repository
+completeness on the same inventory, changing one setting at a time. Total branch
+count alone does not determine the best value.
+
+### Repository batch diagnostics
+
+At INFO level, repository GraphQL collection logs a summary for each organization:
+requested, emitted, and unresolved repository counts; initial batches that succeeded
+on the first attempt, recovered, or remained incomplete; batch attempts, failed
+attempts, splits, and cumulative request time. A batch with any unresolved repository
+is counted as incomplete even if some of its repositories recovered.
+
+For request membership and timings, temporarily enable DEBUG logging in
+`.dlt/config.toml`:
+
+```toml
+[runtime]
+log_level = "DEBUG"
+log_cli_level = "DEBUG"
+```
+
+DEBUG records include organization, original batch number, attempt number,
+repository IDs/names, configured initial branch count, HTTP status, request duration,
+and returned/unresolved counts. The new diagnostics omit credentials, query text,
+and response bodies. DEBUG also enables verbose output from other components.
+
+Batch attempts count calls to the HTTP client; internal HTTP retries may make
+additional network requests. Request duration includes those internal retries and
+waits but excludes delays between batch retries, overflow requests, normalization,
+and output writing. The organization summary is emitted when its batch iterator
+finishes; an interrupted collection may have no summary.
+
 ### Request timeouts and retries
 
 REST and GraphQL collection requests use a 10-second connection timeout and a
 30-second read timeout. Transient HTTP 5xx errors, connection failures, and
 timeouts share a limit of three attempts (the initial attempt plus two retries).
 Adaptive GraphQL pagination shares that limit across page sizes: HTTP 502/504
-responses trigger smaller-page attempts instead of a new retry budget.
+responses trigger smaller-page attempts instead of a new retry budget. Gateway
+failures at the smallest page size receive up to two additional attempts with
+1–2-second and 15-second delays.
 
 After retries are exhausted, existing resource handlers log the failure and
 continue with unaffected scopes. Already emitted records are retained, but the

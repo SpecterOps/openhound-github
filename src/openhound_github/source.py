@@ -176,6 +176,9 @@ class SourceContext:
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     team_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    repository_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    graphql_repository_batch_size: int = 50
+    graphql_initial_branch_count: int = 50
     actions_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     runner_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     workflow_permissions_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -325,6 +328,8 @@ def source(
     emit_legacy_scim_correlations: bool | None = dlt.config.value,
     rest_api_url: str | None = None,
     graphql_url: str | None = None,
+    graphql_repository_batch_size: int = 50,
+    graphql_initial_branch_count: int = 50,
 ):
     """DLT source, defines GitHub collection resources and transformers.
 
@@ -334,7 +339,13 @@ def source(
         emit_legacy_scim_correlations (bool | None): Whether to emit legacy SCIM correlation relationships.
         rest_api_url (str): The GitHub REST API base URL.
         graphql_url (str): The GitHub GraphQL endpoint URL.
+        graphql_repository_batch_size (int): Repositories per GraphQL batch (1–100; default 50).
+        graphql_initial_branch_count (int): Initial branches per repository (1–100; default 50).
     """
+    if type(graphql_repository_batch_size) is not int or not 1 <= graphql_repository_batch_size <= 100:
+        raise ValueError("graphql_repository_batch_size must be an integer between 1 and 100")
+    if type(graphql_initial_branch_count) is not int or not 1 <= graphql_initial_branch_count <= 100:
+        raise ValueError("graphql_initial_branch_count must be an integer between 1 and 100")
     endpoints = resolve_github_endpoints(
         host=host,
         rest_api_url=rest_api_url,
@@ -375,6 +386,8 @@ def source(
             app_id=credentials.app_id,
         )
         ctx = SourceContext(
+            graphql_repository_batch_size=graphql_repository_batch_size,
+            graphql_initial_branch_count=graphql_initial_branch_count,
             enterprise_name=credentials.enterprise_name,
             emit_legacy_scim_correlations=bool(emit_legacy_scim_correlations),
             github_deployment_id=github_deployment_id,
@@ -441,6 +454,8 @@ def source(
             endpoints.rest_api_url,
         )
         ctx = SourceContext(
+            graphql_repository_batch_size=graphql_repository_batch_size,
+            graphql_initial_branch_count=graphql_initial_branch_count,
             enterprise_name=None,
             github_deployment_id=github_deployment_id,
             github_web_origin=github_web_origin,
@@ -475,6 +490,8 @@ def source(
         if credentials.enterprise_name:
             token_api_client, token_graphql_client = token_clients(credentials.token)
             ctx = SourceContext(
+                graphql_repository_batch_size=graphql_repository_batch_size,
+                graphql_initial_branch_count=graphql_initial_branch_count,
                 client=token_api_client,
                 graphql_client=token_graphql_client,
                 sso_client=token_api_client,
@@ -489,6 +506,8 @@ def source(
 
         token_api_client, token_graphql_client = token_clients(credentials.token)
         ctx = SourceContext(
+            graphql_repository_batch_size=graphql_repository_batch_size,
+            graphql_initial_branch_count=graphql_initial_branch_count,
             github_deployment_id=github_deployment_id,
             github_web_origin=github_web_origin,
         )
