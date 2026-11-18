@@ -9,6 +9,7 @@ from openhound.core.models.entries_dataclass import ConditionalEdgePath
 from openhound.core.progress import Progress
 from openhound.sources.opengraph.entries import GraphContent
 from openhound.sources.opengraph.source import _generate_graph_content
+from pydantic import ValidationError
 
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
@@ -23,8 +24,13 @@ from openhound_github.models import (
 from openhound_github.resources.enterprise import iter_enterprise_scim_resources
 
 
+ENTERPRISE_SCIM_URL = "https://api.github.com/scim/v2/enterprises/example-enterprise/"
+ORG_SCIM_URL = "https://api.github.com/scim/v2/organizations/example-org/"
+
+
 def _scim_user(*, legacy: bool = False, user_id: str = "scim-user-1") -> ScimUser:
     return ScimUser(
+        scim_base_url=ENTERPRISE_SCIM_URL,
         id=user_id,
         externalId="00u-okta-1",
         userName="alice@example.test",
@@ -60,6 +66,7 @@ def _external_identity_lookup(tmp_path: Path) -> GithubLookup:
                 "environment_slug": "example-enterprise",
             },
         ]:
+            row["user"] = {"id": "GH_USER_1", "login": "alice"}
             row["environment_node_id"] = (
                 "OTHER_ENT"
                 if row["environment_slug"] == "other-enterprise"
@@ -104,7 +111,7 @@ def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default(
     unmatched_edges = list(unmatched_user.edges)
 
     assert node.kinds == [nk.SCIM_USER, "SCIM"]
-    assert node.properties.environmentid == "ENT_NODE_1"
+    assert node.properties.environmentid == ENTERPRISE_SCIM_URL
     assert node.properties.external_id == "00u-okta-1"
     assert node.properties.name == "alice@example.test"
     assert node.properties.user_name == "alice@example.test"
@@ -112,7 +119,7 @@ def test_scim_user_emits_normalized_edges_without_legacy_correlation_by_default(
         ek.SCIM_CONTAINS,
         ek.SCIM_PROVISIONED,
     ]
-    assert edges[1].end.value == "external-identity-1"
+    assert edges[1].end.value == "GH_USER_1"
     assert edges[1].end.match_by == "id"
     assert [edge.kind for edge in unmatched_edges] == [ek.SCIM_CONTAINS]
 
@@ -138,7 +145,7 @@ def test_scim_user_legacy_idp_correlation_is_explicitly_gated(tmp_path: Path) ->
     ],
 )
 def test_scim_user_preserves_metadata_roles_and_groups_in_graph_output(scope) -> None:
-    """Verify graph serialization retains source metadata and complete role/group evidence."""
+    """Verify graph serialization retains metadata, role JSON, and group ID arrays."""
     roles = [
         {"value": "enterprise_owner", "display": "Owner", "primary": True},
         {"value": "custom-role", "type": "custom", "extra": {"source": "IdP"}},
@@ -165,9 +172,10 @@ def test_scim_user_preserves_metadata_roles_and_groups_in_graph_output(scope) ->
             "lastModified": "2026-02-01T11:00:00Z",
         },
         **scope,
+        "scim_base_url": ENTERPRISE_SCIM_URL if "enterprise_node_id" in scope else ORG_SCIM_URL,
     }
     lookup = MagicMock()
-    lookup.external_identity_id_for_guid.return_value = None
+    lookup.github_user_id_for_scim_guid.return_value = None
     lookup.scim_group_has_member.return_value = False
 
     def apply_context(user):
@@ -183,15 +191,13 @@ def test_scim_user_preserves_metadata_roles_and_groups_in_graph_output(scope) ->
     assert properties["active"] is True
     assert properties["enabled"] is True
     assert "externalId" not in properties
-    assert properties["environmentid"] == scope.get(
-        "enterprise_node_id", scope.get("org_node_id")
-    )
+    assert properties["environmentid"] == resource["scim_base_url"]
     assert properties["profile_url"] == resource["profileUrl"]
     assert properties["resource_url"] == resource["meta"]["location"]
     assert properties["created_at"] == resource["meta"]["created"]
     assert properties["updated_at"] == resource["meta"]["lastModified"]
     assert json.loads(properties["roles"]) == roles
-    assert json.loads(properties["groups"]) == groups
+    assert properties["groups"] == [group["value"] for group in groups]
     membership_edges = [
         edge
         for entry in entries[1:]
@@ -204,11 +210,31 @@ def test_scim_user_preserves_metadata_roles_and_groups_in_graph_output(scope) ->
 
 
 @pytest.mark.parametrize(
+    "group_fields, expected_ids",
+    [
+        ({}, []),
+        ({"groups": []}, []),
+        ({"groups": [{}, {"value": ""}, {"value": None}, {"display": "Engineering"},
+                     {"value": "group-guid", "display": "Engineering"}]}, ["group-guid"]),
+    ],
+)
+def test_scim_user_serializes_group_ids_as_array(group_fields, expected_ids):
+    resource = {
+        "id": "u1", "org_node_id": "O_1", "scim_base_url": ORG_SCIM_URL,
+        "active": False, **group_fields,
+    }
+    entry = next(_generate_graph_content([resource], ScimUser, 150))
+    node = json.loads(GraphContent(**entry).model_dump_json())["graph"]["content"]
+    assert node["properties"]["groups"] == expected_ids
+    assert isinstance(node["properties"]["groups"], list)
+
+
+@pytest.mark.parametrize(
     "meta", [None, {}, {"location": "https://api.github.com/scim/v2/Users/u1"}]
 )
 def test_scim_user_handles_missing_metadata_without_profile_url_fallback(meta) -> None:
     """Keep absent metadata unknown without treating the SCIM URL as a user profile."""
-    user = ScimUser(id="u1", org_node_id="ORG_NODE_1", meta=meta)
+    user = ScimUser(id="u1", org_node_id="ORG_NODE_1", scim_base_url=ORG_SCIM_URL, meta=meta)
 
     properties = user.as_node.properties
 
@@ -217,7 +243,7 @@ def test_scim_user_handles_missing_metadata_without_profile_url_fallback(meta) -
     assert properties.created_at is None
     assert properties.updated_at is None
     assert json.loads(properties.roles) == []
-    assert json.loads(properties.groups) == []
+    assert properties.groups == []
 
 
 def test_scim_user_memberships_supplement_group_evidence_without_duplicates(
@@ -274,7 +300,7 @@ def test_scim_user_memberships_supplement_group_evidence_without_duplicates(
         assert edge.properties.traversable is True
 
     for raw_group in groups[:2]:
-        group = ScimGroup(**raw_group)
+        group = ScimGroup(**raw_group, scim_base_url=ENTERPRISE_SCIM_URL)
         group._lookup = lookup
         membership_edges.extend(
             edge for edge in group.edges if edge.kind == ek.SCIM_MEMBER_OF
@@ -290,6 +316,7 @@ def test_org_scim_user_emits_membership_without_collected_groups(
 ) -> None:
     """Preserve active user-side membership when no group records were collected."""
     user = ScimUser(
+        scim_base_url=ORG_SCIM_URL,
         id="u1",
         org_node_id="ORG_NODE_1",
         org_login="acme",
@@ -314,6 +341,7 @@ def test_scim_user_access_edges_require_active_state_but_preserve_evidence(
     roles = [{"value": "enterprise_owner", "primary": False}]
     fields = {} if state is None else {"active": state}
     user = ScimUser(
+        scim_base_url=ORG_SCIM_URL,
         id="u1",
         org_node_id="ORG_NODE_1",
         groups=groups,
@@ -324,12 +352,12 @@ def test_scim_user_access_edges_require_active_state_but_preserve_evidence(
     )
     lookup = MagicMock()
     lookup.scim_group_has_member.return_value = False
-    lookup.external_identity_id_for_guid.return_value = "external-identity-1"
+    lookup.github_user_id_for_scim_guid.return_value = "GH_USER_1"
     user._lookup = lookup
     properties = user.as_node.properties
     assert properties.active is state
     assert properties.enabled is state
-    assert json.loads(properties.groups) == groups
+    assert properties.groups == [group["value"] for group in groups]
     assert json.loads(properties.roles) == roles
     kinds = [edge.kind for edge in user.edges]
     assert kinds.count(ek.SCIM_MEMBER_OF) == (1 if state is True else 0)
@@ -339,13 +367,14 @@ def test_scim_user_access_edges_require_active_state_but_preserve_evidence(
     )
     if state is not True:
         lookup.scim_group_has_member.assert_not_called()
-        lookup.external_identity_id_for_guid.assert_not_called()
+        lookup.github_user_id_for_scim_guid.assert_not_called()
 
 
 def test_scim_group_preserves_metadata_and_count_without_member_array() -> None:
     """Retain group metadata and member count without duplicating the full member array."""
     resource = {
         "id": "scim-group-1",
+        "scim_base_url": ENTERPRISE_SCIM_URL,
         "displayName": "Engineering",
         "externalId": "foreign-group-1",
         "enterprise_node_id": "ENT_NODE_1",
@@ -363,7 +392,7 @@ def test_scim_group_preserves_metadata_and_count_without_member_array() -> None:
     assert node["id"] == resource["id"]
     assert node["kinds"] == [nk.SCIM_GROUP, "SCIM"]
     assert properties["external_id"] == resource["externalId"]
-    assert properties["environmentid"] == resource["enterprise_node_id"]
+    assert properties["environmentid"] == resource["scim_base_url"]
     assert properties["resource_url"] == resource["meta"]["location"]
     assert properties["created_at"] == resource["meta"]["created"]
     assert properties["updated_at"] == resource["meta"]["lastModified"]
@@ -388,6 +417,7 @@ def test_scim_group_distinguishes_unknown_and_empty_member_lists(
 ) -> None:
     """Preserve the distinction between omitted and empty members through serialization."""
     group = ScimGroup(
+        scim_base_url=ENTERPRISE_SCIM_URL,
         id="g1",
         displayName="Engineering",
         enterprise_node_id="ENT_NODE_1",
@@ -406,6 +436,7 @@ def test_scim_group_distinguishes_unknown_and_empty_member_lists(
 
 def test_scim_group_emits_membership_and_tenant_scoped_legacy_correlation() -> None:
     group = ScimGroup(
+        scim_base_url=ENTERPRISE_SCIM_URL,
         id="scim-group-1",
         externalId="Engineering",
         displayName="Engineering",
@@ -464,17 +495,18 @@ def test_enterprise_team_emits_scim_provisioning_edge_with_group_id() -> None:
 def test_scim_organization_stays_within_github_environment_root() -> None:
     """Keep the SCIM organization anchored to its hosting GitHub enterprise."""
     organization = ScimOrganization(
+        scim_base_url=ENTERPRISE_SCIM_URL,
         enterprise_node_id="ENT_NODE_1",
         enterprise_slug="example-enterprise",
     )
 
     node = organization.as_node
 
-    assert node.id == "SCIM_Organization_ENT_NODE_1"
+    assert node.id == ENTERPRISE_SCIM_URL
     assert node.kinds == [nk.SCIM_ORGANIZATION, "SCIM"]
     assert node.properties.environmentid == "ENT_NODE_1"
     assert node.properties.scope_type == "enterprise"
-    assert node.properties.scim_base_url is None
+    assert node.properties.scim_base_url == ENTERPRISE_SCIM_URL
 
 
 @pytest.mark.parametrize(
@@ -492,7 +524,7 @@ def test_scim_organization_stays_within_github_environment_root() -> None:
         ),
     ],
 )
-def test_scim_organization_exports_endpoint_without_changing_scope(
+def test_scim_organization_uses_endpoint_id_and_preserves_hosting_scope(
     scope, scope_type, scope_id
 ):
     """Serialize endpoint and scope type while preserving exact graph and environment IDs."""
@@ -500,10 +532,24 @@ def test_scim_organization_exports_endpoint_without_changing_scope(
     resource = {**scope, "scim_base_url": base_url}
     entry = next(_generate_graph_content([resource], ScimOrganization, 150))
     node = json.loads(GraphContent(**entry).model_dump_json())["graph"]["content"]
-    assert node["id"] == f"SCIM_Organization_{scope_id}"
+    assert node["id"] == base_url
     assert node["properties"]["environmentid"] == scope_id
     assert node["properties"]["scope_type"] == scope_type
     assert node["properties"]["scim_base_url"] == base_url
+
+
+@pytest.mark.parametrize(
+    "model, fields",
+    [
+        (ScimOrganization, {}),
+        (ScimUser, {"id": "u1"}),
+        (ScimGroup, {"id": "g1", "displayName": "Engineering"}),
+    ],
+)
+@pytest.mark.parametrize("endpoint", [{}, {"scim_base_url": ""}])
+def test_scim_assets_require_endpoint_for_consistent_identifiers(model, fields, endpoint):
+    with pytest.raises(ValidationError, match="scim_base_url"):
+        model(org_node_id="O_1", **fields, **endpoint)
 
 
 def test_enterprise_idp_lookup_uses_unified_saml_provider_table() -> None:

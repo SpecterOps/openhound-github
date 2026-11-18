@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import requests
 import pytest
 
-from openhound_github.models import EnterpriseScimOrganization, EnterpriseScimUser
+from openhound_github.models import EnterpriseScimOrganization, EnterpriseScimUser, ScimGroup
 from openhound_github.resources.enterprise import (
     SourceContext,
     enterprise,
@@ -18,6 +18,7 @@ from openhound_github.resources.enterprise import (
     enterprise_resources,
     enterprise_scim_organizations,
     enterprise_scim_users,
+    enterprise_scim_groups,
     enterprise_saml_provider,
 )
 
@@ -552,6 +553,34 @@ def test_enterprise_scim_organization_preserves_custom_api_endpoint(
         enterprise_scim_organizations.__wrapped__(SimpleNamespace(id="E_1"), ctx)
     )
     assert rows[0]["scim_base_url"] == f"{expected_base}/scim/v2/enterprises/acme/"
+
+
+@pytest.mark.parametrize(
+    "resource, model, record",
+    [
+        (enterprise_scim_users, EnterpriseScimUser, {"id": "u1", "active": False}),
+        (enterprise_scim_groups, ScimGroup, {"id": "g1", "displayName": "Engineering"}),
+    ],
+)
+def test_enterprise_scim_children_inherit_scope_endpoint_and_containment(
+    resource, model, record
+) -> None:
+    client = _FakeClient(payload={}, pages=[[record]])
+    client.base_url = "https://github.example/api/v3/"
+    ctx = SourceContext(client=client, enterprise_name="acme")
+    scope = EnterpriseScimOrganization(**next(
+        enterprise_scim_organizations.__wrapped__(SimpleNamespace(id="E_1"), ctx)
+    ))
+    row = next(resource.__wrapped__(scope, ctx))
+    child = model(**row)
+
+    expected_url = "https://github.example/api/v3/scim/v2/enterprises/acme/"
+    assert row["scim_base_url"] == expected_url
+    assert scope.as_node.id == expected_url
+    assert child.as_node.properties.environmentid == expected_url
+    containment = next(child.edges)
+    assert containment.start.value == scope.as_node.id
+    assert containment.end.value == child.as_node.id
 
 
 def test_enterprise_scim_users_logs_unexpected_failure_as_error(caplog) -> None:

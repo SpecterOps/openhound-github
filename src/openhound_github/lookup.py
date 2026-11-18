@@ -651,6 +651,22 @@ class GithubLookup(LookupManager):
         return str(rows[0][0]) if rows and len(rows) == 1 else None
 
     @lru_cache
+    def github_user_id_for_scim_guid(
+        self, guid: str, environment_node_id: str
+    ) -> str | None:
+        """Resolve a scoped SCIM identity to its explicitly mapped GitHub user."""
+        identity_id = self.external_identity_id_for_guid(guid, environment_node_id)
+        if not identity_id:
+            return None
+        rows = self._find_all_objects(
+            f"""SELECT DISTINCT json_extract_string(\"user\", '$.id')
+            FROM {self.schema}.external_identities
+            WHERE id = ? AND guid = ? AND environment_node_id = ?""",
+            [identity_id, guid, environment_node_id],
+        )
+        return str(rows[0][0]) if rows and len(rows) == 1 and rows[0][0] else None
+
+    @lru_cache
     def repository_node_ids(self):
         return self._find_all_objects(
             f"""SELECT node_id FROM {self.schema}.repositories""",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from dlt.common.libs.pydantic import DltConfig
@@ -25,10 +25,6 @@ from openhound_github.main import app
 from openhound_github.models.saml_helpers import detect_foreign_idp
 
 SCIM_SOURCE_KIND = "SCIM"
-
-
-def scim_organization_id(scope_node_id: str) -> str:
-    return f"SCIM_Organization_{scope_node_id}"
 
 
 @dataclass
@@ -57,9 +53,9 @@ class ScimUserNodeProperties(ScimNodeProperties):
     resource_url: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
-    # Preserve complete role and group objects using scalar graph properties.
+    # Preserve role objects as JSON and expose group IDs as a graph array.
     roles: str = "[]"
-    groups: str = "[]"
+    groups: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -110,6 +106,7 @@ class ScimScopeAsset(BaseAsset):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
 
+    scim_base_url: str = Field(min_length=1)
     enterprise_node_id: str | None = None
     enterprise_slug: str | None = None
     org_login: str | None = None
@@ -133,7 +130,7 @@ class ScimScopeAsset(BaseAsset):
 
     @property
     def scim_org_id(self) -> str:
-        return scim_organization_id(self.scope_node_id)
+        return self.scim_base_url
 
 
 @app.asset(
@@ -146,8 +143,6 @@ class ScimScopeAsset(BaseAsset):
     )
 )
 class ScimOrganization(ScimScopeAsset):
-    scim_base_url: str | None = None
-
     @property
     def as_node(self) -> ScimNode:
         """Build the SCIM organization node within its hosting GitHub scope."""
@@ -204,9 +199,9 @@ class EnterpriseScimOrganization(ScimOrganization):
         ),
         EdgeDef(
             start=nk.SCIM_USER,
-            end=nk.EXTERNAL_IDENTITY,
+            end=nk.USER,
             kind=ek.SCIM_PROVISIONED,
-            description="SCIM user is provisioned as a GitHub external identity",
+            description="SCIM user is provisioned as a GitHub user",
             traversable=True,
         ),
         EdgeDef(
@@ -242,7 +237,7 @@ class ScimUser(ScimScopeAsset):
             properties=ScimUserNodeProperties(
                 name=self.user_name or self.id,
                 displayname=display_name,
-                environmentid=self.scope_node_id,
+                environmentid=self.scim_base_url,
                 external_id=self.external_id,
                 user_name=self.user_name,
                 enabled=self.active,
@@ -255,7 +250,7 @@ class ScimUser(ScimScopeAsset):
                 created_at=self.meta.created if self.meta else None,
                 updated_at=self.meta.last_modified if self.meta else None,
                 roles=json.dumps(self.roles),
-                groups=json.dumps(self.groups),
+                groups=[str(group["value"]) for group in self.groups if group.get("value")],
                 enterprise=self.enterprise_slug,
                 organization=self.org_login,
             ),
@@ -295,14 +290,14 @@ class ScimUser(ScimScopeAsset):
                 end=EdgePath(value=group_id, match_by="id"),
                 properties=EdgeProperties(traversable=True),
             )
-        external_identity_id = self._lookup.external_identity_id_for_guid(
+        github_user_id = self._lookup.github_user_id_for_scim_guid(
             self.id, self.scope_node_id
         )
-        if external_identity_id:
+        if github_user_id:
             yield Edge(
                 kind=ek.SCIM_PROVISIONED,
                 start=EdgePath(value=self.id, match_by="id"),
-                end=EdgePath(value=external_identity_id, match_by="id"),
+                end=EdgePath(value=github_user_id, match_by="id"),
                 properties=EdgeProperties(traversable=True),
             )
         if self.emit_legacy_correlation and self.external_id:
@@ -376,7 +371,7 @@ class ScimGroup(ScimScopeAsset):
             properties=ScimGroupNodeProperties(
                 name=self.display_name,
                 displayname=self.display_name,
-                environmentid=self.scope_node_id,
+                environmentid=self.scim_base_url,
                 external_id=self.external_id,
                 resource_url=self.meta.location if self.meta else None,
                 created_at=self.meta.created if self.meta else None,

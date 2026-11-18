@@ -157,6 +157,25 @@ inventory CSV downloads retain their separate timeout settings.
 
 A token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.
 
+For both organization and enterprise SCIM collection, `SCIM_Organization.objectid`
+is the scope's `scim_base_url`, and SCIM users and groups use that URL as their
+`environmentid`. Existing `SCIM_Contains` edges reference this organization ID.
+The SCIM organization's own `environmentid` remains its hosting GitHub scope ID.
+This replaces the previous `SCIM_Organization_<GitHub scope ID>` identifier;
+previously ingested organization nodes are not renamed automatically. SCIM input
+records now require `scim_base_url`, so recollect older SCIM data before conversion.
+
+SCIM users expose `groups` as an array of group ID strings from membership `value`
+fields. Membership objects remain in collected input, and `SCIM_MemberOf` edges
+are preserved. The `roles` graph property remains a JSON-encoded string.
+
+Explicitly active SCIM users receive a direct `SCIM_Provisioned` edge to their
+mapped `GH_User` when the SCIM GUID resolves to one external identity in the same
+GitHub scope and that identity has an unambiguous GitHub user ID. Missing or
+ambiguous mappings emit no provisioning edge. `GH_ExternalIdentity` nodes and
+their `GH_MapsToUser` edges remain; SCIM users no longer provision the external
+identity node.
+
 `SOURCES__GITHUB__EMIT_LEGACY_SCIM_CORRELATIONS=true` temporarily reproduces GitHound-style Okta-to-SCIM correlation relationships. It defaults to false because a dedicated hybrid correlator should own IdP-to-SCIM matching; GitHub remains authoritative for GitHub's SCIM resources and target-system provisioning relationships.
 
 In enterprise app authentication mode, the collector separately retrieves its own enterprise installation for configuration troubleshooting, including granted permissions, timestamps, and suspension status. It also retrieves the parent app's requested permissions and owner metadata using the enterprise installation token. This does not enumerate other enterprise-target app installations or imply organization/repository access. App and installation records use `environment_slug` for the organization login or enterprise slug. Installations also retain `target_type` to distinguish targets; older collected records remain compatible. Existing DLT app schemas are migrated to allow empty legacy `org_login` fields and absent `repository_selection`. A load already stuck in normalization retains its saved schema and needs recovery or restart; do not delete the pipeline or collected output to apply this change.

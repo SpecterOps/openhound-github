@@ -649,6 +649,7 @@ def enterprise_scim_users(
                 **user,
                 "enterprise_node_id": scim_organization.enterprise_node_id,
                 "enterprise_slug": ctx.enterprise_name,
+                "scim_base_url": scim_organization.scim_base_url,
                 "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
             }
     except Exception as e:
@@ -678,6 +679,7 @@ def enterprise_scim_groups(
                 **group,
                 "enterprise_node_id": scim_organization.enterprise_node_id,
                 "enterprise_slug": ctx.enterprise_name,
+                "scim_base_url": scim_organization.scim_base_url,
                 "emit_legacy_correlation": ctx.emit_legacy_scim_correlations,
             }
     except Exception as e:

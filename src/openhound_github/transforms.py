@@ -341,6 +341,8 @@ def ensure_optional_input_tables(
 
         ALTER TABLE {schema}.external_identities
             ADD COLUMN IF NOT EXISTS environment_node_id VARCHAR;
+        ALTER TABLE {schema}.external_identities
+            ADD COLUMN IF NOT EXISTS "user" JSON;
 
         ALTER TABLE {schema}.environment_branch_policies
             ADD COLUMN IF NOT EXISTS environment_node_id VARCHAR;

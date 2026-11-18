@@ -28,6 +28,33 @@ def test_external_identity_lookup_uses_exact_scope_and_guid_and_rejects_ambiguit
     assert lookup.external_identity_id_for_guid("ambiguous", "Scope-1") is None
 
 
+def test_scim_user_lookup_requires_unique_scoped_identity_and_user_mapping():
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE SCHEMA github")
+    ensure_optional_input_tables(connection)
+    connection.executemany(
+        'INSERT INTO github.external_identities (id, guid, environment_node_id, "user") '
+        'VALUES (?, ?, ?, ?)',
+        [
+            ("EI_1", "Guid-1", "Scope-1", '{"id":"U_1","login":"alice"}'),
+            ("EI_2", "Guid-1", "OtherScope", '{"id":"U_2"}'),
+            ("EI_3", "no-user", "Scope-1", None),
+            ("EI_4", "no-id", "Scope-1", '{"login":"alice"}'),
+            ("EI_5", "ambiguous", "Scope-1", '{"id":"U_1"}'),
+            ("EI_6", "ambiguous", "Scope-1", '{"id":"U_2"}'),
+            ("EI_7", "conflicting-user", "Scope-1", '{"id":"U_1"}'),
+            ("EI_7", "conflicting-user", "Scope-1", '{"id":"U_2"}'),
+        ],
+    )
+    lookup = GithubLookup(connection)
+    assert lookup.github_user_id_for_scim_guid("Guid-1", "Scope-1") == "U_1"
+    assert lookup.github_user_id_for_scim_guid("Guid-1", "OtherScope") == "U_2"
+    assert lookup.github_user_id_for_scim_guid("Guid-1", "scope-1") is None
+    assert lookup.github_user_id_for_scim_guid("guid-1", "Scope-1") is None
+    for guid in ("missing", "no-user", "no-id", "ambiguous", "conflicting-user"):
+        assert lookup.github_user_id_for_scim_guid(guid, "Scope-1") is None
+
+
 def test_legacy_external_identity_scope_resolution_preserves_exact_ids():
     """Resolve legacy slugs without changing explicit IDs or accepting conflicting scopes."""
     connection = duckdb.connect(":memory:")
