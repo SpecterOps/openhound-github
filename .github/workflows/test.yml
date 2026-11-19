@@ -1,0 +1,30 @@
+name: Test release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing release tag to test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v7
+      - name: Install locked development dependencies
+        run: uv sync --frozen --group dev
+      - name: Run tests
+        run: uv run --no-sync pytest -q

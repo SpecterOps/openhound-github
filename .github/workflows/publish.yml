@@ -1,63 +1,47 @@
-name: Build and Publish
+name: Publish release
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_call:
-    inputs:
-      tag:
-        description: "Tag to build and publish"
-        required: true
-        type: string
-
+  release:
+    types: [published]
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      tag: ${{ github.event.release.tag_name }}
+
+  build-python:
+    needs: test
+    uses: SpecterOps/openhound-workflows/.github/workflows/build-python.yml@5c902e58782c9552e2d36950dc743e9237ca4356
+    with:
+      tag: ${{ github.event.release.tag_name }}
+      python-version: '3.13'
+
+  publish-python:
+    needs: build-python
+    runs-on: ubuntu-latest
+    environment: pypi
     permissions:
       contents: read
       id-token: write
-    environment: pypi
-    runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }} # using input tags or github ref if tags are manually pushed
-          fetch-depth: 0
+          name: python-distributions
+          path: dist/
+      - uses: astral-sh/setup-uv@v7
+      - name: Publish distributions to PyPI
+        run: uv publish --trusted-publishing always dist/*
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Create virtual environment
-        run: uv venv .venv
-
-      - name: Build package
-        run: uv build
-
-      - name: Publish package
-        run: uv publish
-
-  container:
-    needs: build
+  publish-container:
+    needs: publish-python
     permissions:
       contents: read
       packages: write
-    if: >-
-      github.repository == 'SpecterOps/openhound-github' &&
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.base.ref == 'main'
-    uses: ./.github/workflows/publish-container.yml
+    uses: SpecterOps/openhound-workflows/.github/workflows/publish-container.yml@bd6b59e0018dc3b3326858e4a8baa5b7ebf6efe5
     with:
-      tag: ${{ inputs.tag || github.ref_name }}
+      tag: ${{ github.event.release.tag_name }}
+      prerelease: ${{ github.event.release.prerelease }}
