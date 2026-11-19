@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.5.0",
+    "version": "v1.5.1",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -865,6 +865,14 @@
       }
     },
     {
+      "name": "GH_Role",
+      "display_name": "GitHub Role",
+      "description": "Generic label applied to GitHub enterprise, organization, team, and repository role nodes",
+      "is_display_kind": false,
+      "icon": "user-tie",
+      "color": "#B8D7FF"
+    },
+    {
       "name": "GH_Workflow",
       "display_name": "GitHub Workflow",
       "description": "A GitHub Actions workflow defined in a repository",
@@ -1205,6 +1213,8 @@
       "display_name": "GitHub Secret",
       "description": "Generic label applied to GitHub secret nodes across organization, repository, and environment scope",
       "is_display_kind": false,
+      "icon": "lock",
+      "color": "#32BEE6",
       "info": {
         "description": {
           "title": "Description",
@@ -1262,6 +1272,8 @@
       "display_name": "GitHub Variable",
       "description": "Generic label applied to GitHub variable nodes across organization, repository, and environment scope",
       "is_display_kind": false,
+      "icon": "lock-open",
+      "color": "#66C7E8",
       "info": {
         "description": {
           "title": "Description",
@@ -1312,6 +1324,8 @@
       "display_name": "GitHub Runner Group",
       "description": "Generic label applied to GitHub self-hosted runner group nodes across enterprise and organization scope",
       "is_display_kind": false,
+      "icon": "server",
+      "color": "#7BE89A",
       "info": {
         "description": {
           "title": "Description",
@@ -1369,6 +1383,8 @@
       "display_name": "GitHub Runner",
       "description": "Generic label applied to GitHub self-hosted runner nodes across enterprise, organization, and repository scope",
       "is_display_kind": false,
+      "icon": "microchip",
+      "color": "#22C55E",
       "info": {
         "description": {
           "title": "Description",
@@ -2037,7 +2053,9 @@
       "name": "GH_IdentityProvider",
       "display_name": "GitHub Identity Provider",
       "description": "Shared secondary kind for GitHub SAML and OIDC identity providers",
-      "is_display_kind": false
+      "is_display_kind": false,
+      "icon": "id-badge",
+      "color": "#5A6C8F"
     }
   ],
   "relationship_kinds": [
