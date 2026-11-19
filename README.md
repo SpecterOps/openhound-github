@@ -287,11 +287,10 @@ Follow the OpenHound GitHub collector docs to get started:
 
 ## Container images
 
-After a release-triggering pull request merges into `main` in
-`SpecterOps/openhound-github`, the release workflow publishes the PyPI package
-first, then builds images for `linux/amd64` and `linux/arm64` in GitHub Container
-Registry. Container builds are skipped for forks, other branches, and standalone
-tag pushes. Both images use the same release version:
+Publishing a GitHub Release runs tests against its tag, builds and publishes the
+PyPI package, then builds images for `linux/amd64` and `linux/arm64` in GitHub
+Container Registry. Merging PRs and pushing tags do not publish artifacts.
+Both images use the same release version:
 
 - `ghcr.io/specterops/openhound-github:<version>` starts the BloodHound Enterprise scheduler.
 - `ghcr.io/specterops/openhound-github:<version>-cli` runs the OpenHound CLI.
@@ -300,8 +299,9 @@ For example, release tag `v0.20.0` produces image tags `0.20.0` and `0.20.0-cli`
 Use a version containing the container files; releases predating this workflow
 cannot be built without backporting those files.
 
-Each release also updates `latest` for the scheduler and `latest-cli` for the
-CLI. These aliases point to the same images as that release's versioned tags.
+The newest published stable version updates `latest` for the scheduler and
+`latest-cli` for the CLI. Prereleases and older stable versions do not move these
+aliases. These aliases point to the same images as the selected release's versioned tags.
 Use versioned tags to pin a deployment. To update a Compose deployment using
 `latest`, run `docker compose pull` followed by `docker compose up -d`.
 
@@ -344,6 +344,14 @@ docker run --rm ghcr.io/specterops/openhound-github:<version>-cli --help
 
 ### Build and publish
 
+Maintainers can merge several PRs before releasing. In GitHub, create a draft
+release, choose a version tag (for example `v0.25.0`), and target the intended
+commit on `main`. Review the included changes, then publish the release to start
+the workflow. Draft releases do not publish packages or images. For a prerelease,
+use a tag such as `v0.25.0rc1` and mark the GitHub Release as a prerelease; only
+versioned image tags are published. Branch name prefixes no longer select or
+increment release versions.
+
 To build locally without publishing:
 
 ```sh
@@ -372,7 +380,7 @@ already exists, grant this repository's Actions workflows write access to it.
 
 Breaking graph-model change, accompanied by OpenGraph schema `v1.5.0`
 (previously `v1.4.3`). Deploy the updated schema, saved searches, and collector
-together. The `feature/` release workflow selects a minor collector release;
+together. Select an appropriate collector release version when publishing;
 the collector package version is generated from the release tag.
 
 Enterprise teams use one native `ET_` node ID across all assigned organizations.
