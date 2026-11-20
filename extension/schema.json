@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.5.0",
+    "version": "v1.5.1",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -588,7 +588,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Branch {objectid: '%s'})-[:GH_CanUseRunner|GH_CanDeployToEnvironment]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Branch {objectid: '%s'})-[:GH_CanUseRunner|GH_CanDeployToEnvironment|GH_CanAssumeIdentity]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "repository_context": {
@@ -713,7 +713,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_HasBaseRole|GH_WriteOrganizationCustomOrgRole|GH_CanReadSecret|GH_CanReadSecretScanningAlert|GH_CanCreateRepositoryWithRunnerAccess]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_HasBaseRole|GH_WriteOrganizationCustomOrgRole|GH_CanReadSecret|GH_CanReadSecretScanningAlert|GH_CanCreateRepositoryWithRunnerAccess|GH_CanAssumeIdentity]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "effective_members": {
@@ -863,6 +863,14 @@
           }
         }
       }
+    },
+    {
+      "name": "GH_Role",
+      "display_name": "GitHub Role",
+      "description": "Generic label applied to GitHub enterprise, organization, team, and repository role nodes",
+      "is_display_kind": false,
+      "icon": "user-tie",
+      "color": "#B8D7FF"
     },
     {
       "name": "GH_Workflow",
@@ -1060,7 +1068,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Environment {objectid: '%s'})-[:GH_HasSecret|GH_HasVariable]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_Environment {objectid: '%s'})-[:GH_HasSecret|GH_HasVariable|GH_CanAssumeIdentity]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "repository_context": {
@@ -1205,6 +1213,8 @@
       "display_name": "GitHub Secret",
       "description": "Generic label applied to GitHub secret nodes across organization, repository, and environment scope",
       "is_display_kind": false,
+      "icon": "lock",
+      "color": "#32BEE6",
       "info": {
         "description": {
           "title": "Description",
@@ -1262,6 +1272,8 @@
       "display_name": "GitHub Variable",
       "description": "Generic label applied to GitHub variable nodes across organization, repository, and environment scope",
       "is_display_kind": false,
+      "icon": "lock-open",
+      "color": "#66C7E8",
       "info": {
         "description": {
           "title": "Description",
@@ -1312,6 +1324,8 @@
       "display_name": "GitHub Runner Group",
       "description": "Generic label applied to GitHub self-hosted runner group nodes across enterprise and organization scope",
       "is_display_kind": false,
+      "icon": "server",
+      "color": "#7BE89A",
       "info": {
         "description": {
           "title": "Description",
@@ -1369,6 +1383,8 @@
       "display_name": "GitHub Runner",
       "description": "Generic label applied to GitHub self-hosted runner nodes across enterprise, organization, and repository scope",
       "is_display_kind": false,
+      "icon": "microchip",
+      "color": "#22C55E",
       "info": {
         "description": {
           "title": "Description",
@@ -2037,7 +2053,9 @@
       "name": "GH_IdentityProvider",
       "display_name": "GitHub Identity Provider",
       "description": "Shared secondary kind for GitHub SAML and OIDC identity providers",
-      "is_display_kind": false
+      "is_display_kind": false,
+      "icon": "id-badge",
+      "color": "#5A6C8F"
     }
   ],
   "relationship_kinds": [
