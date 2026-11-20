@@ -140,6 +140,13 @@ responses trigger smaller-page attempts instead of a new retry budget. Gateway
 failures at the smallest page size receive up to two additional attempts with
 1–2-second and 15-second delays.
 
+Organization team pagination uses team page sizes of 100, 50, and 25 for this
+recovery, retaining the failed cursor until a page succeeds. Already emitted
+teams are retained, and member pagination beyond the first 100 members continues
+independently. An unrecovered team page logs a collection gap with the
+organization, cursor, final page size, and emitted team count before collection
+continues with the next organization.
+
 After retries are exhausted, existing resource handlers log the failure and
 continue with unaffected scopes. Already emitted records are retained, but the
 affected scope may be incomplete. Resources that require all pages before
