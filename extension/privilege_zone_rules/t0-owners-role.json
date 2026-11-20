@@ -1,4 +1,5 @@
 {
+  "key": "GH_t0_owners_role",
   "name": "GitHub: Tier Zero Owners Role",
   "description": "The owners organization role grants full administrative control including all repository admin, member management, SSO configuration, app management, and billing. Owners inherit all_repo_admin, cascading admin access to every repository, secret, environment, and cloud identity in the organization.",
   "cypher": "MATCH (n:GH_OrgRole {short_name:'owners'})\nRETURN n",
