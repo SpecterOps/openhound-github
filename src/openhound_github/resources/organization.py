@@ -30,7 +30,9 @@ from openhound_github.github_retry import (
 )
 from openhound_github.helpers import (
     _rest_api_url,
+    AdaptiveGraphQLPageError,
     GraphQLCursorPaginator,
+    adaptive_graphql_paginate,
     graphql_repository_batches,
     graphql_client_and_path,
     scim_skip_reason,
@@ -821,46 +823,51 @@ def users(ctx: SourceContext) -> Iterator[dict[str, Any]]:
 
 @app.resource(name="teams", columns=Team, parallelized=True)
 def teams(ctx: SourceContext):
-    """Fetch teams and team member assignments from GitHub GraphQL API.
+    """Fetch teams with their first page of immediate members.
 
-    Uses the Organization.teams connection with nested IMMEDIATE members to fetch
-    team info and member-role assignments in a single paginated query. Teams with
-    more than 100 members are followed up with additional member pagination queries.
-
-    Yields team records to the `teams` table and member-role records to the
-    `team_members` table via dlt.mark.with_table_name().
-
-    Args:
-        ctx (SourceContext): The shared context containing the REST client and organization name.
-
-    Yields:
-        Team (Team): Team record lol!.
+    Recover gateway failures at the same cursor with smaller team pages. The
+    team_members transformer handles member overflow independently.
     """
 
     for org in ctx.organizations:
         org_name = org.org_name
         client, graphql_path = _graphql_client_for_org(ctx, org_name)
+        emitted_teams = 0
         try:
-            paginator = GraphQLCursorPaginator(
+            for page_data in adaptive_graphql_paginate(
+                client,
+                graphql_path=graphql_path,
+                query=TEAMS_QUERY,
+                variables={"login": org_name, "count": 100, "after": None},
                 page_info_path="data.organization.teams.pageInfo",
-                cursor_variable="after",
-                cursor_field="endCursor",
-                has_next_field="hasNextPage",
-            )
-            data = {
-                "query": TEAMS_QUERY,
-                "variables": {"login": org_name, "count": 100, "after": None},
-            }
-            for page_data in client.paginate(
-                graphql_path,
-                method="POST",
-                json=data,
-                paginator=paginator,
-                data_selector="data",
+                resource_name="teams",
+                scope_name="organization",
+                scope_value=org_name,
+                log=logger,
             ):
-                teams_data = page_data[0]["organization"]["teams"]
+                teams_data = page_data["organization"]["teams"]
                 for team in teams_data["nodes"]:
+                    emitted_teams += 1
                     yield {**team, "org_login": org_name}
+        except AdaptiveGraphQLPageError as e:
+            logger.error(
+                "Team collection gap for organization '%s': cursor=%r "
+                "page_size=%d emitted_teams=%d; remaining teams and their "
+                "dependent relationships may be incomplete: %s",
+                org_name,
+                e.cursor,
+                e.page_size,
+                emitted_teams,
+                e.error,
+                extra={
+                    "resource": "teams",
+                    "phase": "resource_iteration",
+                    "org_name": org_name,
+                    "cursor": e.cursor,
+                    "page_size": e.page_size,
+                    "emitted_teams": emitted_teams,
+                },
+            )
         except Exception as e:
             logger.error(
                 f"Error in resource 'teams' processing organization '{org_name}': {e}",

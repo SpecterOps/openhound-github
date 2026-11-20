@@ -420,3 +420,176 @@ def test_session_avoids_dlt_warning_and_preserves_http_errors(
             target.get("https://api.github.com/example")
         assert caught.value.response.status_code == status
     assert len(calls) == expected_attempts
+
+
+def _team_page(ids, cursor=None):
+    return {
+        "data": {
+            "organization": {
+                "teams": {
+                    "nodes": [
+                        {
+                            "id": team_id,
+                            "name": team_id,
+                            "slug": team_id.lower(),
+                            "members": {
+                                "edges": [],
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            },
+                        }
+                        for team_id in ids
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": cursor is not None,
+                        "endCursor": cursor,
+                    },
+                }
+            }
+        }
+    }
+
+
+def _team_context(client, *org_names):
+    from openhound_github.resources.organization import OrgContext, SourceContext
+
+    return SourceContext(
+        client=client,
+        organizations=[OrgContext(client=client, org_name=name) for name in org_names],
+    )
+
+
+@pytest.mark.parametrize("gateway", [502, 504])
+@pytest.mark.parametrize("later_page", [False, True])
+def test_teams_recover_same_cursor_without_replaying_emitted_teams(
+    monkeypatch, gateway, later_page
+):
+    from openhound_github.resources.organization import teams
+
+    prefix = [_team_page(["T_1"], "teams-next")] if later_page else []
+    client, calls = _client(
+        monkeypatch,
+        [
+            *prefix,
+            gateway,
+            gateway,
+            _team_page(["T_2"], "teams-last"),
+            _team_page(["T_3"]),
+        ],
+    )
+
+    rows = list(teams.__wrapped__(_team_context(client, "org")))
+
+    assert [row["id"] for row in rows] == (["T_1"] if later_page else []) + [
+        "T_2",
+        "T_3",
+    ]
+    assert all(row["org_login"] == "org" for row in rows)
+    recovery_calls = calls[len(prefix) :]
+    assert [call["count"] for call in recovery_calls] == [100, 50, 25, 100]
+    assert [call["after"] for call in recovery_calls] == [
+        "teams-next" if later_page else None,
+    ] * 3 + ["teams-last"]
+    assert all(call["login"] == "org" for call in calls)
+
+
+@pytest.mark.parametrize("later_page", [False, True])
+def test_teams_exhaustion_logs_gap_retains_results_and_continues_organizations(
+    monkeypatch, caplog, later_page
+):
+    from openhound_github.resources.organization import teams
+
+    prefix = [_team_page(["T_1"], "teams-next")] if later_page else []
+    client, calls = _client(monkeypatch, [*prefix, *([502] * 5), _team_page(["T_2"])])
+
+    rows = list(teams.__wrapped__(_team_context(client, "broken", "healthy")))
+
+    assert [(row["id"], row["org_login"]) for row in rows] == (
+        ([("T_1", "broken")] if later_page else []) + [("T_2", "healthy")]
+    )
+    assert len(calls) == len(prefix) + 6
+    assert [call["count"] for call in calls[len(prefix) : -1]] == [100, 50, 25, 25, 25]
+    assert calls[-1] == {"login": "healthy", "count": 100, "after": None}
+    gap = next(
+        record for record in caplog.records if "Team collection gap" in record.message
+    )
+    assert gap.org_name == "broken"
+    assert gap.cursor == ("teams-next" if later_page else None)
+    assert gap.page_size == 25
+    assert gap.emitted_teams == int(later_page)
+    assert "dependent relationships may be incomplete" in gap.message
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        401,
+        {
+            "data": {
+                "organization": {
+                    "teams": {
+                        "nodes": [],
+                        "pageInfo": {
+                            "hasNextPage": True,
+                            "endCursor": None,
+                        },
+                    }
+                }
+            }
+        },
+        {"data": None, "errors": [{"message": "Access denied"}]},
+    ],
+)
+def test_teams_do_not_retry_non_gateway_errors_as_smaller_pages(
+    monkeypatch, caplog, failure
+):
+    from openhound_github.resources.organization import teams
+
+    client, calls = _client(monkeypatch, [failure, _team_page([])])
+    assert list(teams.__wrapped__(_team_context(client, "broken", "healthy"))) == []
+    assert len(calls) == 2
+    assert [call["count"] for call in calls] == [100, 100]
+    assert "Team collection gap" in caplog.text
+
+
+def test_recovered_team_keeps_all_immediate_members_and_member_overflow(monkeypatch):
+    from openhound_github.models import Team
+    from openhound_github.resources.organization import team_members, teams
+
+    def member(index):
+        return {
+            "role": "MAINTAINER" if index == 0 else "MEMBER",
+            "node": {"id": f"U_{index}", "login": f"user{index}"},
+        }
+
+    page = _team_page(["T_1"])
+    page["data"]["organization"]["teams"]["nodes"][0]["members"] = {
+        "edges": [member(i) for i in range(100)],
+        "pageInfo": {"hasNextPage": True, "endCursor": "member-next"},
+    }
+    overflow = {
+        "data": {
+            "organization": {
+                "team": {
+                    "members": {
+                        "edges": [member(100)],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        }
+    }
+    client, calls = _client(monkeypatch, [502, page, overflow])
+    ctx = _team_context(client, "org")
+    team_rows = list(teams.__wrapped__(ctx))
+    rows = list(team_members.__wrapped__(Team.model_validate(team_rows[0]), ctx))
+
+    assert [row["id"] for row in rows] == [f"U_{i}" for i in range(101)]
+    assert all(row["team_id"] == "T_1" and row["org_login"] == "org" for row in rows)
+    assert rows[0]["role"] == "MAINTAINER"
+    assert rows[-1]["role"] == "MEMBER"
+    assert calls[-1] == {
+        "login": "org",
+        "count": 100,
+        "after": "member-next",
+        "slug": "t_1",
+    }
