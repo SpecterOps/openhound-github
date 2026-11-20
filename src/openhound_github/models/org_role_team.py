@@ -27,7 +27,7 @@ class OrgRoleTeam(BaseAsset):
     url: str
     name: str
     slug: str
-    description: str
+    description: str | None = None
     # privacy: Optional[str] = None
     permission: str
     members_url: str
