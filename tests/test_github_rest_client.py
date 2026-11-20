@@ -111,14 +111,23 @@ def test_mixed_server_and_network_failures_share_budget(monkeypatch):
     assert send.call_count == 3
 
 
-def test_rate_limit_retries_do_not_consume_transient_budget(monkeypatch):
+@pytest.mark.parametrize("max_attempts", [5, 7])
+def test_rate_limit_retries_do_not_consume_transient_budget(monkeypatch, max_attempts):
+    # Keep the overall DLT limit explicit: four rate limits followed by two
+    # transient failures need seven attempts to reach the successful response.
+    monkeypatch.setenv("RUNTIME__REQUEST_MAX_ATTEMPTS", str(max_attempts))
     session, send = _session(monkeypatch, [
         *[make_response(429, body={"message": "secondary rate limit"}) for _ in range(4)],
         make_response(503), make_response(503), make_response(200),
     ])
 
-    assert session.get("https://api.github.com/example").status_code == 200
-    assert send.call_count == 7
+    if max_attempts == 5:
+        with pytest.raises(HTTPError) as caught:
+            session.get("https://api.github.com/example")
+        assert caught.value.response.status_code == 503
+    else:
+        assert session.get("https://api.github.com/example").status_code == 200
+    assert send.call_count == max_attempts
 
 
 @pytest.mark.parametrize(("status", "headers", "body"), [
