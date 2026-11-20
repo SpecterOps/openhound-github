@@ -1,4 +1,5 @@
 {
+  "key": "GH_t0_owner_users",
   "name": "GitHub: Tier Zero Owner Users",
   "description": "Users who hold the organization owners role have full administrative control over the GitHub organization. Compromise of any owner account grants control over all repositories, secrets, SSO configuration, and cloud identities.",
   "cypher": "MATCH (n:GH_User)-[:GH_HasRole]->(:GH_OrgRole {short_name:'owners'})\nRETURN n",

@@ -1,4 +1,5 @@
 {
+  "query_key": "GH_unprotected_branches",
   "name": "GitHub: Unprotected Branches",
   "query": "MATCH p=(repo:GH_Repository)-[:GH_Contains]-(:GH_Branch {protected: false})\nRETURN p\nLIMIT 1000",
   "description": "Returns all unprotected branches in repositories."
