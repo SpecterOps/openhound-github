@@ -1,4 +1,5 @@
 {
+  "query_key": "GH_advanced_security_disabled_new_repos",
   "name": "GitHub: Advanced Security Disabled for New Repositories",
   "query": "MATCH (org:GH_Organization {advanced_security_enabled_for_new_repositories: false})\nRETURN org\nLIMIT 1000",
   "description": "Finds organizations where GitHub Advanced Security is not automatically enabled for new repositories. New repositories will lack code scanning, secret scanning, and other GHAS features."
