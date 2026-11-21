@@ -42,6 +42,23 @@ def _payload():
     }
 
 
+@pytest.mark.parametrize("events", [["push", "repository", "workflow_job"], [], None])
+def test_installation_events_remain_arrays_in_graph_output(events):
+    from dataclasses import asdict
+
+    installation = AppInstallation(**{**_payload(), "events": events})
+
+    output = json.loads(json.dumps(asdict(installation.as_node), default=str))
+
+    assert output["properties"]["events"] == events
+
+
+def test_installation_missing_events_remain_unset():
+    installation = AppInstallation(**_payload())
+
+    assert installation.as_node.properties.events is None
+
+
 def _ctx():
     """Build independent app-JWT and enterprise-installation clients."""
     ctx = SourceContext(

@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import ClassVar
 
-from dlt.common import json
 from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
@@ -35,7 +34,7 @@ class GHAppInstallationProperties(GHNodeProperties):
         repository_selection: Whether the app has access to `all` repositories or `selected` repositories.
         target_type: The target type of the installation (`Organization` or `Enterprise`).
         permissions: Permissions granted to the installation in `scope:access` form.
-        events: JSON string of the webhook events the app subscribes to.
+        events: Webhook events the app subscribes to.
         created_at: When the app was installed.
         updated_at: When the installation was last updated.
         suspended_at: When the installation was suspended, if applicable.
@@ -55,7 +54,7 @@ class GHAppInstallationProperties(GHNodeProperties):
     repository_selection: str | None = None
     target_type: str | None = None
     permissions: list[str] | None = None
-    events: str | None = None
+    events: list[str] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     suspended_at: datetime | None = None
@@ -187,7 +186,7 @@ class AppInstallation(BaseAsset):
                 repository_selection=self.repository_selection,
                 target_type=self.target_type,
                 permissions=normalize_permission_declaration(self.permissions),
-                events=json.dumps(self.events) if self.events else None,
+                events=self.events,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
                 suspended_at=self.suspended_at,
@@ -268,7 +267,7 @@ class GHAppProperties(GHNodeProperties):
             third_party (no internal ownership evidence), or unknown.
         permissions: Requested app permissions in `scope:access` form.
         environment_slug: The organization login or enterprise slug where the app was collected.
-        events: JSON string of the default webhook events the app subscribes to.
+        events: Default webhook events the app subscribes to.
         installations_count: The total number of installations of this app across all organizations.
         created_at: When the app was created.
         updated_at: When the app was last updated.
