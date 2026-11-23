@@ -6,6 +6,7 @@ import dlt
 import duckdb
 import pytest
 from openhound.core.progress import Progress
+from openhound_saml_producer.contract import EdgeKind
 
 from openhound_github.graphql import ENTERPRISE_OIDC_QUERY, ENTERPRISE_SAML_QUERY
 from openhound_github.kinds import edges as ek
@@ -21,6 +22,8 @@ from openhound_github.resources.enterprise import (
 )
 from openhound_github.transforms import ensure_optional_input_tables
 from test_enterprise_resources import _FakeClient, _FailingPaginateClient
+
+SAML_HAS_ACCOUNT = EdgeKind.HAS_ACCOUNT.value
 
 
 def _identity_record(i=1):
@@ -260,7 +263,7 @@ def test_preprocessing_and_conversion_resolve_provider_without_identity_properti
     assert provider_edge.end.value == "EI_1"
     assert all(e.properties.traversable is False for e in edges)
     assert any(e.kind == ek.MAPS_TO_USER and e.end.value == "U_1" for e in edges)
-    assert (ek.SAML_HAS_ACCOUNT in {e.kind for e in edges}) == (federation == "saml")
+    assert (SAML_HAS_ACCOUNT in {e.kind for e in edges}) == (federation == "saml")
     connection.close()
 
 
@@ -284,7 +287,7 @@ def test_nullable_identity_attributes_and_unlinked_user_are_retained(user):
     edges = list(identity.edges)
     assert edges[0].kind == ek.HAS_EXTERNAL_IDENTITY
     assert (ek.MAPS_TO_USER in {e.kind for e in edges}) == bool(user)
-    assert ek.SAML_HAS_ACCOUNT not in {e.kind for e in edges}
+    assert SAML_HAS_ACCOUNT not in {e.kind for e in edges}
 
 
 def test_oidc_does_not_emit_saml_edge_even_if_saml_attributes_are_present():
@@ -301,7 +304,7 @@ def test_oidc_does_not_emit_saml_edge_even_if_saml_attributes_are_present():
             ("OIDC_1", None, None, "E_1", "Acme", "enterprise", "oidc"),
         ]
     )
-    assert ek.SAML_HAS_ACCOUNT not in {e.kind for e in identity.edges}
+    assert SAML_HAS_ACCOUNT not in {e.kind for e in identity.edges}
 
 
 def test_missing_or_ambiguous_provider_does_not_emit_invalid_association(caplog):

@@ -25,13 +25,8 @@ class GHNode(BaseNode):
         # Use GitHub's native node_id as the OpenGraph node id so edges can
         # reference nodes by the same identifier used during collection.
         self.id = self.properties.node_id
-        source_kind = (
-            SAML_SOURCE_KIND
-            if any(kind.startswith("SAML_") for kind in self.kinds)
-            else GITHUB_SOURCE_KIND
-        )
-        if source_kind not in self.kinds:
-            self.kinds.append(source_kind)
+        if GITHUB_SOURCE_KIND not in self.kinds:
+            self.kinds.append(GITHUB_SOURCE_KIND)
 
 
 @dataclass
