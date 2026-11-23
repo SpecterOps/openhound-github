@@ -11,6 +11,7 @@ from collections.abc import Iterable
 
 from openhound_saml_producer import (
     BuildWarning,
+    IssuerFact,
     Producer,
     RouteFact,
     ServiceProviderFact,
@@ -18,6 +19,7 @@ from openhound_saml_producer import (
 
 from openhound_github.graph import SAML_SOURCE_KIND
 from openhound_github.kinds import nodes as nk
+
 from .saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     github_saml_route,
@@ -61,6 +63,17 @@ def service_provider_fact(
         name=environment_name,
         enabled=True,
     )
+
+
+def issuer_fact(issuer: str | None) -> IssuerFact | None:
+    """Return the trusted issuer fact, or None when GitHub gave no issuer.
+
+    A null, empty, or whitespace-only issuer names no issuer. The library rejects
+    a blank entity ID, which would stop the whole conversion.
+    """
+    if issuer is None or not issuer.strip():
+        return None
+    return IssuerFact(entity_id=issuer)
 
 
 def route_fact(

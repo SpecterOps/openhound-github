@@ -1,10 +1,11 @@
 from types import SimpleNamespace
 
+import pytest
 from openhound_saml_producer.contract import EdgeKind
 
+from openhound_github.graphql import ENTERPRISE_SAML_QUERY, SAML_IDENTITIES_QUERY
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
-from openhound_github.graphql import ENTERPRISE_SAML_QUERY, SAML_IDENTITIES_QUERY
 from openhound_github.models.external_identity import ExternalIdentity
 from openhound_github.models.saml_assertion_consumer_service import (
     SamlAssertionConsumerService,
@@ -150,11 +151,25 @@ def test_normalized_saml_assets_scope_ids_and_routes_by_deployment() -> None:
     assert issuer.as_node.id == _scope_assets()[1].as_node.id
 
 
-def test_service_provider_without_issuer_has_no_trusts_issuer_edge() -> None:
-    service_provider, *_ = _scope_assets()
-    service_provider.issuer = None
+@pytest.mark.parametrize("issuer", [None, "", "  \t"])
+def test_blank_issuer_gives_no_issuer_node_and_no_trust_edge(issuer) -> None:
+    """A blank issuer must not stop the rest of the scope's facts or the conversion."""
+    service_provider, _, acs = _scope_assets()
+    service_provider.issuer = issuer
+    blank_issuer = SamlIssuer.model_construct(
+        issuer=issuer or "",
+        environment_node_id="ORG_1",
+        environment_slug="acme",
+        environment_type="org",
+    )
 
-    assert "SAML_TrustsIssuer" not in {edge.kind for edge in service_provider.edges}
+    assert blank_issuer.as_node is None
+    assert {edge.kind for edge in service_provider.edges} == {
+        "SAML_Implements",
+        "SAML_HasAssertionConsumerService",
+    }
+    assert service_provider.as_node.kinds == ["SAML_ServiceProvider", "SAML"]
+    assert acs.as_node.kinds == ["SAML_AssertionConsumerService", "SAML"]
 
 
 def test_saml_identity_collection_requests_and_preserves_attributes() -> None:

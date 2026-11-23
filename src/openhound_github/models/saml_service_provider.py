@@ -5,7 +5,6 @@ from openhound.core.asset import BaseAsset
 from openhound.core.models.entries_dataclass import Edge, EdgePath
 from openhound_saml_producer import (
     NODE_DEFS,
-    IssuerFact,
     SamlNode,
     ServiceProviderFact,
     edge_defs,
@@ -15,17 +14,18 @@ from openhound_saml_producer.sp import service_provider_edges, service_provider_
 
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from .saml_producer import (
-    SAML,
-    log_warnings,
-    route_fact,
-    service_provider_fact,
-)
 
 from .saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     DEFAULT_GITHUB_WEB_ORIGIN,
     normalize_scope_type,
+)
+from .saml_producer import (
+    SAML,
+    issuer_fact,
+    log_warnings,
+    route_fact,
+    service_provider_fact,
 )
 
 
@@ -64,7 +64,7 @@ class SamlServiceProvider(BaseAsset):
             SAML,
             self._fact(),
             native=EdgePath(value=self.id, match_by="id"),
-            trusted_issuer=IssuerFact(entity_id=self.issuer) if self.issuer else None,
+            trusted_issuer=issuer_fact(self.issuer),
             routes=[
                 route_fact(
                     self.environment_type,
