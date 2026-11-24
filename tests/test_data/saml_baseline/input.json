@@ -1,0 +1,442 @@
+{
+  "saml_provider": [
+    {
+      "id": "SAMLIDP_org",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "ssoUrl": "https://login.example.test/saml",
+      "signatureMethod": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+      "digestMethod": "http://www.w3.org/2001/04/xmlenc#sha256",
+      "idpCertificate": "EXAMPLE-CERTIFICATE",
+      "environment_node_id": "ORG_example-org",
+      "environment_name": "Example Org",
+      "environment_slug": "example-org",
+      "environment_type": "org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_ent",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "ssoUrl": "https://login.example.test/saml",
+      "signatureMethod": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+      "digestMethod": "http://www.w3.org/2001/04/xmlenc#sha256",
+      "idpCertificate": "EXAMPLE-CERTIFICATE",
+      "environment_node_id": "ENT_example-enterprise",
+      "environment_name": "Example Enterprise",
+      "environment_slug": "example-enterprise",
+      "environment_type": "enterprise",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_app",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "ssoUrl": "https://login.example.test/saml",
+      "signatureMethod": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+      "digestMethod": "http://www.w3.org/2001/04/xmlenc#sha256",
+      "idpCertificate": "EXAMPLE-CERTIFICATE",
+      "environment_node_id": "ORG_example-app-org",
+      "environment_name": "Example App Org",
+      "environment_slug": "example-app-org",
+      "environment_type": "org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_shared_com",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "ssoUrl": "https://login.example.test/saml",
+      "signatureMethod": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+      "digestMethod": "http://www.w3.org/2001/04/xmlenc#sha256",
+      "idpCertificate": "EXAMPLE-CERTIFICATE",
+      "environment_node_id": "ORG_example-shared_com",
+      "environment_name": "Example Shared",
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_shared_ghes",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "ssoUrl": "https://login.example.test/saml",
+      "signatureMethod": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+      "digestMethod": "http://www.w3.org/2001/04/xmlenc#sha256",
+      "idpCertificate": "EXAMPLE-CERTIFICATE",
+      "environment_node_id": "ORG_example-shared_ghes",
+      "environment_name": "Example Shared",
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "github_deployment_id": "ghes.example.test",
+      "github_web_origin": "https://ghes.example.test"
+    }
+  ],
+  "saml_service_provider": [
+    {
+      "id": "SAMLIDP_org",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_node_id": "ORG_example-org",
+      "environment_name": "Example Org",
+      "environment_slug": "example-org",
+      "environment_type": "org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_ent",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_node_id": "ENT_example-enterprise",
+      "environment_name": "Example Enterprise",
+      "environment_slug": "example-enterprise",
+      "environment_type": "enterprise",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_app",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_node_id": "ORG_example-app-org",
+      "environment_name": "Example App Org",
+      "environment_slug": "example-app-org",
+      "environment_type": "org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_shared_com",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_node_id": "ORG_example-shared_com",
+      "environment_name": "Example Shared",
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "id": "SAMLIDP_shared_ghes",
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_node_id": "ORG_example-shared_ghes",
+      "environment_name": "Example Shared",
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "github_deployment_id": "ghes.example.test",
+      "github_web_origin": "https://ghes.example.test"
+    }
+  ],
+  "saml_assertion_consumer_service": [
+    {
+      "environment_slug": "example-org",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-org",
+      "environment_name": "Example Org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "environment_slug": "example-enterprise",
+      "environment_type": "enterprise",
+      "environment_node_id": "ENT_example-enterprise",
+      "environment_name": "Example Enterprise",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "environment_slug": "example-app-org",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-app-org",
+      "environment_name": "Example App Org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-shared_com",
+      "environment_name": "Example Shared",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-shared_ghes",
+      "environment_name": "Example Shared",
+      "github_deployment_id": "ghes.example.test",
+      "github_web_origin": "https://ghes.example.test"
+    }
+  ],
+  "saml_issuer": [
+    {
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_slug": "example-org",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-org",
+      "environment_name": "Example Org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_slug": "example-enterprise",
+      "environment_type": "enterprise",
+      "environment_node_id": "ENT_example-enterprise",
+      "environment_name": "Example Enterprise",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_slug": "example-app-org",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-app-org",
+      "environment_name": "Example App Org",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-shared_com",
+      "environment_name": "Example Shared",
+      "github_deployment_id": "github.com",
+      "github_web_origin": "https://github.com"
+    },
+    {
+      "issuer": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+      "environment_slug": "example-shared",
+      "environment_type": "org",
+      "environment_node_id": "ORG_example-shared_ghes",
+      "environment_name": "Example Shared",
+      "github_deployment_id": "ghes.example.test",
+      "github_web_origin": "https://ghes.example.test"
+    }
+  ],
+  "external_identities": [
+    {
+      "id": "EI_opaque",
+      "guid": "guid-opaque",
+      "samlIdentity": {
+        "username": "opaque@example.test",
+        "nameId": "opaque-nameid-0001",
+        "givenName": "Example",
+        "familyName": "User",
+        "attributes": []
+      },
+      "scimIdentity": null,
+      "user": {
+        "id": "U_opaque",
+        "login": "user-opaque"
+      },
+      "environment_slug": "example-org",
+      "environment_node_id": "ORG_example-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_entra",
+      "guid": "guid-entra",
+      "samlIdentity": {
+        "username": "entra@example.test",
+        "nameId": "11111111-1111-4111-8111-111111111111",
+        "givenName": "Example",
+        "familyName": "User",
+        "attributes": [
+          {
+            "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+            "value": "11111111-1111-4111-8111-111111111111"
+          }
+        ]
+      },
+      "scimIdentity": null,
+      "user": {
+        "id": "U_entra",
+        "login": "user-entra"
+      },
+      "environment_slug": "example-org",
+      "environment_node_id": "ORG_example-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_duplicate",
+      "guid": "guid-duplicate",
+      "samlIdentity": {
+        "username": "dup@example.test",
+        "nameId": "dup@example.test",
+        "givenName": "Example",
+        "familyName": "User",
+        "attributes": [
+          {
+            "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+            "value": "  "
+          },
+          {
+            "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+            "value": "22222222-2222-4222-8222-222222222222"
+          },
+          {
+            "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+            "value": "22222222-2222-4222-8222-222222222222"
+          }
+        ]
+      },
+      "scimIdentity": null,
+      "user": {
+        "id": "U_duplicate",
+        "login": "user-duplicate"
+      },
+      "environment_slug": "example-org",
+      "environment_node_id": "ORG_example-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_blank",
+      "guid": "guid-blank",
+      "samlIdentity": {
+        "username": "blank@example.test",
+        "nameId": "   ",
+        "givenName": "Example",
+        "familyName": "User",
+        "attributes": []
+      },
+      "scimIdentity": null,
+      "user": {
+        "id": "U_blank",
+        "login": "user-blank"
+      },
+      "environment_slug": "example-org",
+      "environment_node_id": "ORG_example-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_no-provider-data",
+      "guid": "guid-no-provider-data",
+      "samlIdentity": null,
+      "scimIdentity": null,
+      "user": {
+        "id": "U_no-provider-data",
+        "login": "user-no-provider-data"
+      },
+      "environment_slug": "example-org",
+      "environment_node_id": "ORG_example-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_org-scim-only",
+      "guid": "guid-org-scim-only",
+      "samlIdentity": null,
+      "scimIdentity": {
+        "username": "scim-only@example.test"
+      },
+      "user": {
+        "id": "U_org-scim-only",
+        "login": "user-org-scim-only"
+      },
+      "environment_slug": "example-org",
+      "environment_node_id": "ORG_example-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_no-account",
+      "guid": "guid-no-account",
+      "samlIdentity": {
+        "username": "nomatch@example.test",
+        "nameId": "nomatch-nameid",
+        "givenName": "Example",
+        "familyName": "User",
+        "attributes": []
+      },
+      "scimIdentity": null,
+      "user": null,
+      "environment_slug": "example-org",
+      "environment_node_id": "ORG_example-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_orphan-scope",
+      "guid": "guid-orphan-scope",
+      "samlIdentity": {
+        "username": "orphan@example.test",
+        "nameId": "orphan-nameid",
+        "givenName": "Example",
+        "familyName": "User",
+        "attributes": []
+      },
+      "scimIdentity": null,
+      "user": {
+        "id": "U_orphan-scope",
+        "login": "user-orphan-scope"
+      },
+      "environment_slug": "example-orphan-org",
+      "environment_node_id": "ORG_example-orphan-org",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_emu-scim",
+      "guid": "guid-emu-scim",
+      "samlIdentity": null,
+      "scimIdentity": {
+        "username": "emu_example"
+      },
+      "user": {
+        "id": "U_emu-scim",
+        "login": "user-emu-scim"
+      },
+      "environment_slug": "example-enterprise",
+      "environment_node_id": "ENT_example-enterprise",
+      "github_deployment_id": "github.com"
+    },
+    {
+      "id": "EI_shared-ghes",
+      "guid": "guid-shared-ghes",
+      "samlIdentity": {
+        "username": "shared@example.test",
+        "nameId": "shared-nameid",
+        "givenName": "Example",
+        "familyName": "User",
+        "attributes": []
+      },
+      "scimIdentity": null,
+      "user": {
+        "id": "U_shared-ghes",
+        "login": "user-shared-ghes"
+      },
+      "environment_slug": "example-shared",
+      "environment_node_id": "ORG_example-shared_ghes",
+      "github_deployment_id": "ghes.example.test"
+    }
+  ],
+  "org_scim_organizations": [
+    {
+      "org_login": "example-org",
+      "org_node_id": "ORG_example-org",
+      "scim_base_url": "https://api.github.com/scim/v2/organizations/example-org/"
+    }
+  ],
+  "scim_users": [
+    {
+      "id": "guid-org-scim-only",
+      "userName": "scim-only@example.test",
+      "active": true,
+      "org_login": "example-org",
+      "org_node_id": "ORG_example-org",
+      "scim_base_url": "https://api.github.com/scim/v2/organizations/example-org/"
+    }
+  ],
+  "enterprise_scim_organizations": [
+    {
+      "enterprise_node_id": "ENT_example-enterprise",
+      "enterprise_slug": "example-enterprise",
+      "scim_base_url": "https://api.github.com/scim/v2/enterprises/example-enterprise/"
+    }
+  ],
+  "enterprise_scim_users": [
+    {
+      "id": "guid-emu-scim",
+      "userName": "emu_example",
+      "active": true,
+      "enterprise_node_id": "ENT_example-enterprise",
+      "enterprise_slug": "example-enterprise",
+      "scim_base_url": "https://api.github.com/scim/v2/enterprises/example-enterprise/"
+    }
+  ]
+}
