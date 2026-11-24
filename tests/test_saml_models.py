@@ -1,8 +1,11 @@
 from types import SimpleNamespace
 
+import pytest
+from openhound_saml_producer.contract import EdgeKind
+
+from openhound_github.graphql import ENTERPRISE_SAML_QUERY, SAML_IDENTITIES_QUERY
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
-from openhound_github.graphql import ENTERPRISE_SAML_QUERY, SAML_IDENTITIES_QUERY
 from openhound_github.models.external_identity import ExternalIdentity
 from openhound_github.models.saml_assertion_consumer_service import (
     SamlAssertionConsumerService,
@@ -10,11 +13,12 @@ from openhound_github.models.saml_assertion_consumer_service import (
 from openhound_github.models.saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     DEFAULT_GITHUB_WEB_ORIGIN,
-    SAML_CONTRACT_VERSION,
 )
 from openhound_github.models.saml_issuer import SamlIssuer
 from openhound_github.models.saml_provider import SamlProvider
 from openhound_github.models.saml_service_provider import SamlServiceProvider
+
+SAML_HAS_ACCOUNT = EdgeKind.HAS_ACCOUNT.value
 
 
 def _identity_with_lookup(**overrides) -> ExternalIdentity:
@@ -28,7 +32,7 @@ def _identity_with_lookup(**overrides) -> ExternalIdentity:
             "attributes": [
                 {
                     "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
-                    "value": "object-1",
+                    "value": "11111111-1111-4111-8111-111111111111",
                 }
             ],
         },
@@ -54,7 +58,7 @@ def _identity_with_lookup(**overrides) -> ExternalIdentity:
 
 
 def _saml_account_edge(identity: ExternalIdentity):
-    return next(edge for edge in identity.edges if edge.kind == ek.SAML_HAS_ACCOUNT)
+    return next(edge for edge in identity.edges if edge.kind == SAML_HAS_ACCOUNT)
 
 
 def test_external_identity_prefers_saml_username_for_display_name() -> None:
@@ -79,109 +83,95 @@ def test_external_identity_falls_back_to_guid_without_foreign_username() -> None
     assert identity.as_node.properties.displayname == "guid-1"
 
 
-def test_normalized_saml_nodes_expose_contract_metadata() -> None:
-    service_provider = SamlServiceProvider(
-        id="IDP_1",
-        issuer="https://issuer.example.com",
-        environment_node_id="ORG_1",
-        environment_name="Acme",
-        environment_slug="acme",
-        environment_type="org",
-    )
-    issuer = SamlIssuer(
-        issuer="https://issuer.example.com",
-        environment_node_id="ORG_1",
-        environment_name="Acme",
-        environment_slug="acme",
-        environment_type="org",
-    )
-    acs = SamlAssertionConsumerService(
-        environment_node_id="ORG_1",
-        environment_name="Acme",
-        environment_slug="acme",
-        environment_type="org",
-    )
-
-    sp_properties = service_provider.as_node.properties
-    issuer_properties = issuer.as_node.properties
-    acs_properties = acs.as_node.properties
-
-    assert service_provider.as_node.id == "github:saml:sp:org:acme"
-    assert issuer.as_node.id == "github:saml:trusted-issuer:org:acme"
-    assert acs.as_node.id == "github:saml:acs:org:acme"
-    assert service_provider.as_node.kinds == [nk.SAML_SERVICE_PROVIDER, "SAML"]
-    assert issuer.as_node.kinds == [nk.SAML_ISSUER, "SAML"]
-    assert acs.as_node.kinds == [nk.SAML_ASSERTION_CONSUMER_SERVICE, "SAML"]
-    assert sp_properties.github_deployment_id == DEFAULT_GITHUB_DEPLOYMENT_ID
-    assert sp_properties.github_web_origin == DEFAULT_GITHUB_WEB_ORIGIN
-    assert sp_properties.schema_contract_version == SAML_CONTRACT_VERSION
-
-    assert issuer_properties.github_deployment_id == DEFAULT_GITHUB_DEPLOYMENT_ID
-    assert issuer_properties.github_web_origin == DEFAULT_GITHUB_WEB_ORIGIN
-    assert issuer_properties.native_source_field == "GH_SamlIdentityProvider.issuer"
-    assert issuer_properties.schema_contract_version == SAML_CONTRACT_VERSION
-
-    assert acs_properties.github_deployment_id == DEFAULT_GITHUB_DEPLOYMENT_ID
-    assert acs_properties.github_web_origin == DEFAULT_GITHUB_WEB_ORIGIN
-    assert acs_properties.route_source == "github_organization_scope_convention"
-    assert acs_properties.schema_contract_version == SAML_CONTRACT_VERSION
-
-    implements_edges = list(service_provider.edges)
-    assert len(implements_edges) == 1
-    assert implements_edges[0].start.value == "IDP_1"
-    assert implements_edges[0].end.value == "github:saml:sp:org:acme"
-    assert (
-        implements_edges[0].properties.schema_contract_version
-        == SAML_CONTRACT_VERSION
-    )
-    assert (
-        next(iter(issuer.edges)).properties.schema_contract_version
-        == SAML_CONTRACT_VERSION
-    )
-    assert (
-        next(iter(acs.edges)).properties.schema_contract_version
-        == SAML_CONTRACT_VERSION
+def _scope_assets(**scope):
+    """Build the three SAML assets of one organization from one scope."""
+    scope = {
+        "environment_node_id": "ORG_1",
+        "environment_name": "Acme",
+        "environment_slug": "acme",
+        "environment_type": "org",
+        **scope,
+    }
+    return (
+        SamlServiceProvider(
+            id="IDP_1", issuer="https://issuer.example.com", **scope
+        ),
+        SamlIssuer(issuer="https://issuer.example.com", **scope),
+        SamlAssertionConsumerService(**scope),
     )
 
 
-def test_normalized_saml_nodes_scope_ids_and_routes_by_deployment() -> None:
-    service_provider = SamlServiceProvider(
-        id="IDP_1",
-        issuer="https://issuer.example.com",
-        environment_node_id="ORG_1",
-        environment_name="Acme",
-        environment_slug="acme",
-        environment_type="org",
-        github_deployment_id="github.example.com",
-        github_web_origin="https://github.example.com",
+def test_normalized_saml_assets_build_library_nodes_and_edges() -> None:
+    service_provider, issuer, acs = _scope_assets()
+
+    sp_node, issuer_node, acs_node = (
+        service_provider.as_node,
+        issuer.as_node,
+        acs.as_node,
     )
-    issuer = SamlIssuer(
-        issuer="https://issuer.example.com",
-        environment_node_id="ORG_1",
-        environment_name="Acme",
-        environment_slug="acme",
-        environment_type="org",
-        github_deployment_id="github.example.com",
-        github_web_origin="https://github.example.com",
-    )
-    acs = SamlAssertionConsumerService(
-        environment_node_id="ORG_1",
-        environment_name="Acme",
-        environment_slug="acme",
-        environment_type="org",
+    edges = {edge.kind: edge for edge in service_provider.edges}
+
+    assert sp_node.kinds == ["SAML_ServiceProvider", "SAML"]
+    assert issuer_node.kinds == ["SAML_Issuer", "SAML"]
+    assert acs_node.kinds == ["SAML_AssertionConsumerService", "SAML"]
+    assert sp_node.properties.native_object_id == "IDP_1"
+    assert sp_node.properties.environmentid == "ORG_1"
+    assert sp_node.properties.github_deployment_id == DEFAULT_GITHUB_DEPLOYMENT_ID
+    assert sp_node.properties.github_web_origin == DEFAULT_GITHUB_WEB_ORIGIN
+    assert issuer_node.properties.entity_id == "https://issuer.example.com"
+    assert acs_node.properties.acs_url == "https://github.com/orgs/acme/saml/consume"
+    assert acs_node.properties.sp_entity_id == "https://github.com/orgs/acme"
+
+    assert set(edges) == {
+        "SAML_Implements",
+        "SAML_TrustsIssuer",
+        "SAML_HasAssertionConsumerService",
+    }
+    assert edges["SAML_Implements"].start.value == "IDP_1"
+    assert edges["SAML_Implements"].end.value == sp_node.id
+    assert edges["SAML_TrustsIssuer"].start.value == sp_node.id
+    assert edges["SAML_TrustsIssuer"].end.value == issuer_node.id
+    assert edges["SAML_HasAssertionConsumerService"].end.value == acs_node.id
+    assert not list(issuer.edges)
+    assert not list(acs.edges)
+
+
+def test_normalized_saml_assets_scope_ids_and_routes_by_deployment() -> None:
+    default_provider, *_ = _scope_assets()
+    service_provider, issuer, acs = _scope_assets(
         github_deployment_id="github.example.com",
         github_web_origin="https://github.example.com",
     )
 
-    assert service_provider.as_node.id == "github:github.example.com:saml:sp:org:acme"
-    assert issuer.as_node.id == "github:github.example.com:saml:trusted-issuer:org:acme"
-    assert acs.as_node.id == "github:github.example.com:saml:acs:org:acme"
+    assert service_provider.as_node.id != default_provider.as_node.id
     assert acs.as_node.properties.acs_url == (
         "https://github.example.com/orgs/acme/saml/consume"
     )
-    assert service_provider.as_node.properties.entity_id == (
-        "https://github.example.com/orgs/acme"
+    assert acs.as_node.properties.sp_entity_id == "https://github.example.com/orgs/acme"
+    assert issuer.as_node.id == _scope_assets()[1].as_node.id
+
+
+@pytest.mark.parametrize(
+    "issuer", [None, "", "  \t", "https://a/\nb", " https://a/\r\nb "]
+)
+def test_blank_issuer_gives_no_issuer_node_and_no_trust_edge(issuer) -> None:
+    """A blank or line-broken issuer must not stop the rest of the scope's facts or the conversion."""
+    service_provider, _, acs = _scope_assets()
+    service_provider.issuer = issuer
+    blank_issuer = SamlIssuer.model_construct(
+        issuer=issuer or "",
+        environment_node_id="ORG_1",
+        environment_slug="acme",
+        environment_type="org",
     )
+
+    assert blank_issuer.as_node is None
+    assert {edge.kind for edge in service_provider.edges} == {
+        "SAML_Implements",
+        "SAML_HasAssertionConsumerService",
+    }
+    assert service_provider.as_node.kinds == ["SAML_ServiceProvider", "SAML"]
+    assert acs.as_node.kinds == ["SAML_AssertionConsumerService", "SAML"]
 
 
 def test_saml_identity_collection_requests_and_preserves_attributes() -> None:
@@ -245,26 +235,29 @@ def test_saml_account_edge_emits_contract_evidence_and_direct_user_mapping() -> 
     identity = _identity_with_lookup()
 
     edges = list(identity.edges)
-    account_edge = next(edge for edge in edges if edge.kind == ek.SAML_HAS_ACCOUNT)
+    account_edge = next(edge for edge in edges if edge.kind == SAML_HAS_ACCOUNT)
     maps_to_edges = [edge for edge in edges if edge.kind == ek.MAPS_TO_USER]
 
-    assert account_edge.properties.schema_contract_version == SAML_CONTRACT_VERSION
+    assert account_edge.properties.schema_contract_version == "opengraph-saml-v0.3.0"
     assert account_edge.properties.match_values == [
         "Alice@example.com",
         "subject-1",
-        "object-1",
+        "11111111-1111-4111-8111-111111111111",
     ]
     assert account_edge.properties.scoped_exact_match_values == [
         "Alice@example.com",
         "subject-1",
     ]
-    assert account_edge.properties.entra_object_id_match_values == ["object-1"]
+    assert account_edge.properties.entra_object_id_match_values == [
+        "11111111-1111-4111-8111-111111111111"
+    ]
     assert account_edge.properties.direct_binding is True
-    assert account_edge.properties.direct_binding_source == (
+    assert account_edge.properties.github_direct_binding_source == (
         "GH_ExternalIdentity.saml_identity"
     )
-    assert account_edge.properties.external_identity_id == "external-identity-1"
-    assert account_edge.start.value == "github:saml:sp:org:acme"
+    assert account_edge.properties.github_external_identity_id == "external-identity-1"
+    assert account_edge.start.value == _scope_assets()[0].as_node.id
+    assert account_edge.end.value == "USER_1"
 
     assert ek.HAS_EXTERNAL_IDENTITY in {edge.kind for edge in edges}
     assert len(maps_to_edges) == 1
@@ -319,7 +312,7 @@ def test_org_scim_only_identity_does_not_emit_saml_account_edge() -> None:
         scimIdentity={"username": "scim-only@example.com"},
     )
 
-    assert ek.SAML_HAS_ACCOUNT not in {edge.kind for edge in identity.edges}
+    assert SAML_HAS_ACCOUNT not in {edge.kind for edge in identity.edges}
 
 
 def test_enterprise_scim_only_identity_emits_managed_user_binding() -> None:
@@ -348,6 +341,66 @@ def test_enterprise_scim_only_identity_emits_managed_user_binding() -> None:
         "managed@example.com"
     ]
     assert account_edge.properties.entra_object_id_match_values == []
-    assert account_edge.properties.direct_binding_source == (
+    assert account_edge.properties.github_direct_binding_source == (
         "GH_ExternalIdentity.scim_identity (Enterprise Managed Users)"
     )
+
+
+def test_entra_object_id_claim_that_is_not_a_uuid_stays_untyped() -> None:
+    identity = _identity_with_lookup(
+        samlIdentity={
+            "username": "alice@example.com",
+            "attributes": [
+                {
+                    "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+                    "value": "not-a-uuid",
+                }
+            ],
+        }
+    )
+
+    account_edge = _saml_account_edge(identity)
+
+    assert account_edge.properties.match_values == ["alice@example.com", "not-a-uuid"]
+    assert account_edge.properties.entra_object_id_match_values == []
+
+
+def test_entra_object_id_alone_writes_account_edge_without_direct_binding() -> None:
+    guid = "11111111-1111-4111-8111-111111111111"
+    identity = _identity_with_lookup(
+        samlIdentity={
+            "username": None,
+            "nameId": None,
+            "attributes": [
+                {
+                    "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+                    "value": guid,
+                }
+            ],
+        },
+        scimIdentity=None,
+    )
+
+    account_edge = _saml_account_edge(identity)
+
+    assert account_edge.properties.direct_binding is False
+    assert account_edge.properties.scoped_exact_match_values == []
+    assert account_edge.properties.entra_object_id_match_values == [guid]
+    assert account_edge.properties.match_values == [guid]
+
+
+def test_account_edge_starts_at_service_provider_of_mixed_case_deployment() -> None:
+    deployment = "GHES.Example.Test"
+    service_provider = SamlServiceProvider(
+        id="IDP_1",
+        issuer="https://issuer.example.com",
+        environment_node_id="ORG_1",
+        environment_name="Acme",
+        environment_slug="acme",
+        environment_type="org",
+        github_deployment_id=deployment,
+        github_web_origin="https://ghes.example.test",
+    )
+    identity = _identity_with_lookup(github_deployment_id=deployment)
+
+    assert _saml_account_edge(identity).start.value == service_provider.as_node.id

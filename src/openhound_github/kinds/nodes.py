@@ -72,13 +72,6 @@ ENTERPRISE = "GH_Enterprise"
 ENTERPRISE_TEAM = "GH_EnterpriseTeam"
 ENTERPRISE_ROLE = "GH_EnterpriseRole"
 
-# SAML nodes
-SAML_FEDERATION_PROVIDER = "SAML_FederationProvider"
-SAML_SERVICE_PROVIDER = "SAML_ServiceProvider"
-SAML_ISSUER = "SAML_Issuer"
-SAML_ASSERTION_CONSUMER_SERVICE = "SAML_AssertionConsumerService"
-SAML_CLAIM_MAPPING = "SAML_ClaimMapping"
-
 # Normalized OpenGraph-SCIM nodes
 SCIM_ORGANIZATION = "SCIM_Organization"
 SCIM_USER = "SCIM_User"

@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from uuid import UUID
 
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import (
@@ -6,33 +7,23 @@ from openhound.core.models.entries_dataclass import (
     EdgePath,
     EdgeProperties,
 )
+from openhound_saml_producer import AccountFact, ServiceProviderFact, edge_defs
+from openhound_saml_producer.contract import EdgeKind, NodeKind
+from openhound_saml_producer.sp import service_provider_edges
 from pydantic import BaseModel, ConfigDict, Field
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from .saml_producer import SAML, log_warnings, service_provider_fact
 
 from .saml_helpers import (
     DEFAULT_GITHUB_DEPLOYMENT_ID,
     ENTRA_OBJECT_ID_CLAIM,
-    SAML_CONTRACT_VERSION,
-    github_saml_service_provider_id,
     saml_account_match_values,
     saml_attribute_match_values,
 )
-
-
-@dataclass
-class SAMLHasAccountEdgeProperties(EdgeProperties):
-    schema_contract_version: str = SAML_CONTRACT_VERSION
-    match_values: list[str] = field(default_factory=list)
-    scoped_exact_match_values: list[str] = field(default_factory=list)
-    entra_object_id_match_values: list[str] = field(default_factory=list)
-    direct_binding: bool = False
-    direct_binding_source: str | None = None
-    external_identity_id: str | None = None
-    account_state: str = "unknown"
 
 
 @dataclass
@@ -66,6 +57,26 @@ class GHExternalIdentityProperties(GHNodeProperties):
     github_user_id: str | None = None
     environment_name: str | None = None
     query_mapped_users: str | None = None
+
+
+# The service provider asset declares the rest of the service provider edges.
+_HAS_ACCOUNT_EDGE_DEFS = [
+    edge_def
+    for edge_def in edge_defs(
+        NodeKind.SERVICE_PROVIDER,
+        native_kind=nk.SAML_IDENTITY_PROVIDER,
+        account_kinds=[nk.USER],
+    )
+    if edge_def.kind == EdgeKind.HAS_ACCOUNT.value
+]
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 class SCIMIdentity(BaseModel):
@@ -109,13 +120,7 @@ class User(BaseModel):
             description="External identity maps to a user",
             traversable=False,
         ),
-        EdgeDef(
-            start=nk.SAML_SERVICE_PROVIDER,
-            end=nk.USER,
-            kind=ek.SAML_HAS_ACCOUNT,
-            description="Normalized SAML service provider has this downstream GitHub account",
-            traversable=False,
-        ),
+        *_HAS_ACCOUNT_EDGE_DEFS,
     ],
 )
 class ExternalIdentity(BaseAsset):
@@ -214,13 +219,18 @@ class ExternalIdentity(BaseAsset):
         }
 
     @property
-    def service_provider_node_id(self) -> str | None:
-        if self.idp.get("federation_type") != "saml":
+    def saml_service_provider_fact(self) -> ServiceProviderFact | None:
+        """The service provider fact of this identity's SAML scope, if it has one."""
+        idp = self.idp
+        if idp.get("federation_type") != "saml":
             return None
-        return github_saml_service_provider_id(
-            self.idp.get("environment_type"),
-            self.environment_slug,
-            self.github_deployment_id,
+        return service_provider_fact(
+            saml_provider_id=idp["id"],
+            environment_node_id=idp["environment_node_id"],
+            environment_name=idp["environment_name"],
+            environment_type=idp["environment_type"],
+            environment_slug=self.environment_slug,
+            github_deployment_id=self.github_deployment_id,
         )
 
     @property
@@ -248,7 +258,8 @@ class ExternalIdentity(BaseAsset):
         )
 
     @property
-    def entra_object_id_match_values(self) -> list[str]:
+    def entra_object_id_claim_values(self) -> list[str]:
+        """Every value of the Entra object ID attribute, source-exact."""
         if not self.saml_identity:
             return []
         return saml_attribute_match_values(
@@ -257,10 +268,24 @@ class ExternalIdentity(BaseAsset):
         )
 
     @property
+    def entra_object_id_match_values(self) -> list[str]:
+        """The attribute values that are object IDs.
+
+        The library accepts only a UUID in this typed list and rejects the fact
+        otherwise, which would stop the whole conversion. A value that is not a
+        UUID stays in `match_values` but is not typed as an object ID.
+        """
+        return [
+            value
+            for value in self.entra_object_id_claim_values
+            if _is_uuid(value)
+        ]
+
+    @property
     def saml_match_values(self) -> list[str]:
         return saml_account_match_values(
             *self.scoped_exact_match_values,
-            *self.entra_object_id_match_values,
+            *self.entra_object_id_claim_values,
         )
 
     @property
@@ -270,6 +295,44 @@ class ExternalIdentity(BaseAsset):
         if self.enterprise_managed_user_scim_match_values:
             return "GH_ExternalIdentity.scim_identity (Enterprise Managed Users)"
         return None
+
+    def _saml_account_edges(self) -> list[Edge]:
+        """Return `SAML_HasAccount` from the scope's service provider to the user.
+
+        The library writes the edge. With no native object, issuer, or route, it
+        writes nothing else, so the service provider asset owns those edges.
+        """
+        fact = self.saml_service_provider_fact
+        match_values = self.saml_match_values
+        if not (fact and self.user and self.user.id and match_values):
+            return []
+        scoped_exact = self.scoped_exact_match_values
+        edges, warnings = service_provider_edges(
+            SAML,
+            fact,
+            native=None,
+            trusted_issuer=None,
+            routes=[],
+            accounts=[
+                AccountFact(
+                    account=EdgePath(value=self.user.id, match_by="id"),
+                    native_object_id=self.user.id,
+                    native_object_name=self.user.login,
+                    match_values=match_values,
+                    entra_object_id_match_values=self.entra_object_id_match_values,
+                    scoped_exact_match_values=scoped_exact,
+                    # The library needs scoped values to accept a direct binding.
+                    direct_binding=bool(scoped_exact),
+                    account_state="unknown",
+                    extras={
+                        "github_direct_binding_source": self.saml_direct_binding_source,
+                        "github_external_identity_id": self.node_id,
+                    },
+                )
+            ],
+        )
+        log_warnings(warnings)
+        return edges
 
     @property
     def edges(self):
@@ -281,26 +344,7 @@ class ExternalIdentity(BaseAsset):
                 properties=EdgeProperties(traversable=False),
             )
 
-        has_idp = bool(self.idp.get("id"))
-        service_provider_node_id = self.service_provider_node_id
-        match_values = self.saml_match_values
-
-        if has_idp and service_provider_node_id and self.user and self.user.id and match_values:
-            yield Edge(
-                kind=ek.SAML_HAS_ACCOUNT,
-                start=EdgePath(value=service_provider_node_id, match_by="id"),
-                end=EdgePath(value=self.user.id, match_by="id"),
-                properties=SAMLHasAccountEdgeProperties(
-                    traversable=False,
-                    match_values=match_values,
-                    scoped_exact_match_values=self.scoped_exact_match_values,
-                    entra_object_id_match_values=self.entra_object_id_match_values,
-                    direct_binding=True,
-                    direct_binding_source=self.saml_direct_binding_source,
-                    external_identity_id=self.node_id,
-                    account_state="unknown",
-                ),
-            )
+        yield from self._saml_account_edges()
 
         # GH_MapsToUser → linked GitHub user node (match by id)
         if self.user and self.user.id:

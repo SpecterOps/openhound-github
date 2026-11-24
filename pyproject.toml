@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "joserfc>=1.6.5",
+    "openhound-saml-producer==0.4.6rc5",
     "requests>=2.33.0",
 ]
 authors = [
@@ -28,10 +29,10 @@ local_scheme = "no-local-version"
 
 [dependency-groups]
 container = [
-    "openhound>=0.4.0",
+    "openhound>=0.4.1",
 ]
 dev = [
-    "openhound>=0.4.0",
+    "openhound>=0.4.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.1",
     "ruff>=0.15.5",

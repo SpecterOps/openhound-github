@@ -32,8 +32,10 @@ def _read_graph(graph_dir: Path) -> dict[str, list[dict]]:
             graph[kind].extend(content.get(kind, []))
     for node in graph["nodes"]:
         node["properties"].pop("last_seen", None)
-    graph["nodes"].sort(key=lambda node: node["id"])
-    graph["edges"].sort(key=json.dumps)
+    # Shared nodes (for example SAML_Issuer) have equal IDs, so the node sort
+    # needs the whole node as a tiebreaker to stay independent of input order.
+    graph["nodes"].sort(key=lambda node: (node["id"], json.dumps(node, sort_keys=True)))
+    graph["edges"].sort(key=lambda edge: json.dumps(edge, sort_keys=True))
     return graph
 
 
