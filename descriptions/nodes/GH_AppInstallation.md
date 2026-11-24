@@ -32,7 +32,7 @@ Enterprise collection includes the authenticating collector app's installation, 
 | `repository_selection` | `string` | Whether the app has access to `all` repositories or `selected` repositories. |
 | `target_type` | `string` | The target type of the installation (e.g., `Organization` or `Enterprise`). |
 | `permissions` | `list[string]` | Permissions granted to the installation in `scope:access` form. |
-| `events` | `string` | JSON string of the webhook events the app subscribes to. |
+| `events` | `list[string]` | Webhook events the app subscribes to. |
 | `created_at` | `datetime` | When the app was installed. |
 | `updated_at` | `datetime` | When the installation was last updated. |
 | `suspended_at` | `datetime` | When the installation was suspended, if applicable. |

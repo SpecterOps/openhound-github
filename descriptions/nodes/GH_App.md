@@ -36,7 +36,7 @@ Organization membership is established from `membersWithRole`, and enterprise me
 | `owner_type` | `string` | The type of the owner (e.g., `User`, `Organization`). |
 | `permissions` | `list[string]` | Requested app permissions in `scope:access` form. |
 | `registration_origin` | `string` | `tenant_owned`, `member_owned`, `third_party`, or `unknown`, based on collected ownership and membership evidence. |
-| `events` | `list[string]` | JSON string of the default webhook events the app subscribes to. |
+| `events` | `list[string]` | Default webhook events the app subscribes to. |
 | `installations_count` | `integer` | The total number of installations of this app across all organizations. |
 | `created_at` | `datetime` | When the app was created. |
 | `updated_at` | `datetime` | When the app was last updated. |
