@@ -3,16 +3,327 @@
     {
       "end": {
         "match_by": "id",
-        "value": "EI_emu-scim"
+        "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
       },
-      "kind": "GH_HasExternalIdentity",
+      "kind": "SAML_Implements",
       "properties": {
         "composed": false,
+        "derived": false,
+        "description": "Example Org implements a normalized SAML provider",
+        "displayname": "Example Org",
+        "name": "Example Org",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_org",
+        "native_object_name": "Example Org",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_provenance",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_Implements",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-org",
+        "source_role": "native_configuration",
+        "source_technology": "github",
+        "summary": "Example Org implements a normalized SAML provider",
+        "target_environmentid": "ORG_example-org",
+        "target_role": "normalized_saml_role",
+        "target_technology": "github",
         "traversable": false
       },
       "start": {
         "match_by": "id",
-        "value": "SAMLIDP_ent"
+        "value": "SAMLIDP_org"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "1841c23f-bf14-569d-ba1e-1d9f909625f1"
+      },
+      "kind": "SAML_HasAssertionConsumerService",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example Enterprise has a SAML assertion consumer route",
+        "displayname": "Example Enterprise",
+        "name": "Example Enterprise",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_ent",
+        "native_object_name": "Example Enterprise",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_HasAssertionConsumerService",
+        "route_source": "github_enterprise_scope_convention",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ENT_example-enterprise",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example Enterprise has a SAML assertion consumer route",
+        "target_environmentid": "ENT_example-enterprise",
+        "target_role": "assertion_consumer_service",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "d9e346b0-1e71-53d6-a5b2-ea5e124df378"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "19851662-2536-5269-a493-926674796ef6"
+      },
+      "kind": "SAML_HasAssertionConsumerService",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example App Org has a SAML assertion consumer route",
+        "displayname": "Example App Org",
+        "name": "Example App Org",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_app",
+        "native_object_name": "Example App Org",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_HasAssertionConsumerService",
+        "route_source": "github_organization_scope_convention",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-app-org",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example App Org has a SAML assertion consumer route",
+        "target_environmentid": "ORG_example-app-org",
+        "target_role": "assertion_consumer_service",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "e00a7028-3445-5921-9bca-5698db295bc9"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
+      },
+      "kind": "SAML_TrustsIssuer",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example App Org trusts an upstream SAML issuer",
+        "displayname": "Example App Org",
+        "name": "Example App Org",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_app",
+        "native_object_name": "Example App Org",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_TrustsIssuer",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-app-org",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example App Org trusts an upstream SAML issuer",
+        "target_environmentid": "ORG_example-app-org",
+        "target_role": "trusted_issuer",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "e00a7028-3445-5921-9bca-5698db295bc9"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
+      },
+      "kind": "SAML_TrustsIssuer",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example Enterprise trusts an upstream SAML issuer",
+        "displayname": "Example Enterprise",
+        "name": "Example Enterprise",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_ent",
+        "native_object_name": "Example Enterprise",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_TrustsIssuer",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ENT_example-enterprise",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example Enterprise trusts an upstream SAML issuer",
+        "target_environmentid": "ENT_example-enterprise",
+        "target_role": "trusted_issuer",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "d9e346b0-1e71-53d6-a5b2-ea5e124df378"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
+      },
+      "kind": "SAML_TrustsIssuer",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example Org trusts an upstream SAML issuer",
+        "displayname": "Example Org",
+        "name": "Example Org",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_org",
+        "native_object_name": "Example Org",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_TrustsIssuer",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-org",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example Org trusts an upstream SAML issuer",
+        "target_environmentid": "ORG_example-org",
+        "target_role": "trusted_issuer",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
+      },
+      "kind": "SAML_TrustsIssuer",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example Shared trusts an upstream SAML issuer",
+        "displayname": "Example Shared",
+        "name": "Example Shared",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_shared_com",
+        "native_object_name": "Example Shared",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_TrustsIssuer",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-shared_com",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example Shared trusts an upstream SAML issuer",
+        "target_environmentid": "ORG_example-shared_com",
+        "target_role": "trusted_issuer",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "a3d589f8-13a0-5f13-aece-2ac17c5bfcbe"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
+      },
+      "kind": "SAML_TrustsIssuer",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example Shared trusts an upstream SAML issuer",
+        "displayname": "Example Shared",
+        "name": "Example Shared",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_shared_ghes",
+        "native_object_name": "Example Shared",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_TrustsIssuer",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-shared_ghes",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example Shared trusts an upstream SAML issuer",
+        "target_environmentid": "ORG_example-shared_ghes",
+        "target_role": "trusted_issuer",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "3eee20dc-88b2-5a4b-8cdb-48852706fddd"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "3eee20dc-88b2-5a4b-8cdb-48852706fddd"
+      },
+      "kind": "SAML_Implements",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example Shared implements a normalized SAML provider",
+        "displayname": "Example Shared",
+        "name": "Example Shared",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_shared_ghes",
+        "native_object_name": "Example Shared",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_provenance",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_Implements",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-shared_ghes",
+        "source_role": "native_configuration",
+        "source_technology": "github",
+        "summary": "Example Shared implements a normalized SAML provider",
+        "target_environmentid": "ORG_example-shared_ghes",
+        "target_role": "normalized_saml_role",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "SAMLIDP_shared_ghes"
       }
     },
     {
@@ -43,6 +354,21 @@
       "start": {
         "match_by": "id",
         "value": "SAMLIDP_org"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "EI_emu-scim"
+      },
+      "kind": "GH_HasExternalIdentity",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "SAMLIDP_ent"
       }
     },
     {
@@ -123,21 +449,6 @@
     {
       "end": {
         "match_by": "id",
-        "value": "SAMLIDP_ent"
-      },
-      "kind": "GH_HasSamlIdentityProvider",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "ENT_example-enterprise"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
         "value": "SAMLIDP_app"
       },
       "kind": "GH_HasSamlIdentityProvider",
@@ -148,6 +459,21 @@
       "start": {
         "match_by": "id",
         "value": "ORG_example-app-org"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "SAMLIDP_ent"
+      },
+      "kind": "GH_HasSamlIdentityProvider",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "ENT_example-enterprise"
       }
     },
     {
@@ -213,126 +539,6 @@
     {
       "end": {
         "match_by": "id",
-        "value": "U_duplicate"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_duplicate"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_emu-scim"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_emu-scim"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_entra"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_entra"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_no-provider-data"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_no-provider-data"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_opaque"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_opaque"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_org-scim-only"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_org-scim-only"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_orphan-scope"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_orphan-scope"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_shared-ghes"
-      },
-      "kind": "GH_MapsToUser",
-      "properties": {
-        "composed": false,
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "EI_shared-ghes"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
         "value": "U_blank"
       },
       "kind": "SAML_HasAccount",
@@ -379,6 +585,21 @@
       "start": {
         "match_by": "id",
         "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "U_duplicate"
+      },
+      "kind": "GH_MapsToUser",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "EI_duplicate"
       }
     },
     {
@@ -433,6 +654,102 @@
       "start": {
         "match_by": "id",
         "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "U_emu-scim"
+      },
+      "kind": "GH_MapsToUser",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "EI_emu-scim"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "U_emu-scim"
+      },
+      "kind": "SAML_HasAccount",
+      "properties": {
+        "account_state": "unknown",
+        "composed": false,
+        "derived": false,
+        "description": "Service provider account user-emu-scim is linked to this provider",
+        "direct_binding": true,
+        "displayname": "user-emu-scim",
+        "email_match_values": [],
+        "entra_object_id_match_values": [],
+        "external_id_match_values": [],
+        "github_direct_binding_source": "GH_ExternalIdentity.scim_identity (Enterprise Managed Users)",
+        "github_external_identity_id": "EI_emu-scim",
+        "incomplete_match_value_fields": [],
+        "match_values": [
+          "emu_example"
+        ],
+        "name": "user-emu-scim",
+        "native_evidence_refs": [],
+        "native_object_id": "U_emu-scim",
+        "native_object_name": "user-emu-scim",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_account_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_HasAccount",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "scoped_exact_match_values": [
+          "emu_example"
+        ],
+        "source_environmentid": "ENT_example-enterprise",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Service provider account user-emu-scim is linked to this provider",
+        "target_environmentid": "ENT_example-enterprise",
+        "target_role": "service_provider_account",
+        "target_technology": "github",
+        "traversable": false,
+        "upn_match_values": []
+      },
+      "start": {
+        "match_by": "id",
+        "value": "d9e346b0-1e71-53d6-a5b2-ea5e124df378"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "U_emu-scim"
+      },
+      "kind": "SCIM_Provisioned",
+      "properties": {
+        "composed": false,
+        "traversable": true
+      },
+      "start": {
+        "match_by": "id",
+        "value": "guid-emu-scim"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "U_entra"
+      },
+      "kind": "GH_MapsToUser",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "EI_entra"
       }
     },
     {
@@ -493,6 +810,36 @@
     {
       "end": {
         "match_by": "id",
+        "value": "U_no-provider-data"
+      },
+      "kind": "GH_MapsToUser",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "EI_no-provider-data"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "U_opaque"
+      },
+      "kind": "GH_MapsToUser",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "EI_opaque"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
         "value": "U_opaque"
       },
       "kind": "SAML_HasAccount",
@@ -546,126 +893,61 @@
     {
       "end": {
         "match_by": "id",
-        "value": "U_emu-scim"
+        "value": "U_org-scim-only"
       },
-      "kind": "SAML_HasAccount",
+      "kind": "GH_MapsToUser",
       "properties": {
-        "account_state": "unknown",
         "composed": false,
-        "derived": false,
-        "description": "Service provider account user-emu-scim is linked to this provider",
-        "direct_binding": true,
-        "displayname": "user-emu-scim",
-        "email_match_values": [],
-        "entra_object_id_match_values": [],
-        "external_id_match_values": [],
-        "github_direct_binding_source": "GH_ExternalIdentity.scim_identity (Enterprise Managed Users)",
-        "github_external_identity_id": "EI_emu-scim",
-        "incomplete_match_value_fields": [],
-        "match_values": [
-          "emu_example"
-        ],
-        "name": "user-emu-scim",
-        "native_evidence_refs": [],
-        "native_object_id": "U_emu-scim",
-        "native_object_name": "user-emu-scim",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_account_evidence",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_HasAccount",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "scoped_exact_match_values": [
-          "emu_example"
-        ],
-        "source_environmentid": "ENT_example-enterprise",
-        "source_role": "service_provider",
-        "source_technology": "github",
-        "summary": "Service provider account user-emu-scim is linked to this provider",
-        "target_environmentid": "ENT_example-enterprise",
-        "target_role": "service_provider_account",
-        "target_technology": "github",
-        "traversable": false,
-        "upn_match_values": []
+        "traversable": false
       },
       "start": {
         "match_by": "id",
-        "value": "d9e346b0-1e71-53d6-a5b2-ea5e124df378"
+        "value": "EI_org-scim-only"
       }
     },
     {
       "end": {
         "match_by": "id",
-        "value": "e64ebeca-f93f-5743-a1c9-209e78740b32"
+        "value": "U_org-scim-only"
       },
-      "kind": "SAML_HasAssertionConsumerService",
+      "kind": "SCIM_Provisioned",
       "properties": {
         "composed": false,
-        "derived": false,
-        "description": "Example Org has a SAML assertion consumer route",
-        "displayname": "Example Org",
-        "name": "Example Org",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_org",
-        "native_object_name": "Example Org",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_HasAssertionConsumerService",
-        "route_source": "github_organization_scope_convention",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-org",
-        "source_role": "service_provider",
-        "source_technology": "github",
-        "summary": "Example Org has a SAML assertion consumer route",
-        "target_environmentid": "ORG_example-org",
-        "target_role": "assertion_consumer_service",
-        "target_technology": "github",
-        "traversable": false
+        "traversable": true
       },
       "start": {
         "match_by": "id",
-        "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
+        "value": "guid-org-scim-only"
       }
     },
     {
       "end": {
         "match_by": "id",
-        "value": "a935705d-24d1-5e56-a03f-c8e383c7cfb0"
+        "value": "U_orphan-scope"
       },
-      "kind": "SAML_HasAssertionConsumerService",
+      "kind": "GH_MapsToUser",
       "properties": {
         "composed": false,
-        "derived": false,
-        "description": "Example Shared has a SAML assertion consumer route",
-        "displayname": "Example Shared",
-        "name": "Example Shared",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_shared_ghes",
-        "native_object_name": "Example Shared",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_HasAssertionConsumerService",
-        "route_source": "github_organization_scope_convention",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-shared_ghes",
-        "source_role": "service_provider",
-        "source_technology": "github",
-        "summary": "Example Shared has a SAML assertion consumer route",
-        "target_environmentid": "ORG_example-shared_ghes",
-        "target_role": "assertion_consumer_service",
-        "target_technology": "github",
         "traversable": false
       },
       "start": {
         "match_by": "id",
-        "value": "3eee20dc-88b2-5a4b-8cdb-48852706fddd"
+        "value": "EI_orphan-scope"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "U_shared-ghes"
+      },
+      "kind": "GH_MapsToUser",
+      "properties": {
+        "composed": false,
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "EI_shared-ghes"
       }
     },
     {
@@ -708,55 +990,54 @@
     {
       "end": {
         "match_by": "id",
-        "value": "1841c23f-bf14-569d-ba1e-1d9f909625f1"
+        "value": "a3d589f8-13a0-5f13-aece-2ac17c5bfcbe"
       },
-      "kind": "SAML_HasAssertionConsumerService",
+      "kind": "SAML_Implements",
       "properties": {
         "composed": false,
         "derived": false,
-        "description": "Example Enterprise has a SAML assertion consumer route",
-        "displayname": "Example Enterprise",
-        "name": "Example Enterprise",
+        "description": "Example Shared implements a normalized SAML provider",
+        "displayname": "Example Shared",
+        "name": "Example Shared",
         "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_ent",
-        "native_object_name": "Example Enterprise",
+        "native_object_id": "SAMLIDP_shared_com",
+        "native_object_name": "Example Shared",
         "native_relationship_kind": "GH_SamlIdentityProvider",
         "producer_extension": "openhound-github",
         "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
+        "relationship_category": "saml_provenance",
         "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_HasAssertionConsumerService",
-        "route_source": "github_enterprise_scope_convention",
+        "relationship_kind": "SAML_Implements",
         "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ENT_example-enterprise",
-        "source_role": "service_provider",
+        "source_environmentid": "ORG_example-shared_com",
+        "source_role": "native_configuration",
         "source_technology": "github",
-        "summary": "Example Enterprise has a SAML assertion consumer route",
-        "target_environmentid": "ENT_example-enterprise",
-        "target_role": "assertion_consumer_service",
+        "summary": "Example Shared implements a normalized SAML provider",
+        "target_environmentid": "ORG_example-shared_com",
+        "target_role": "normalized_saml_role",
         "target_technology": "github",
         "traversable": false
       },
       "start": {
         "match_by": "id",
-        "value": "d9e346b0-1e71-53d6-a5b2-ea5e124df378"
+        "value": "SAMLIDP_shared_com"
       }
     },
     {
       "end": {
         "match_by": "id",
-        "value": "19851662-2536-5269-a493-926674796ef6"
+        "value": "a935705d-24d1-5e56-a03f-c8e383c7cfb0"
       },
       "kind": "SAML_HasAssertionConsumerService",
       "properties": {
         "composed": false,
         "derived": false,
-        "description": "Example App Org has a SAML assertion consumer route",
-        "displayname": "Example App Org",
-        "name": "Example App Org",
+        "description": "Example Shared has a SAML assertion consumer route",
+        "displayname": "Example Shared",
+        "name": "Example Shared",
         "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_app",
-        "native_object_name": "Example App Org",
+        "native_object_id": "SAMLIDP_shared_ghes",
+        "native_object_name": "Example Shared",
         "native_relationship_kind": "GH_SamlIdentityProvider",
         "producer_extension": "openhound-github",
         "producer_source_kind": "SAML",
@@ -765,54 +1046,18 @@
         "relationship_kind": "SAML_HasAssertionConsumerService",
         "route_source": "github_organization_scope_convention",
         "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-app-org",
+        "source_environmentid": "ORG_example-shared_ghes",
         "source_role": "service_provider",
         "source_technology": "github",
-        "summary": "Example App Org has a SAML assertion consumer route",
-        "target_environmentid": "ORG_example-app-org",
+        "summary": "Example Shared has a SAML assertion consumer route",
+        "target_environmentid": "ORG_example-shared_ghes",
         "target_role": "assertion_consumer_service",
         "target_technology": "github",
         "traversable": false
       },
       "start": {
         "match_by": "id",
-        "value": "e00a7028-3445-5921-9bca-5698db295bc9"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "e00a7028-3445-5921-9bca-5698db295bc9"
-      },
-      "kind": "SAML_Implements",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example App Org implements a normalized SAML provider",
-        "displayname": "Example App Org",
-        "name": "Example App Org",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_app",
-        "native_object_name": "Example App Org",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_provenance",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_Implements",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-app-org",
-        "source_role": "native_configuration",
-        "source_technology": "github",
-        "summary": "Example App Org implements a normalized SAML provider",
-        "target_environmentid": "ORG_example-app-org",
-        "target_role": "normalized_saml_role",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "SAMLIDP_app"
+        "value": "3eee20dc-88b2-5a4b-8cdb-48852706fddd"
       }
     },
     {
@@ -854,265 +1099,13 @@
     {
       "end": {
         "match_by": "id",
-        "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
+        "value": "e00a7028-3445-5921-9bca-5698db295bc9"
       },
       "kind": "SAML_Implements",
       "properties": {
         "composed": false,
         "derived": false,
-        "description": "Example Org implements a normalized SAML provider",
-        "displayname": "Example Org",
-        "name": "Example Org",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_org",
-        "native_object_name": "Example Org",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_provenance",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_Implements",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-org",
-        "source_role": "native_configuration",
-        "source_technology": "github",
-        "summary": "Example Org implements a normalized SAML provider",
-        "target_environmentid": "ORG_example-org",
-        "target_role": "normalized_saml_role",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "SAMLIDP_org"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "a3d589f8-13a0-5f13-aece-2ac17c5bfcbe"
-      },
-      "kind": "SAML_Implements",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example Shared implements a normalized SAML provider",
-        "displayname": "Example Shared",
-        "name": "Example Shared",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_shared_com",
-        "native_object_name": "Example Shared",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_provenance",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_Implements",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-shared_com",
-        "source_role": "native_configuration",
-        "source_technology": "github",
-        "summary": "Example Shared implements a normalized SAML provider",
-        "target_environmentid": "ORG_example-shared_com",
-        "target_role": "normalized_saml_role",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "SAMLIDP_shared_com"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "3eee20dc-88b2-5a4b-8cdb-48852706fddd"
-      },
-      "kind": "SAML_Implements",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example Shared implements a normalized SAML provider",
-        "displayname": "Example Shared",
-        "name": "Example Shared",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_shared_ghes",
-        "native_object_name": "Example Shared",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_provenance",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_Implements",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-shared_ghes",
-        "source_role": "native_configuration",
-        "source_technology": "github",
-        "summary": "Example Shared implements a normalized SAML provider",
-        "target_environmentid": "ORG_example-shared_ghes",
-        "target_role": "normalized_saml_role",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "SAMLIDP_shared_ghes"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
-      },
-      "kind": "SAML_TrustsIssuer",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example Org trusts an upstream SAML issuer",
-        "displayname": "Example Org",
-        "name": "Example Org",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_org",
-        "native_object_name": "Example Org",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_TrustsIssuer",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-org",
-        "source_role": "service_provider",
-        "source_technology": "github",
-        "summary": "Example Org trusts an upstream SAML issuer",
-        "target_environmentid": "ORG_example-org",
-        "target_role": "trusted_issuer",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
-      },
-      "kind": "SAML_TrustsIssuer",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example Shared trusts an upstream SAML issuer",
-        "displayname": "Example Shared",
-        "name": "Example Shared",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_shared_ghes",
-        "native_object_name": "Example Shared",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_TrustsIssuer",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-shared_ghes",
-        "source_role": "service_provider",
-        "source_technology": "github",
-        "summary": "Example Shared trusts an upstream SAML issuer",
-        "target_environmentid": "ORG_example-shared_ghes",
-        "target_role": "trusted_issuer",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "3eee20dc-88b2-5a4b-8cdb-48852706fddd"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
-      },
-      "kind": "SAML_TrustsIssuer",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example Shared trusts an upstream SAML issuer",
-        "displayname": "Example Shared",
-        "name": "Example Shared",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_shared_com",
-        "native_object_name": "Example Shared",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_TrustsIssuer",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ORG_example-shared_com",
-        "source_role": "service_provider",
-        "source_technology": "github",
-        "summary": "Example Shared trusts an upstream SAML issuer",
-        "target_environmentid": "ORG_example-shared_com",
-        "target_role": "trusted_issuer",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "a3d589f8-13a0-5f13-aece-2ac17c5bfcbe"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
-      },
-      "kind": "SAML_TrustsIssuer",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example Enterprise trusts an upstream SAML issuer",
-        "displayname": "Example Enterprise",
-        "name": "Example Enterprise",
-        "native_evidence_refs": [],
-        "native_object_id": "SAMLIDP_ent",
-        "native_object_name": "Example Enterprise",
-        "native_relationship_kind": "GH_SamlIdentityProvider",
-        "producer_extension": "openhound-github",
-        "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
-        "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_TrustsIssuer",
-        "schema_contract_version": "opengraph-saml-v0.3.0",
-        "source_environmentid": "ENT_example-enterprise",
-        "source_role": "service_provider",
-        "source_technology": "github",
-        "summary": "Example Enterprise trusts an upstream SAML issuer",
-        "target_environmentid": "ENT_example-enterprise",
-        "target_role": "trusted_issuer",
-        "target_technology": "github",
-        "traversable": false
-      },
-      "start": {
-        "match_by": "id",
-        "value": "d9e346b0-1e71-53d6-a5b2-ea5e124df378"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "1dfd4b1a-4ecd-5bae-96b8-491f196722df"
-      },
-      "kind": "SAML_TrustsIssuer",
-      "properties": {
-        "composed": false,
-        "derived": false,
-        "description": "Example App Org trusts an upstream SAML issuer",
+        "description": "Example App Org implements a normalized SAML provider",
         "displayname": "Example App Org",
         "name": "Example App Org",
         "native_evidence_refs": [],
@@ -1121,22 +1114,59 @@
         "native_relationship_kind": "GH_SamlIdentityProvider",
         "producer_extension": "openhound-github",
         "producer_source_kind": "SAML",
-        "relationship_category": "saml_route_evidence",
+        "relationship_category": "saml_provenance",
         "relationship_context_version": "saml-relationship-context-v0.3.0",
-        "relationship_kind": "SAML_TrustsIssuer",
+        "relationship_kind": "SAML_Implements",
         "schema_contract_version": "opengraph-saml-v0.3.0",
         "source_environmentid": "ORG_example-app-org",
-        "source_role": "service_provider",
+        "source_role": "native_configuration",
         "source_technology": "github",
-        "summary": "Example App Org trusts an upstream SAML issuer",
+        "summary": "Example App Org implements a normalized SAML provider",
         "target_environmentid": "ORG_example-app-org",
-        "target_role": "trusted_issuer",
+        "target_role": "normalized_saml_role",
         "target_technology": "github",
         "traversable": false
       },
       "start": {
         "match_by": "id",
-        "value": "e00a7028-3445-5921-9bca-5698db295bc9"
+        "value": "SAMLIDP_app"
+      }
+    },
+    {
+      "end": {
+        "match_by": "id",
+        "value": "e64ebeca-f93f-5743-a1c9-209e78740b32"
+      },
+      "kind": "SAML_HasAssertionConsumerService",
+      "properties": {
+        "composed": false,
+        "derived": false,
+        "description": "Example Org has a SAML assertion consumer route",
+        "displayname": "Example Org",
+        "name": "Example Org",
+        "native_evidence_refs": [],
+        "native_object_id": "SAMLIDP_org",
+        "native_object_name": "Example Org",
+        "native_relationship_kind": "GH_SamlIdentityProvider",
+        "producer_extension": "openhound-github",
+        "producer_source_kind": "SAML",
+        "relationship_category": "saml_route_evidence",
+        "relationship_context_version": "saml-relationship-context-v0.3.0",
+        "relationship_kind": "SAML_HasAssertionConsumerService",
+        "route_source": "github_organization_scope_convention",
+        "schema_contract_version": "opengraph-saml-v0.3.0",
+        "source_environmentid": "ORG_example-org",
+        "source_role": "service_provider",
+        "source_technology": "github",
+        "summary": "Example Org has a SAML assertion consumer route",
+        "target_environmentid": "ORG_example-org",
+        "target_role": "assertion_consumer_service",
+        "target_technology": "github",
+        "traversable": false
+      },
+      "start": {
+        "match_by": "id",
+        "value": "14c6d9ee-8dcb-58d4-896d-3135db8a9668"
       }
     },
     {
@@ -1167,36 +1197,6 @@
       "start": {
         "match_by": "id",
         "value": "https://api.github.com/scim/v2/organizations/example-org/"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_emu-scim"
-      },
-      "kind": "SCIM_Provisioned",
-      "properties": {
-        "composed": false,
-        "traversable": true
-      },
-      "start": {
-        "match_by": "id",
-        "value": "guid-emu-scim"
-      }
-    },
-    {
-      "end": {
-        "match_by": "id",
-        "value": "U_org-scim-only"
-      },
-      "kind": "SCIM_Provisioned",
-      "properties": {
-        "composed": false,
-        "traversable": true
-      },
-      "start": {
-        "match_by": "id",
-        "value": "guid-org-scim-only"
       }
     }
   ],
@@ -1263,20 +1263,6 @@
       "properties": {
         "displayname": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
         "entity_id": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
-        "environmentid": "ORG_example-org",
-        "name": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
-        "schema_contract_version": "opengraph-saml-v0.3.0"
-      }
-    },
-    {
-      "id": "1dfd4b1a-4ecd-5bae-96b8-491f196722df",
-      "kinds": [
-        "SAML_Issuer",
-        "SAML"
-      ],
-      "properties": {
-        "displayname": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
-        "entity_id": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
         "environmentid": "ENT_example-enterprise",
         "name": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
         "schema_contract_version": "opengraph-saml-v0.3.0"
@@ -1292,6 +1278,20 @@
         "displayname": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
         "entity_id": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
         "environmentid": "ORG_example-app-org",
+        "name": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+        "schema_contract_version": "opengraph-saml-v0.3.0"
+      }
+    },
+    {
+      "id": "1dfd4b1a-4ecd-5bae-96b8-491f196722df",
+      "kinds": [
+        "SAML_Issuer",
+        "SAML"
+      ],
+      "properties": {
+        "displayname": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+        "entity_id": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
+        "environmentid": "ORG_example-org",
         "name": "https://sts.windows.net/33333333-3333-4333-8333-333333333333/",
         "schema_contract_version": "opengraph-saml-v0.3.0"
       }
