@@ -151,9 +151,11 @@ def test_normalized_saml_assets_scope_ids_and_routes_by_deployment() -> None:
     assert issuer.as_node.id == _scope_assets()[1].as_node.id
 
 
-@pytest.mark.parametrize("issuer", [None, "", "  \t"])
+@pytest.mark.parametrize(
+    "issuer", [None, "", "  \t", "https://a/\nb", " https://a/\r\nb "]
+)
 def test_blank_issuer_gives_no_issuer_node_and_no_trust_edge(issuer) -> None:
-    """A blank issuer must not stop the rest of the scope's facts or the conversion."""
+    """A blank or line-broken issuer must not stop the rest of the scope's facts or the conversion."""
     service_provider, _, acs = _scope_assets()
     service_provider.issuer = issuer
     blank_issuer = SamlIssuer.model_construct(
@@ -246,7 +248,9 @@ def test_saml_account_edge_emits_contract_evidence_and_direct_user_mapping() -> 
         "Alice@example.com",
         "subject-1",
     ]
-    assert account_edge.properties.entra_object_id_match_values == ["11111111-1111-4111-8111-111111111111"]
+    assert account_edge.properties.entra_object_id_match_values == [
+        "11111111-1111-4111-8111-111111111111"
+    ]
     assert account_edge.properties.direct_binding is True
     assert account_edge.properties.github_direct_binding_source == (
         "GH_ExternalIdentity.saml_identity"
@@ -359,3 +363,44 @@ def test_entra_object_id_claim_that_is_not_a_uuid_stays_untyped() -> None:
 
     assert account_edge.properties.match_values == ["alice@example.com", "not-a-uuid"]
     assert account_edge.properties.entra_object_id_match_values == []
+
+
+def test_entra_object_id_alone_writes_account_edge_without_direct_binding() -> None:
+    guid = "11111111-1111-4111-8111-111111111111"
+    identity = _identity_with_lookup(
+        samlIdentity={
+            "username": None,
+            "nameId": None,
+            "attributes": [
+                {
+                    "name": "http://schemas.microsoft.com/identity/claims/objectidentifier",
+                    "value": guid,
+                }
+            ],
+        },
+        scimIdentity=None,
+    )
+
+    account_edge = _saml_account_edge(identity)
+
+    assert account_edge.properties.direct_binding is False
+    assert account_edge.properties.scoped_exact_match_values == []
+    assert account_edge.properties.entra_object_id_match_values == [guid]
+    assert account_edge.properties.match_values == [guid]
+
+
+def test_account_edge_starts_at_service_provider_of_mixed_case_deployment() -> None:
+    deployment = "GHES.Example.Test"
+    service_provider = SamlServiceProvider(
+        id="IDP_1",
+        issuer="https://issuer.example.com",
+        environment_node_id="ORG_1",
+        environment_name="Acme",
+        environment_slug="acme",
+        environment_type="org",
+        github_deployment_id=deployment,
+        github_web_origin="https://ghes.example.test",
+    )
+    identity = _identity_with_lookup(github_deployment_id=deployment)
+
+    assert _saml_account_edge(identity).start.value == service_provider.as_node.id

@@ -65,13 +65,20 @@ def service_provider_fact(
     )
 
 
-def issuer_fact(issuer: str | None) -> IssuerFact | None:
-    """Return the trusted issuer fact, or None when GitHub gave no issuer.
+def issuer_fact(issuer: str | None, scope: str | None = None) -> IssuerFact | None:
+    """Return the trusted issuer fact, or None when GitHub gave no usable issuer.
 
-    A null, empty, or whitespace-only issuer names no issuer. The library rejects
-    a blank entity ID, which would stop the whole conversion.
+    A null, empty, or whitespace-only issuer names no issuer. So does an issuer
+    with a line break, because the library rejects both and one bad row would
+    stop the whole conversion. With a `scope`, a line break logs one warning.
     """
-    if issuer is None or not issuer.strip():
+    if issuer is None or not (entity_id := issuer.strip()):
+        return None
+    if "\n" in entity_id or "\r" in entity_id:
+        if scope:
+            logger.warning(
+                "Ignoring the SAML issuer of %s: it contains a line break", scope
+            )
         return None
     return IssuerFact(entity_id=issuer)
 

@@ -64,7 +64,9 @@ class SamlServiceProvider(BaseAsset):
             SAML,
             self._fact(),
             native=EdgePath(value=self.id, match_by="id"),
-            trusted_issuer=issuer_fact(self.issuer),
+            trusted_issuer=issuer_fact(
+                self.issuer, f"{self.environment_type} '{self.environment_slug}'"
+            ),
             routes=[
                 route_fact(
                     self.environment_type,

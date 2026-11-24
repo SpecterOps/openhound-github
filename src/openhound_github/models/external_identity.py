@@ -58,6 +58,7 @@ class GHExternalIdentityProperties(GHNodeProperties):
     environment_name: str | None = None
     query_mapped_users: str | None = None
 
+
 # The service provider asset declares the rest of the service provider edges.
 _HAS_ACCOUNT_EDGE_DEFS = [
     edge_def
@@ -218,7 +219,7 @@ class ExternalIdentity(BaseAsset):
         }
 
     @property
-    def service_provider_fact(self) -> ServiceProviderFact | None:
+    def saml_service_provider_fact(self) -> ServiceProviderFact | None:
         """The service provider fact of this identity's SAML scope, if it has one."""
         idp = self.idp
         if idp.get("federation_type") != "saml":
@@ -301,7 +302,7 @@ class ExternalIdentity(BaseAsset):
         The library writes the edge. With no native object, issuer, or route, it
         writes nothing else, so the service provider asset owns those edges.
         """
-        fact = self.service_provider_fact
+        fact = self.saml_service_provider_fact
         match_values = self.saml_match_values
         if not (fact and self.user and self.user.id and match_values):
             return []
