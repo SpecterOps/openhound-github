@@ -900,10 +900,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-container = [{ name = "openhound", specifier = ">=0.4.0" }]
+container = [{ name = "openhound", specifier = ">=0.4.1" }]
 dev = [
     { name = "mypy", specifier = ">=1.19.1" },
-    { name = "openhound", specifier = ">=0.4.0" },
+    { name = "openhound", specifier = ">=0.4.1" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest", specifier = ">=9.0.1" },
     { name = "ruff", specifier = ">=0.15.5" },

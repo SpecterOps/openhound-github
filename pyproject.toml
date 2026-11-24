@@ -29,10 +29,10 @@ local_scheme = "no-local-version"
 
 [dependency-groups]
 container = [
-    "openhound>=0.4.0",
+    "openhound>=0.4.1",
 ]
 dev = [
-    "openhound>=0.4.0",
+    "openhound>=0.4.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.1",
     "ruff>=0.15.5",
