@@ -39,6 +39,10 @@ from openhound_github.helpers import (
 )
 from openhound_github.main import app
 from openhound_github.resources.app_helpers import migrate_app_context_schema
+from openhound_github.resources.branch_protection_helpers import (
+    ALLOWANCE_FIELDS,
+    recover_branch_allowances,
+)
 from openhound_github.models import (
     ActionPermission,
     App,
@@ -507,11 +511,15 @@ def organizations(ctx: SourceContext):
             self_hosted_runners = _runner_permissions(ctx, client, org_name)
             workflow_perms = _workflow_permissions(ctx, client, org_name)
 
-            org_data["actions_enabled_repositories"] = actions.get("enabled_repositories")
-            org_data["actions_allowed_actions"] = actions.get("allowed_actions")
-            org_data["actions_sha_pinning_required"] = actions.get("sha_pinning_required")
-            org_data["self_hosted_runners_enabled_repositories"] = self_hosted_runners.get(
+            org_data["actions_enabled_repositories"] = actions.get(
                 "enabled_repositories"
+            )
+            org_data["actions_allowed_actions"] = actions.get("allowed_actions")
+            org_data["actions_sha_pinning_required"] = actions.get(
+                "sha_pinning_required"
+            )
+            org_data["self_hosted_runners_enabled_repositories"] = (
+                self_hosted_runners.get("enabled_repositories")
             )
             org_data["default_workflow_permissions"] = workflow_perms.get(
                 "default_workflow_permissions"
@@ -897,7 +905,10 @@ def projected_enterprise_teams(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'projected_enterprise_teams' processing organization '{org_name}': {e}",
-                extra={"resource": "projected_enterprise_teams", "phase": "resource_iteration"},
+                extra={
+                    "resource": "projected_enterprise_teams",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -1050,7 +1061,10 @@ def actions_permissions(ctx):
         except Exception as e:
             logger.error(
                 f"Error in resource 'actions_permissions' processing organization '{org_name}': {e}",
-                extra={"resource": "actions_permissions", "phase": "resource_iteration"},
+                extra={
+                    "resource": "actions_permissions",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -1263,7 +1277,10 @@ def repository_roles_base(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'repository_roles_base' processing organization '{org_name}': {e}",
-                extra={"resource": "repository_roles_base", "phase": "resource_iteration"},
+                extra={
+                    "resource": "repository_roles_base",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -1441,6 +1458,7 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
     # Note: multiple branches can reference the same branch protection rule
     # so use a set to prevent duplicates
     rule_ids_seen: set[str] = set()
+    rule_branch_names: dict[str, str] = {}
     try:
         for branch in _repository_branches(repository, ctx):
             protection_rule = branch.get("branch_protection_rule") or branch.get(
@@ -1450,6 +1468,8 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
                 rule_id = protection_rule.get("id")
                 if rule_id:
                     rule_ids_seen.add(rule_id)
+                    if branch.get("name"):
+                        rule_branch_names.setdefault(rule_id, branch["name"])
     except Exception as exc:
         logger.warning(
             "Branch protection rule collection gap for '%s/%s': branch discovery failed; "
@@ -1467,7 +1487,45 @@ def branch_protection_rules(repository: RepositoryQL, ctx: SourceContext):
         if rules_chunk:
             data = {"query": PROTECTION_RULES_QUERY, "variables": {"ids": rules_chunk}}
             response = client.post(graphql_path, json=data).json()
-            for rule in response["data"].get("nodes", []):
+            affected_fields: dict[int, set[str]] = {}
+            for error in response.get("errors") or []:
+                path = error.get("path") or []
+                if (
+                    len(path) >= 3
+                    and path[0] == "nodes"
+                    and isinstance(path[1], int)
+                    and path[2] in ALLOWANCE_FIELDS
+                ):
+                    affected_fields.setdefault(path[1], set()).add(path[2])
+                else:
+                    logger.warning(
+                        "Branch protection GraphQL collection gap for '%s/%s': "
+                        "error type %s at path %s",
+                        repository.org_login,
+                        repository.name,
+                        error.get("type"),
+                        path,
+                    )
+            for index, rule in enumerate(
+                (response.get("data") or {}).get("nodes") or []
+            ):
+                if rule is None:
+                    logger.warning(
+                        "Branch protection collection gap for '%s/%s': rule '%s' unavailable",
+                        repository.org_login,
+                        repository.name,
+                        rules_chunk[index],
+                    )
+                    continue
+                if index in affected_fields:
+                    rule = recover_branch_allowances(
+                        rule,
+                        affected_fields[index],
+                        _client_for_org(ctx, repository.org_login),
+                        repository.org_login,
+                        repository.name,
+                        rule_branch_names.get(rule.get("id")),
+                    )
                 # GitHub can return null actors for deleted or inaccessible allowance actors.
                 for allowance_key in ("bypassPullRequestAllowances", "pushAllowances"):
                     allowances = rule.get(allowance_key)
@@ -1524,12 +1582,16 @@ def workflows(repo: Repository, ctx: SourceContext):
             ):
                 logger.warning(
                     "Skipping workflow '%s' in repository '%s': file unavailable at ref '%s' (HTTP 404)",
-                    path, repo.full_name, repo.default_branch,
+                    path,
+                    repo.full_name,
+                    repo.default_branch,
                 )
             else:
                 logger.error(
                     "Unable to collect workflow '%s' in repository '%s': %s",
-                    path, repo.full_name, exc,
+                    path,
+                    repo.full_name,
+                    exc,
                 )
             return None
 
@@ -1909,7 +1971,10 @@ def organization_secrets(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'organization_secrets' processing organization '{org_name}': {e}",
-                extra={"resource": "organization_secrets", "phase": "resource_iteration"},
+                extra={
+                    "resource": "organization_secrets",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -1969,7 +2034,10 @@ def organization_variables(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'organization_variables' processing organization '{org_name}': {e}",
-                extra={"resource": "organization_variables", "phase": "resource_iteration"},
+                extra={
+                    "resource": "organization_variables",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -2135,7 +2203,10 @@ def secret_scanning_alerts(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'secret_scanning_alerts' processing organization '{org_name}': {e}",
-                extra={"resource": "secret_scanning_alerts", "phase": "resource_iteration"},
+                extra={
+                    "resource": "secret_scanning_alerts",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -2172,7 +2243,10 @@ def personal_access_tokens(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'personal_access_tokens' processing organization '{org_name}': {e}",
-                extra={"resource": "personal_access_tokens", "phase": "resource_iteration"},
+                extra={
+                    "resource": "personal_access_tokens",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -2234,7 +2308,10 @@ def personal_access_token_requests(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'personal_access_token_requests' processing organization '{org_name}': {e}",
-                extra={"resource": "personal_access_token_requests", "phase": "resource_iteration"},
+                extra={
+                    "resource": "personal_access_token_requests",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
@@ -2337,12 +2414,17 @@ def external_identities(ctx: SourceContext):
         except Exception as e:
             logger.error(
                 f"Error in resource 'external_identities' processing organization '{org_name}': {e}",
-                extra={"resource": "external_identities", "phase": "resource_iteration"},
+                extra={
+                    "resource": "external_identities",
+                    "phase": "resource_iteration",
+                },
             )
             continue
 
 
-@app.transformer(name="saml_service_provider", columns=SamlServiceProvider, parallelized=True)
+@app.transformer(
+    name="saml_service_provider", columns=SamlServiceProvider, parallelized=True
+)
 def saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
     """Transform SAML provider data into a normalized SAML interface representation.
 
@@ -2365,7 +2447,11 @@ def saml_service_provider(saml_provider: SamlProvider, ctx: SourceContext):
     }
 
 
-@app.transformer(name="saml_assertion_consumer_service", columns=SamlAssertionConsumerService, parallelized=True)
+@app.transformer(
+    name="saml_assertion_consumer_service",
+    columns=SamlAssertionConsumerService,
+    parallelized=True,
+)
 def saml_assertion_consumer_service(saml_provider: SamlProvider, ctx: SourceContext):
     yield {
         "environment_slug": saml_provider.get("environment_slug"),
@@ -2455,7 +2541,9 @@ def scim_users(scim_organization: ScimOrganization, ctx: SourceContext):
     org_name = scim_organization.org_login
     org = _org_context_for_login(ctx, org_name)
     if not org:
-        raise ValueError(f"SCIM collection requires a configured client for organization '{org_name}'")
+        raise ValueError(
+            f"SCIM collection requires a configured client for organization '{org_name}'"
+        )
 
     try:
         for user in iter_organization_scim_users(org.client, org_name):

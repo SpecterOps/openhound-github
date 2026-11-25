@@ -24,7 +24,7 @@ class BranchProtectionRuleActor(BaseModel):
 @dataclass
 class GHBranchProtectionRuleProperties(GHNodeProperties):
     """Branch protection rule properties and accordion panel queries.
-    
+
     Attributes:
         pattern: The branch name pattern this rule applies to (e.g., `main`, `release/*`).
         repository_name: The repository name property.
@@ -69,6 +69,9 @@ class GHBranchProtectionRuleProperties(GHNodeProperties):
 
 
 class Actor(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    typename: str | None = Field(alias="__typename", default=None)
     id: str | None = None
     slug: str | None = None
     login: str | None = None
@@ -101,6 +104,16 @@ class PushAllowances(BaseModel):
             description="Repository contains branch protection rule",
             traversable=False,
         ),
+        *[
+            EdgeDef(
+                start=nk.APP_INSTALLATION,
+                end=nk.BRANCH_PROTECTION_RULE,
+                kind=kind,
+                description="App installation has a branch protection allowance",
+                traversable=False,
+            )
+            for kind in (ek.BYPASS_PULL_REQUEST_ALLOWANCES, ek.RESTRICTIONS_CAN_PUSH)
+        ],
     ],
 )
 class BranchProtectionRule(BaseAsset):
@@ -188,3 +201,24 @@ class BranchProtectionRule(BaseAsset):
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
+        for allowances, kind in (
+            (self.bypass_pull_request_allowances, ek.BYPASS_PULL_REQUEST_ALLOWANCES),
+            (self.push_allowances, ek.RESTRICTIONS_CAN_PUSH),
+        ):
+            seen = set()
+            for node in allowances.nodes if allowances else ():
+                actor = node.actor
+                if actor.typename != "App" or not actor.id or not actor.slug:
+                    continue
+                installation_id = self._lookup.app_installation_node_id_for_repository(
+                    actor.slug, self.repository_node_id
+                )
+                if not installation_id or installation_id in seen:
+                    continue
+                seen.add(installation_id)
+                yield Edge(
+                    kind=kind,
+                    start=EdgePath(value=installation_id, match_by="id"),
+                    end=EdgePath(value=self.node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=False),
+                )

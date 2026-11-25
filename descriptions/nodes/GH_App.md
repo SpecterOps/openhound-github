@@ -4,7 +4,7 @@
 
 Represents a GitHub App definition — the registered application entity. The app owner holds the private key that can generate installation access tokens for **every** GH_AppInstallation of this app. If the private key is compromised, all installations across all organizations and enterprises are affected.
 
-App definitions are retrieved via `GET /apps/{app_slug}` after discovering app slugs from organization installations or the collector app's enterprise installation. Authenticated lookup can also retrieve private/internal apps where GitHub permits access. The `permissions` property records requested app permissions; each installation separately records its granted permissions.
+App definitions are retrieved via `GET /apps/{app_slug}` after discovering app slugs from organization installations or the collector app's enterprise installation. Authenticated lookup can also retrieve private/internal apps where GitHub permits access. The `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` arrays record requested app permissions; each installation separately records its granted permissions. Unrecognized keys are retained in `permissions_unclassified`.
 
 `registration_origin` classifies registration ownership using the collected inventory:
 
@@ -34,7 +34,11 @@ Organization membership is established from `membersWithRole`, and enterprise me
 | `owner_login` | `string` | The login of the user or organization that owns the app. |
 | `owner_node_id` | `string` | The node_id of the user or organization that owns the app. |
 | `owner_type` | `string` | The type of the owner (e.g., `User`, `Organization`). |
-| `permissions` | `list[string]` | Requested app permissions in `scope:access` form. |
+| `permissions_repository` | `list[string]` | Requested repository permissions as `permission:access` values. |
+| `permissions_organization` | `list[string]` | Requested organization permissions as `permission:access` values. |
+| `permissions_enterprise` | `list[string]` | Requested enterprise permissions as `permission:access` values. |
+| `permissions_account` | `list[string]` | Requested account permissions as `permission:access` values. |
+| `permissions_unclassified` | `list[string]` | Requested permissions whose keys are absent from the scope mapping; preserved without guessing a scope. |
 | `registration_origin` | `string` | `tenant_owned`, `member_owned`, `third_party`, or `unknown`, based on collected ownership and membership evidence. |
 | `events` | `list[string]` | Default webhook events the app subscribes to. |
 | `installations_count` | `integer` | The total number of installations of this app across all organizations. |

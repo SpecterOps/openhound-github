@@ -11,7 +11,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.permissions import normalize_permission_declaration
+from openhound_github.models.app_permissions import split_app_permissions
 from openhound_github.models.scope import (
     ALL_REPOSITORIES_SCOPE,
     REPOSITORY_SCOPE_TYPE,
@@ -33,7 +33,11 @@ class GHAppInstallationProperties(GHNodeProperties):
         repositories_url: API URL to list repositories accessible to this installation.
         repository_selection: Whether the app has access to `all` repositories or `selected` repositories.
         target_type: The target type of the installation (`Organization` or `Enterprise`).
-        permissions: Permissions granted to the installation in `scope:access` form.
+        permissions_repository: Granted repository permissions as `permission:access` values.
+        permissions_organization: Granted organization permissions as `permission:access` values.
+        permissions_enterprise: Granted enterprise permissions as `permission:access` values.
+        permissions_account: Granted account permissions as `permission:access` values.
+        permissions_unclassified: Granted unclassified permissions as `permission:access` values.
         events: Webhook events the app subscribes to.
         created_at: When the app was installed.
         updated_at: When the installation was last updated.
@@ -53,7 +57,11 @@ class GHAppInstallationProperties(GHNodeProperties):
     repositories_url: str | None = None
     repository_selection: str | None = None
     target_type: str | None = None
-    permissions: list[str] | None = None
+    permissions_repository: list[str] | None = None
+    permissions_organization: list[str] | None = None
+    permissions_enterprise: list[str] | None = None
+    permissions_account: list[str] | None = None
+    permissions_unclassified: list[str] | None = None
     events: list[str] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -81,6 +89,16 @@ class Account(BaseModel):
         properties=GHAppInstallationProperties,
     ),
     edges=[
+        *[
+            EdgeDef(
+                start=nk.APP_INSTALLATION,
+                end=target,
+                kind=ek.CAN_ACCESS,
+                description="App installation can access its installation target",
+                traversable=False,
+            )
+            for target in (nk.ORGANIZATION, nk.ENTERPRISE)
+        ],
         EdgeDef(
             start=nk.ENTERPRISE,
             end=nk.APP_INSTALLATION,
@@ -185,7 +203,7 @@ class AppInstallation(BaseAsset):
                 repositories_url=self.repositories_url,
                 repository_selection=self.repository_selection,
                 target_type=self.target_type,
-                permissions=normalize_permission_declaration(self.permissions),
+                **split_app_permissions(self.permissions),
                 events=self.events,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
@@ -214,18 +232,23 @@ class AppInstallation(BaseAsset):
 
     @property
     def _can_access_edges(self):
-        """Link all-repository organization installations to their repository scope."""
-        if (
-            self.target_type == "Organization"
-            and self.environment_slug
-            and self.repository_selection == "all"
-        ):
+        """Link the installation target and any all-repository organization scope."""
+        target_node_id = self.environment_node_id
+        if not target_node_id:
+            return
+        yield Edge(
+            kind=ek.CAN_ACCESS,
+            start=EdgePath(value=self.node_id, match_by="id"),
+            end=EdgePath(value=target_node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )
+        if self.target_type == "Organization" and self.repository_selection == "all":
             yield Edge(
                 kind=ek.CAN_ACCESS,
                 start=EdgePath(value=self.node_id, match_by="id"),
                 end=EdgePath(
                     value=scope_node_id(
-                        self.org_node_id,
+                        target_node_id,
                         REPOSITORY_SCOPE_TYPE,
                         ALL_REPOSITORIES_SCOPE,
                     ),
@@ -236,7 +259,7 @@ class AppInstallation(BaseAsset):
 
     @property
     def edges(self):
-        """Yield target containment, parent app, and repository scope relationships."""
+        """Yield containment, parent app, and target/repository access scope."""
         if self.environment_node_id:
             yield Edge(
                 kind=ek.CONTAINS,
@@ -265,7 +288,11 @@ class GHAppProperties(GHNodeProperties):
         owner_type: The type of the owner (e.g., `User`, `Organization`).
         registration_origin: Ownership classification: tenant_owned, member_owned,
             third_party (no internal ownership evidence), or unknown.
-        permissions: Requested app permissions in `scope:access` form.
+        permissions_repository: Requested repository permissions as `permission:access` values.
+        permissions_organization: Requested organization permissions as `permission:access` values.
+        permissions_enterprise: Requested enterprise permissions as `permission:access` values.
+        permissions_account: Requested account permissions as `permission:access` values.
+        permissions_unclassified: Requested unclassified permissions as `permission:access` values.
         environment_slug: The organization login or enterprise slug where the app was collected.
         events: Default webhook events the app subscribes to.
         installations_count: The total number of installations of this app across all organizations.
@@ -285,7 +312,11 @@ class GHAppProperties(GHNodeProperties):
     owner_node_id: str | None = None
     owner_type: str | None = None
     registration_origin: str | None = None
-    permissions: list[str] | None = None
+    permissions_repository: list[str] | None = None
+    permissions_organization: list[str] | None = None
+    permissions_enterprise: list[str] | None = None
+    permissions_account: list[str] | None = None
+    permissions_unclassified: list[str] | None = None
     environment_slug: str | None = None
     events: list[str] | None = None
     installations_count: int | None = None
@@ -443,7 +474,7 @@ class App(BaseAsset):
                 owner_node_id=self.owner.node_id if self.owner else None,
                 owner_type=self.owner.type if self.owner else None,
                 registration_origin=self.registration_origin,
-                permissions=normalize_permission_declaration(self.permissions),
+                **split_app_permissions(self.permissions),
                 # installations_count=self.installations_count,
                 events=self.events,
                 created_at=self.created_at,

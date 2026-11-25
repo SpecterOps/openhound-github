@@ -160,6 +160,16 @@ handling and do not consume the transient-failure budget. These timeouts are
 not an overall request deadline. App authentication requests and credential
 inventory CSV downloads retain their separate timeout settings.
 
+### Branch protection allowance recovery
+
+Branch protection actors are collected through GraphQL. If GitHub returns a
+partial error for push or pull-request bypass allowances, the collector retrieves
+REST protection details for a representative branch of the affected rule. It
+merges users, teams, and apps with successfully collected GraphQL actors,
+deduplicating identities and retaining the rest of the rule. Successful GraphQL
+responses do not trigger this additional request. Failed or incomplete recovery
+logs an explicit allowance collection gap while preserving known actors.
+
 ### Enterprise SCIM and hybrid correlations
 
 A token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.

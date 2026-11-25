@@ -244,7 +244,10 @@ class GithubLookup(LookupManager):
             """,
             [enterprise_node_id, runner_group_id],
         )
-        return [(runner_node_id(enterprise_node_id, int(runner_id)),) for (runner_id,) in rows]
+        return [
+            (runner_node_id(enterprise_node_id, int(runner_id)),)
+            for (runner_id,) in rows
+        ]
 
     @staticmethod
     def _json_list(raw_value: Any) -> list[Any]:
@@ -415,8 +418,10 @@ class GithubLookup(LookupManager):
                     is not False
                 ):
                     continue
-                identity = self._enterprise_runner_group_identity_for_inherited_org_group(
-                    org_node_id, runner_group_name
+                identity = (
+                    self._enterprise_runner_group_identity_for_inherited_org_group(
+                        org_node_id, runner_group_name
+                    )
                 )
                 if not identity:
                     continue
@@ -580,7 +585,9 @@ class GithubLookup(LookupManager):
         )
         if rows:
             if len(rows) != 1:
-                raise ValueError("Conflicting native enterprise-team IDs in collected observations")
+                raise ValueError(
+                    "Conflicting native enterprise-team IDs in collected observations"
+                )
             return str(rows[0][0])
         return enterprise_team_node_id(enterprise_node_id, team_id)
 
@@ -906,6 +913,46 @@ class GithubLookup(LookupManager):
             f"""SELECT node_id FROM {self.schema}.applications WHERE slug = ?""",
             [app_slug],
         )
+
+    @lru_cache
+    def app_installation_node_id_for_repository(
+        self, app_slug: str, repository_node_id: str
+    ) -> str | None:
+        """Resolve an App actor to an active installation with repository access.
+
+        GitHub App slugs identify registrations across installations. Match the
+        repository's organization, then apply the same all-repository scope or
+        explicit selected-repository grant used by GH_CanAccess. This establishes
+        access only; granted permissions are evaluated separately.
+        """
+        rows = self._find_all_objects(
+            f"""
+            SELECT DISTINCT 'GH_AppInstallation_' || CAST(i.id AS VARCHAR)
+            FROM {self.schema}.app_installations i
+            JOIN {self.schema}.repositories r
+              ON lower(r.org_login) = lower(coalesce(nullif(i.environment_slug, ''), i.org_login))
+            WHERE r.node_id = ?
+              AND lower(i.app_slug) = lower(?)
+              AND i.target_type = 'Organization'
+              AND i.id IS NOT NULL
+              AND i.suspended_at IS NULL
+              AND (
+                  i.repository_selection = 'all'
+                  OR (
+                      i.repository_selection = 'selected'
+                      AND EXISTS (
+                          SELECT 1
+                          FROM {self.schema}.app_installation_repo_access access
+                          WHERE access.installation_node_id = 'GH_AppInstallation_' || CAST(i.id AS VARCHAR)
+                            AND access.repository_database_id = r.database_id
+                            AND lower(access.org_login) = lower(r.org_login)
+                      )
+                  )
+              )
+            """,
+            [repository_node_id, app_slug],
+        )
+        return str(rows[0][0]) if len(rows) == 1 else None
 
     @lru_cache
     def branches_with_bpr(self, repository_node_id: str):

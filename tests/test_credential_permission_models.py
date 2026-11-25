@@ -106,7 +106,7 @@ def test_app_installation_permissions_use_normalized_permission_shape() -> None:
     )
     installation._lookup = _lookup()
 
-    assert installation.as_node.properties.permissions == [
+    assert installation.as_node.properties.permissions_repository == [
         "contents:write",
         "metadata:read",
     ]
