@@ -131,6 +131,7 @@ query OrganizationEnterpriseOwners($login: String!, $count: Int = 100, $after: S
 }
 """
 
+
 def enterprise_external_identity_query(provider_field: str) -> str:
     """Build the common paginated identity query for an enterprise provider."""
     if provider_field not in {"samlIdentityProvider", "oidcProvider"}:
@@ -352,6 +353,8 @@ query ProtectionRulesByIds($ids: [ID!]!) {
             bypassPullRequestAllowances(first: 100) {
                 nodes {
                     actor {
+                        __typename
+                        ... on App { id slug }
                         ... on User { id login }
                         ... on Team { id slug }
                     }
@@ -360,6 +363,8 @@ query ProtectionRulesByIds($ids: [ID!]!) {
             pushAllowances(first: 100) {
                 nodes {
                     actor {
+                        __typename
+                        ... on App { id slug }
                         ... on User { id login }
                         ... on Team { id slug }
                     }

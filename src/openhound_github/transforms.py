@@ -494,9 +494,45 @@ def ensure_optional_input_tables(
             ADD COLUMN IF NOT EXISTS secret_references JSON;
     """)
 
+
 # TODO:
 # This can be optimized to generate the actor_branch_gates table
 # in one go instead of intermedaite tables
+def ensure_app_installation_input_tables(
+    con: duckdb.DuckDBPyConnection, schema: str = "github"
+) -> None:
+    """Provide lookup columns for empty or older installation inventories."""
+    tables = {
+        "app_installations": {
+            "id": "BIGINT",
+            "app_slug": "VARCHAR",
+            "target_type": "VARCHAR",
+            "repository_selection": "VARCHAR",
+            "environment_slug": "VARCHAR",
+            "org_login": "VARCHAR",
+            "suspended_at": "VARCHAR",
+            "permissions": "JSON",
+        },
+        "app_installation_repo_access": {
+            "installation_node_id": "VARCHAR",
+            "repository_database_id": "BIGINT",
+            "org_login": "VARCHAR",
+        },
+        "repositories": {
+            "node_id": "VARCHAR",
+            "database_id": "BIGINT",
+            "org_login": "VARCHAR",
+        },
+    }
+    for table, columns in tables.items():
+        definitions = ", ".join(f"{name} {kind}" for name, kind in columns.items())
+        con.execute(f"CREATE TABLE IF NOT EXISTS {schema}.{table} ({definitions})")
+        for name, kind in columns.items():
+            con.execute(
+                f"ALTER TABLE {schema}.{table} ADD COLUMN IF NOT EXISTS {name} {kind}"
+            )
+
+
 def join_branch_bpr(con, schema: str = "github"):
     con.execute(f"""
         CREATE OR REPLACE TABLE {schema}.branch_bpr AS
@@ -616,6 +652,7 @@ def transforms(con: duckdb.DuckDBPyConnection, schema: str = "github") -> None:
     """
 
     ensure_optional_input_tables(con, schema)
+    ensure_app_installation_input_tables(con, schema)
     resolve_external_identity_scopes(con, schema)
     join_branch_bpr(con, schema)
     actor_allowances(con, schema)

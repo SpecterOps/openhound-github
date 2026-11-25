@@ -152,7 +152,15 @@ def test_all_installations_and_pat_share_scope_without_repository_fanout() -> No
     for installation_id in range(1, 4):
         installation = _installation(installation_id)
         edges = list(installation.edges)
-        access_edges.extend(edge for edge in edges if edge.kind == ek.CAN_ACCESS)
+        access_edges.extend(
+            edge
+            for edge in edges
+            if edge.kind == ek.CAN_ACCESS and edge.end.value == SCOPE_NODE_ID
+        )
+        assert any(
+            edge.kind == ek.CAN_ACCESS and edge.end.value == ORG_NODE_ID
+            for edge in edges
+        )
         installation._lookup.repository_node_ids_for_org.assert_not_called()
 
     pat_edges = list(_pat("all").edges)
@@ -168,12 +176,14 @@ def test_all_installations_and_pat_share_scope_without_repository_fanout() -> No
     assert all(edge.properties.traversable is False for edge in access_edges)
 
 
-def test_repository_scope_reduces_shared_policy_edges_to_sources_plus_repositories() -> None:
+def test_repository_scope_reduces_shared_policy_edges_to_sources_plus_repositories() -> (
+    None
+):
     all_access_edges = [
         edge
         for installation_id in range(1, 4)
         for edge in _installation(installation_id).edges
-        if edge.kind == ek.CAN_ACCESS
+        if edge.kind == ek.CAN_ACCESS and edge.end.value == SCOPE_NODE_ID
     ]
     scoped_to_edges = [
         edge
@@ -231,7 +241,11 @@ def test_repository_does_not_join_empty_target_scopes() -> None:
 
 
 def test_arbitrary_selections_do_not_use_repository_scope() -> None:
-    assert ek.CAN_ACCESS not in {edge.kind for edge in _installation(1, "selected").edges}
+    assert {
+        edge.end.value
+        for edge in _installation(1, "selected").edges
+        if edge.kind == ek.CAN_ACCESS
+    } == {ORG_NODE_ID}
     pat_access_targets = {
         edge.end.value for edge in _pat("subset").edges if edge.kind == ek.CAN_ACCESS
     }
@@ -300,7 +314,9 @@ def test_secret_entity_panel_resolves_direct_and_scoped_relationships() -> None:
 
 
 def test_secret_saved_searches_resolve_direct_and_scoped_secrets() -> None:
-    saved_searches = Path(__file__).resolve().parents[1] / "extension" / "saved_searches"
+    saved_searches = (
+        Path(__file__).resolve().parents[1] / "extension" / "saved_searches"
+    )
 
     for name in (
         "repos-vulnerable-to-workflow-secret-exfil.json",

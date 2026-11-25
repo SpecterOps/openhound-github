@@ -6,6 +6,7 @@ import duckdb
 from openhound.core.progress import Progress
 
 from openhound_github.main import preproc
+from openhound_github.lookup import GithubLookup
 
 
 def _write_resource_rows(
@@ -53,3 +54,54 @@ def test_preproc_rebuilds_lookup_before_optional_table_becomes_populated(
             "SELECT org_login, team_database_id, external_group_name "
             "FROM github.team_external_groups"
         ).fetchall() == [("acme", 7, "Engineering")]
+
+
+def test_preproc_loads_installations_and_selected_repository_grants(
+    tmp_path: Path,
+) -> None:
+    _write_resource_rows(
+        tmp_path,
+        "repositories",
+        [
+            {"node_id": "REPO_1", "database_id": 101, "org_login": "acme"},
+        ],
+    )
+    _write_resource_rows(
+        tmp_path,
+        "app_installations",
+        [
+            {
+                "id": 42,
+                "app_slug": "release-app",
+                "permissions": {"contents": "write"},
+                "target_type": "Organization",
+                "repository_selection": "selected",
+                "environment_slug": "acme",
+            },
+        ],
+    )
+    _write_resource_rows(
+        tmp_path,
+        "app_installation_repo_access",
+        [
+            {
+                "installation_node_id": "GH_AppInstallation_42",
+                "repository_database_id": 101,
+                "org_login": "acme",
+            },
+        ],
+    )
+    lookup_file = tmp_path / "lookup.duckdb"
+
+    preproc(tmp_path, lookup_file, progress=Progress.log)
+
+    with duckdb.connect(str(lookup_file)) as connection:
+        lookup = GithubLookup(connection)
+        assert (
+            lookup.app_installation_node_id_for_repository("release-app", "REPO_1")
+            == "GH_AppInstallation_42"
+        )
+        assert connection.execute(
+            "SELECT json_extract_string(permissions, '$.contents') "
+            "FROM github.app_installations WHERE id = 42"
+        ).fetchone() == ("write",)

@@ -2,11 +2,11 @@
 
 ## General Information
 
-Represents a GitHub App installed on an organization or enterprise. Organization app installations have specific permissions and can be scoped to all repositories or a selection of repositories. The permissions granted to the installation are stored as `scope:access` values such as `contents:write` in the `permissions` property.
+Represents a GitHub App installed on an organization or enterprise. Organization app installations have specific permissions and can be scoped to all repositories or a selection of repositories. Granted permissions are stored as `permission:access` arrays in `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account`. For example, `contents:write` appears in `permissions_repository`.
 
-Unlike fine-grained personal access tokens, GitHub does not expose separate organization and repository permission buckets for app installations, so this property remains a single flat permission list.
+GitHub supplies a flat permission dictionary. OpenHound classifies each key using an explicit GitHub permission-scope mapping, preserving unfamiliar keys in `permissions_unclassified`. Scope is determined by the permission key, not the installation target. Raw collected records retain their original `permissions` dictionary; the flat graph property is replaced by the scoped arrays. Previously collected data can be converted again without recollection. Existing imported flat properties may remain until the affected graph data is replaced or cleaned up.
 
-Each installation is linked to its parent GH_App via a GH_InstalledAs edge. Organization installations with `repository_selection` set to `all` use one GH_CanAccess edge to the organization's repository/all GH_Scope; GH_ScopedTo edges enumerate the repositories in that reusable scope. For installations with `repository_selection` set to `selected`, the collector uses the enterprise organization-installation repositories API to enumerate the granted repositories when the enterprise installation has `Enterprise organization installations: read` or `Enterprise organization installation repositories: read`. If that permission is unavailable, selected repository edges are skipped.
+Each installation is linked to its parent GH_App via a GH_InstalledAs edge. A non-traversable GH_CanAccess edge links the installation to its resolved organization or enterprise target. An organization installation does not gain access to the parent enterprise, and an enterprise installation does not gain access to child organizations or repositories through this edge. Organization installations with `repository_selection` set to `all` use one GH_CanAccess edge to the organization's repository/all GH_Scope; GH_ScopedTo edges enumerate the repositories in that reusable scope. For installations with `repository_selection` set to `selected`, the collector uses the enterprise organization-installation repositories API to enumerate the granted repositories when the enterprise installation has `Enterprise organization installations: read` or `Enterprise organization installation repositories: read`. If that permission is unavailable, selected repository edges are skipped.
 
 Enterprise collection includes the authenticating collector app's installation, fetched independently of authentication discovery with `GET /enterprises/{enterprise}/installation`. It records granted enterprise permissions, timestamps, and suspension status, and is contained by `GH_Enterprise`. This is not a complete inventory of apps installed on the enterprise. Enterprise installations do not produce repository access edges. Parent app enrichment failures do not discard the installation.
 
@@ -31,7 +31,11 @@ Enterprise collection includes the authenticating collector app's installation, 
 | `repositories_url` | `string` | API URL to list repositories accessible to this installation. |
 | `repository_selection` | `string` | Whether the app has access to `all` repositories or `selected` repositories. |
 | `target_type` | `string` | The target type of the installation (e.g., `Organization` or `Enterprise`). |
-| `permissions` | `list[string]` | Permissions granted to the installation in `scope:access` form. |
+| `permissions_repository` | `list[string]` | Granted repository permissions as `permission:access` values. |
+| `permissions_organization` | `list[string]` | Granted organization permissions as `permission:access` values. |
+| `permissions_enterprise` | `list[string]` | Granted enterprise permissions as `permission:access` values. |
+| `permissions_account` | `list[string]` | Granted account permissions as `permission:access` values. |
+| `permissions_unclassified` | `list[string]` | Granted permissions whose keys are absent from the scope mapping; preserved without guessing a scope. |
 | `events` | `list[string]` | Webhook events the app subscribes to. |
 | `created_at` | `datetime` | When the app was installed. |
 | `updated_at` | `datetime` | When the installation was last updated. |

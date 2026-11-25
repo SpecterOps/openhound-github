@@ -2,13 +2,17 @@
 
 ## General Information
 
-The non-traversable GH_RestrictionsCanPush edge represents a per-actor allowance that grants push access through push restrictions on a branch protection rule. This edge identifies specific users or teams that are permitted to push to the protected branch even when push restrictions are active. This is security-relevant because push restrictions limit who can directly push to a branch, and actors with this allowance bypass that control. Unlike GH_BypassPullRequestAllowances, this allowance is NOT suppressed by `enforce_admins` — listed actors retain push access regardless of admin enforcement settings.
+The non-traversable GH_RestrictionsCanPush edge records an actor allowed through branch push restrictions on a branch protection rule. Sources include users, teams, and App Installations.
+
+GitHub App actors are resolved to active organization installations with access to the rule's repository. An App exception does not by itself grant repository write permission or establish effective branch-write access; other protection requirements still need evaluation. Missing, suspended, inaccessible, or ambiguous installations are not linked.
 
 ## Edge Schema
 
 | Source | Destination | Traversable |
 | --- | --- | --- |
 | `GH_User` | `GH_BranchProtectionRule` | `false` |
+| `GH_Team` | `GH_BranchProtectionRule` | `false` |
+| `GH_AppInstallation` | `GH_BranchProtectionRule` | `false` |
 
 ## Diagram
 

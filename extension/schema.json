@@ -675,7 +675,7 @@
           "title": "Exception Actors",
           "position": 6,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = ()-[:GH_BypassPullRequestAllowances|GH_RestrictionsCanPush]->(selected:GH_BranchProtectionRule {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View users and teams excepted by this protection rule in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = ()-[:GH_BypassPullRequestAllowances|GH_RestrictionsCanPush]->(selected:GH_BranchProtectionRule {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View users, teams, and app installations excepted by this protection rule in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "effective_bypass_paths": {
@@ -1763,7 +1763,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a GitHub App definition. The `permissions` property records requested app permissions. Each installation records its own granted permissions. The app owner controls the private key used to generate installation tokens for its installations on organizations and enterprises.\n\n`environment_slug` records the organization login or enterprise slug for this collection context.\n\n`registration_origin` is `tenant_owned` when the registration owner is a collected organization or the collected enterprise, and `member_owned` when the owner is a collected organization or enterprise member. Member-owned apps remain under the user's account; membership does not imply tenant control or approval. Recognized owners without matching internal evidence default to `third_party`, including in organization-only collections. This classification depends on collected inventory completeness. Missing owners or unsupported owner types are `unknown`. Outside-collaborator status alone does not establish membership."
+            "content": "## Overview\n\nRepresents a GitHub App definition. The `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties record requested permissions as permission:access arrays. Unrecognized keys are retained in `permissions_unclassified`. Each installation records its own granted permissions. The app owner controls the private key used to generate installation tokens for its installations on organizations and enterprises.\n\n`environment_slug` records the organization login or enterprise slug for this collection context.\n\n`registration_origin` is `tenant_owned` when the registration owner is a collected organization or the collected enterprise, and `member_owned` when the owner is a collected organization or enterprise member. Member-owned apps remain under the user's account; membership does not imply tenant control or approval. Recognized owners without matching internal evidence default to `third_party`, including in organization-only collections. This classification depends on collected inventory completeness. Missing owners or unsupported owner types are `unknown`. Outside-collaborator status alone does not establish membership."
           }
         },
         "inbound_traversable_relationships": {
@@ -1853,7 +1853,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a GitHub App installed on an organization or enterprise. The `permissions` property records permissions granted to this installation; the parent `GH_App` records requested permissions.\n\nEnterprise collection currently includes only the authenticating collector app installation. Enterprise installations do not automatically grant access to organizations or repositories.\n\n`environment_slug` records the organization login or enterprise slug for this collection context."
+            "content": "## Overview\n\nRepresents a GitHub App installed on an organization or enterprise. The `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties record granted permissions as permission:access arrays; the parent `GH_App` records requested permissions. Unrecognized keys are retained in `permissions_unclassified`.\n\nEnterprise collection currently includes only the authenticating collector app installation. Enterprise installations do not automatically grant access to organizations or repositories.\n\n`environment_slug` records the organization login or enterprise slug for this collection context."
           }
         },
         "inbound_traversable_relationships": {
@@ -2641,12 +2641,12 @@
     },
     {
       "name": "GH_BypassPullRequestAllowances",
-      "description": "User or team can bypass pull request requirements on a branch protection rule",
+      "description": "User, team, or app installation has a pull request bypass allowance on a branch protection rule",
       "is_traversable": false
     },
     {
       "name": "GH_RestrictionsCanPush",
-      "description": "User or team is allowed to push to branches protected by this rule",
+      "description": "User, team, or app installation is allowed through push restrictions on this rule",
       "is_traversable": false
     },
     {
@@ -2721,7 +2721,7 @@
     },
     {
       "name": "GH_CanAccess",
-      "description": "Personal access token, app installation, or deploy key can access this repository, reusable repository scope, or organization",
+      "description": "Personal access token, app installation, or deploy key has access scope to a repository, reusable scope, organization, or enterprise",
       "is_traversable": false
     },
     {

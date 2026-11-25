@@ -103,7 +103,10 @@ def test_enterprise_installation_is_collected_independently_with_app_jwt():
     assert installation.org_login is None
     assert installation.as_node.properties.environmentid == "E_1"
     assert installation.as_node.properties.environment_slug == "acme"
-    assert installation.as_node.properties.permissions == ["enterprise_people:read"]
+    assert installation.as_node.properties.permissions_enterprise == [
+        "enterprise_people:read"
+    ]
+    assert installation.as_node.properties.permissions_repository == []
     assert installation.as_node.properties.suspended_at is not None
     # No authentication-discovery payload or org client is used.
     ctx.github_app.client.paginate.assert_not_called()
@@ -119,10 +122,30 @@ def test_enterprise_installation_links_parent_without_repository_access():
     assert [(e.kind, e.start.value, e.end.value) for e in edges] == [
         ("GH_Contains", "E_1", "GH_AppInstallation_42"),
         ("GH_InstalledAs", "APP_7", "GH_AppInstallation_42"),
+        ("GH_CanAccess", "GH_AppInstallation_42", "E_1"),
     ]
     assert edges[0].properties.traversable is False
     assert edges[1].properties.traversable is True
+    assert edges[2].properties.traversable is False
     installation._lookup.app_node_id.assert_called_once_with("example-app")
+
+
+@pytest.mark.parametrize("target_type", ["Organization", "Enterprise"])
+def test_unresolved_installation_target_has_no_access_edges(target_type):
+    installation = AppInstallation(
+        **{
+            **_payload(),
+            "target_type": target_type,
+            "environment_slug": "missing",
+            "repository_selection": "all",
+        }
+    )
+    lookup = MagicMock()
+    lookup.org_id_for_login.return_value = None
+    lookup.app_node_id.return_value = None
+    installation._lookup = lookup
+
+    assert not any(e.kind == "GH_CanAccess" for e in installation.edges)
 
 
 def test_shared_app_has_distinct_enterprise_and_org_installations():
@@ -145,7 +168,9 @@ def test_shared_app_has_distinct_enterprise_and_org_installations():
     assert enterprise_installation.node_id != org_installation.node_id
     assert enterprise_edges[1].start.value == org_edges[1].start.value == "APP_7"
     assert any(e.kind == "GH_CanAccess" for e in org_edges)
-    assert all(e.kind != "GH_CanAccess" for e in enterprise_edges)
+    assert [e.end.value for e in enterprise_edges if e.kind == "GH_CanAccess"] == [
+        "E_1"
+    ]
 
 
 def test_enterprise_parent_app_uses_installation_client_and_preserves_requested_permissions():
@@ -156,10 +181,10 @@ def test_enterprise_parent_app_uses_installation_client_and_preserves_requested_
     parent._lookup = MagicMock()
     parent._lookup.enterprise_id.return_value = "E_1"
     ctx.client.get.assert_called_once_with("/apps/example-app")
-    assert set(parent.as_node.properties.permissions) == {
-        "contents:write",
-        "enterprise_people:read",
-    }
+    assert parent.as_node.properties.permissions_repository == ["contents:write"]
+    assert parent.as_node.properties.permissions_enterprise == [
+        "enterprise_people:read"
+    ]
     assert parent.as_node.properties.environmentid == "E_1"
     assert parent.edges[0].start.value == "E_1"
 
@@ -183,7 +208,7 @@ def test_parent_lookup_failure_preserves_installation(caplog):
     assert list(enterprise_applications.__wrapped__(installation, ctx)) == []
     installation._lookup = MagicMock()
     installation._lookup.app_node_id.return_value = None
-    assert [e.kind for e in installation.edges] == ["GH_Contains"]
+    assert [e.kind for e in installation.edges] == ["GH_Contains", "GH_CanAccess"]
     assert "Skipping app metadata" in caplog.text
 
 
@@ -236,7 +261,9 @@ def test_enterprise_slug_is_never_used_for_organization_operations(selection):
     ctx = _ctx()
     assert list(app_installation_repo_access.__wrapped__(installation, ctx)) == []
     assert list(applications.__wrapped__(installation, ctx)) == []
-    assert all(edge.kind != "GH_CanAccess" for edge in installation.edges)
+    assert [
+        edge.end.value for edge in installation.edges if edge.kind == "GH_CanAccess"
+    ] == ["E_1"]
     lookup.org_id_for_login.assert_not_called()
     ctx.client.get.assert_not_called()
 
@@ -335,16 +362,19 @@ def test_resources_store_enterprise_and_org_records_in_shared_tables(
 
         class LegacyInstallation(AppInstallation):
             """Represent the earlier organization-only installation schema."""
+
             org_login: str
             repository_selection: str
 
         class LegacyApp(App):
             """Represent the earlier organization-only app schema."""
+
             org_login: str
 
         @dlt.source(name="source")
         def legacy():
             """Seed the pipeline with the earlier required organization fields."""
+
             @dlt.resource(name="app_installations", columns=LegacyInstallation)
             def installations():
                 """Yield a record conforming to the legacy installation schema."""
