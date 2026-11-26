@@ -1,11 +1,13 @@
 import importlib
 import inspect
+from types import SimpleNamespace
 
 import pytest
 
 from openhound_github.models import Organization
 from openhound_github.resources.organization import organizations
 from openhound_github.source import (
+    GithubEnterpriseAppCredentials,
     GithubOrgAppCredentials,
     GithubTokenCredentials,
     OrgContext,
@@ -105,14 +107,20 @@ def test_organizations_reuses_preflight_org_response() -> None:
             key_path="/tmp/github-app.pem",
             org_name="spectertst",
         ),
+        GithubEnterpriseAppCredentials(
+            client_id="Iv1.client-id",
+            key_path="/tmp/github-app.pem",
+            enterprise_name="specter",
+        ),
     ),
 )
-def test_org_only_sources_canonicalize_before_resource_fanout(
+def test_sources_canonicalize_before_resource_fanout(
     monkeypatch: pytest.MonkeyPatch,
     credentials,
 ) -> None:
     source_module = importlib.import_module("openhound_github.source")
     captured_ctx: dict[str, SourceContext] = {}
+    resource_calls: list[str] = []
 
     class FakeRESTClient:
         def __init__(self, **kwargs) -> None:
@@ -123,17 +131,40 @@ def test_org_only_sources_canonicalize_before_resource_fanout(
             return _FakeResponse({"login": "SpecterTst", "node_id": "O_kgDOCoV2OQ"})
 
     monkeypatch.setattr(source_module, "RESTClient", FakeRESTClient)
+    monkeypatch.setattr(
+        source_module,
+        "GithubApp",
+        lambda **_: SimpleNamespace(
+            installations=[
+                SimpleNamespace(
+                    id=12345,
+                    target_type="Organization",
+                    account=SimpleNamespace(login="spectertst"),
+                )
+            ]
+        ),
+    )
     monkeypatch.setattr(source_module, "GithubInstallation", lambda **_: object())
     monkeypatch.setattr(
         source_module, "GitHubAppInstallationAuth", lambda **_: object()
     )
 
-    def fake_organization_resources(ctx: SourceContext):
+    def capture_context(ctx: SourceContext, resource: str):
+        assert ctx.organizations[0].org_name == "SpecterTst"
+        assert ctx.organizations_cache["SpecterTst"]["node_id"] == "O_kgDOCoV2OQ"
         captured_ctx["ctx"] = ctx
+        resource_calls.append(resource)
         return ()
 
     monkeypatch.setattr(
-        source_module, "organization_resources", fake_organization_resources
+        source_module,
+        "organization_resources",
+        lambda ctx: capture_context(ctx, "organization"),
+    )
+    monkeypatch.setattr(
+        source_module,
+        "enterprise_resources",
+        lambda ctx: capture_context(ctx, "enterprise"),
     )
 
     resources = source_module.source.__wrapped__(
@@ -143,6 +174,11 @@ def test_org_only_sources_canonicalize_before_resource_fanout(
     )
 
     assert resources == ()
+    assert resource_calls == (
+        ["enterprise", "organization"]
+        if credentials.auth == "enterprise_app"
+        else ["organization"]
+    )
     assert captured_ctx["ctx"].organizations[0].org_name == "SpecterTst"
     assert (
         captured_ctx["ctx"].organizations_cache["SpecterTst"]["node_id"]

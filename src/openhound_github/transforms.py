@@ -657,7 +657,12 @@ def role_can_create_branch(con, schema: str = "github"):
             WHERE bpr.repository_node_id = rr.repository_node_id
             AND NOT (
                 bpr.is_admin_enforced IS FALSE
-                AND coalesce(json_contains(rr.permissions, '"push_protected_branch"'), false)
+                AND coalesce(
+                    rr.name = 'admin'
+                    OR rr.base_role = 'admin'
+                    OR json_contains(rr.permissions, '"push_protected_branch"'),
+                    false
+                )
             )
         )""")
 

@@ -162,6 +162,25 @@ def test_role_bypass_uses_shared_restrictions_without_changing_shared_scope(
     assert rows == ([(2,)] if enforced is False else [])
 
 
+@pytest.mark.parametrize("enforced", [True, False, None])
+def test_admin_roles_bypass_double_star_creation_restriction(connection, enforced):
+    add_rule(connection, "**", enforced=enforced)
+    connection.execute(
+        """INSERT INTO github.repo_roles
+           (id, repository_node_id, name, base_role, permissions)
+           VALUES (1, 'R_1', 'admin', NULL, '[]'),
+                  (2, 'R_1', 'custom_admin', 'admin', NULL),
+                  (3, 'R_1', 'write', 'write', '[]')"""
+    )
+
+    assert eligible_repositories(connection) == []
+    role_can_create_branch(connection)
+    rows = connection.execute(
+        "SELECT id FROM github.role_can_create_branch ORDER BY id"
+    ).fetchall()
+    assert rows == ([(1,), (2,)] if enforced is False else [])
+
+
 def test_specific_permissive_rule_does_not_override_broad_creation_restriction(
     connection,
 ):

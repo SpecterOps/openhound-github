@@ -446,6 +446,7 @@ def source(
             deployment_client = ctx.organizations[0].client
         if deployment_client is not None:
             _apply_github_deployment_metadata(ctx, deployment_client)
+        _canonicalize_org_names(ctx)
         return (*enterprise_resources(ctx), *organization_resources(ctx))
 
     elif credentials.auth == "org_app":
