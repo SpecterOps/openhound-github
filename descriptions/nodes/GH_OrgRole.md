@@ -4,6 +4,8 @@
 
 Represents an organization-level role such as Owner, Member, or a custom organization role. Org roles define what permissions a user or team has at the organization level. The Owner and Member roles are default (built-in), while custom roles inherit from a base role and can have additional permissions.
 
+The `owners` role and predefined `app_manager` role receive composed GH_CanManageApp edges to registrations owned by their organization. The raw `source` field identifies predefined API roles even when older collections label their `type` as `custom`. Matching names on custom roles do not establish App management.
+
 ## Properties
 
 | Property | Type | Description |
@@ -15,6 +17,7 @@ Represents an organization-level role such as Owner, Member, or a custom organiz
 | `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
 | `short_name` | `string` | The short display name of the role (e.g., `Owners`, `Members`, or the custom role name). |
 | `type` | `string` | `default` for built-in roles (Owner, Member) or `custom` for custom organization roles. |
+| `source` | `string` | Raw GitHub role source; `Predefined` identifies built-in API roles. |
 | `environment_name` | `string` | The name of the environment (GitHub organization). |
 | `query_explicit_members` | `string` | Query for explicit members. |
 | `query_unrolled_members` | `string` | Query for unrolled members. |

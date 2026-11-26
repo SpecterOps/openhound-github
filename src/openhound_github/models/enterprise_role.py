@@ -10,6 +10,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.app_management import app_management_edges
 from openhound_github.models.enterprise_helpers import enterprise_role_node_id
 
 
@@ -111,6 +112,13 @@ class GHEnterpriseRoleProperties(GHNodeProperties):
         properties=GHEnterpriseRoleProperties,
     ),
     edges=[
+        EdgeDef(
+            start=nk.ENTERPRISE_ROLE,
+            end=nk.APP,
+            kind=ek.CAN_MANAGE_APP,
+            description="Role can manage App registrations owned by its enterprise",
+            traversable=True,
+        ),
         EdgeDef(
             start=nk.ENTERPRISE,
             end=nk.ENTERPRISE_ROLE,
@@ -347,3 +355,11 @@ class EnterpriseRole(BaseAsset):
                 end=EdgePath(value=self.enterprise_node_id, match_by="id"),
                 properties=EdgeProperties(traversable=traversable),
             )
+        yield from app_management_edges(
+            self._lookup,
+            role_node_id=self.node_id,
+            role_name=self.name,
+            is_predefined=self.role_type == "default",
+            account_node_id=self.enterprise_node_id,
+            account_type="Enterprise",
+        )

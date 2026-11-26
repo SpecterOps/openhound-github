@@ -15,6 +15,8 @@ App definitions are retrieved via `GET /apps/{app_slug}` after discovering app s
 
 Organization membership is established from `membersWithRole`, and enterprise membership from the enterprise member inventory. Outside-collaborator status alone does not establish membership.
 
+Incoming GH_CanManageApp edges expose account-wide management from the owning organization's or enterprise's qualifying predefined roles. These composed edges preserve role/account/ownership evidence. Per-App manager assignments are not currently enumerated, so the graph is not a complete inventory of registration managers.
+
 ## Properties
 
 | Property | Type | Description |

@@ -164,7 +164,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a built-in or custom enterprise role. Enterprise roles are assigned directly to users or to enterprise teams and carry enterprise-wide permissions such as managing enterprise admins, members, or organization admins."
+            "content": "## Overview\n\nRepresents a built-in or custom enterprise role. Enterprise roles are assigned directly to users or to enterprise teams and carry enterprise-wide permissions such as managing enterprise admins, members, or organization admins.\n\nQualifying predefined owner and App manager roles have composed GH_CanManageApp edges to Apps registered to their exact account. Raw empty permission arrays do not remove this authority. Custom roles with matching names do not qualify."
           }
         },
         "inbound_traversable_relationships": {
@@ -178,7 +178,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_ManageEnterpriseAdmins|GH_ManageEnterpriseMembers|GH_ManageEnterpriseOrganizationAdmins]->(:GH_Enterprise)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_ManageEnterpriseAdmins|GH_ManageEnterpriseMembers|GH_ManageEnterpriseOrganizationAdmins|GH_CanManageApp]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "enterprise_context": {
@@ -207,6 +207,13 @@
           "position": 7,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_CreateEnterpriseOrganizations|GH_EditEnterpriseCustomPropertiesForOrganizations|GH_ManageEnterpriseAdmins|GH_ManageEnterpriseIdentityProvider|GH_ManageEnterpriseMembers|GH_ManageEnterpriseOrganizationAdmins|GH_ManageEnterpriseOrganizations|GH_ManageEnterpriseReferrals|GH_ManageEnterpriseTeams|GH_ReadEnterpriseAuditLog|GH_ReadEnterpriseDomainVerification|GH_ReadEnterpriseMembers|GH_ReadEnterpriseOrgProjects|GH_ReadEnterpriseOrganizationAdmin|GH_SetEnterpriseInteractionLimits|GH_ViewEnterpriseActionsUsageMetrics|GH_ViewEnterpriseBilling|GH_ViewEnterpriseSecretScanningAlerts|GH_WriteEnterpriseActionsPolicies|GH_WriteEnterpriseBilling|GH_WriteEnterprisePersonalAccessTokenPolicies|GH_WriteEnterpriseSso|GH_WriteEnterpriseTeamMembers]->(:GH_Enterprise)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View enterprise permissions granted by this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "managed_apps": {
+          "title": "Managed Apps",
+          "position": 8,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p=(selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_CanManageApp]->(:GH_App)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View Apps this role can manage in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -706,7 +713,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents an organization-level role such as Owner, Member, or a custom organization role. Organization roles define what permissions users and teams have at the organization level and may also inherit repository-wide base roles."
+            "content": "## Overview\n\nRepresents an organization-level role such as Owner, Member, or a custom organization role. Organization roles define what permissions users and teams have at the organization level and may also inherit repository-wide base roles.\n\nQualifying predefined owner and App manager roles have composed GH_CanManageApp edges to Apps registered to their exact account. Raw empty permission arrays do not remove this authority. Custom roles with matching names do not qualify."
           }
         },
         "inbound_traversable_relationships": {
@@ -720,7 +727,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_HasBaseRole|GH_WriteOrganizationCustomOrgRole|GH_CanReadSecret|GH_CanReadSecretScanningAlert|GH_CanCreateRepositoryWithRunnerAccess|GH_CanAssumeIdentity]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_CanManageApp|GH_HasBaseRole|GH_WriteOrganizationCustomOrgRole|GH_CanReadSecret|GH_CanReadSecretScanningAlert|GH_CanCreateRepositoryWithRunnerAccess|GH_CanAssumeIdentity]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "effective_members": {
@@ -749,6 +756,13 @@
           "position": 7,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_CanReadSecret|GH_ScopedTo*1..2]->(:GH_OrgSecret)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View organization secrets exposed through this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "managed_apps": {
+          "title": "Managed Apps",
+          "position": 8,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p=(selected:GH_OrgRole {objectid: '%s'})-[:GH_CanManageApp]->(:GH_App)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View Apps this role can manage in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1770,14 +1784,14 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a GitHub App definition. The `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties record requested permissions as permission:access arrays. Unrecognized keys are retained in `permissions_unclassified`. Each installation records its own granted permissions. The app owner controls the private key used to generate installation tokens for its installations on organizations and enterprises.\n\n`environment_slug` records the organization login or enterprise slug for this collection context.\n\n`registration_origin` is `tenant_owned` when the registration owner is a collected organization or the collected enterprise, and `member_owned` when the owner is a collected organization or enterprise member. Member-owned apps remain under the user's account; membership does not imply tenant control or approval. Recognized owners without matching internal evidence default to `third_party`, including in organization-only collections. This classification depends on collected inventory completeness. Missing owners or unsupported owner types are `unknown`. Outside-collaborator status alone does not establish membership."
+            "content": "## Overview\n\nRepresents a GitHub App definition. The `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties record requested permissions as permission:access arrays. Unrecognized keys are retained in `permissions_unclassified`. Each installation records its own granted permissions. The app owner controls the private key used to generate installation tokens for its installations on organizations and enterprises.\n\n`environment_slug` records the organization login or enterprise slug for this collection context.\n\n`registration_origin` is `tenant_owned` when the registration owner is a collected organization or the collected enterprise, and `member_owned` when the owner is a collected organization or enterprise member. Member-owned apps remain under the user's account; membership does not imply tenant control or approval. Recognized owners without matching internal evidence default to `third_party`, including in organization-only collections. This classification depends on collected inventory completeness. Missing owners or unsupported owner types are `unknown`. Outside-collaborator status alone does not establish membership.\n\nIncoming GH_CanManageApp edges show account-wide owner and predefined App manager authority over the registration. Per-App manager assignments are not currently enumerated, so these relationships are not a complete manager inventory."
           }
         },
         "inbound_traversable_relationships": {
           "title": "Inbound Traversable GH Relationships",
           "position": 2,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (owner)-[:GH_Owns]->(selected:GH_App {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (owner)-[:GH_Owns|GH_CanManageApp]->(selected:GH_App {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "outbound_traversable_relationships": {
@@ -1806,6 +1820,13 @@
           "position": 6,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_App {objectid: '%s'})-[:GH_InstalledAs|GH_CanAccess|GH_ScopedTo*2..3]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories reachable through this app's installations in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "app_management": {
+          "title": "App Management",
+          "position": 7,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (owner)-[:GH_CanManageApp]->(selected:GH_App {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View roles that can manage this App in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -2850,6 +2871,11 @@
       "name": "GH_HasOidcIdentityProvider",
       "description": "Enterprise has this OIDC identity provider configured",
       "is_traversable": false
+    },
+    {
+      "name": "GH_CanManageApp",
+      "description": "[Computed] Predefined owner or App manager role can manage an App registration owned by its account, including authentication credentials",
+      "is_traversable": true
     }
   ],
   "environments": [

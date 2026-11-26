@@ -4,6 +4,8 @@
 
 The role a user or team has at the GitHub Enterprise level.
 
+Default `owners` and predefined `enterprise_app_manager` roles receive composed GH_CanManageApp edges only to registrations owned by their exact enterprise. Organization-owned Apps require the applicable organization management path.
+
 ## Properties
 
 | Property | Type | Description |

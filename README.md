@@ -191,6 +191,18 @@ collections without the scope record use direct repository edges instead.
 Archived or disabled repositories are excluded. Repository access scopes retain
 their existing meaning, and no branch-write or deployment capability is implied.
 
+### App registration management
+
+Organization owners and predefined App manager roles receive traversable
+`GH_CanManageApp` edges to Apps registered to their exact owning account.
+Enterprise owners and enterprise App managers similarly control enterprise-owned
+registrations. Composition queries show the role, its account, and App ownership;
+existing user/team assignments and `GH_InstalledAs` carry the resulting paths.
+Older collections' `source=Predefined` roles are recognized even with empty
+permission arrays and a legacy `type=custom` label. Per-App manager assignments
+are not yet enumerated. Re-run preprocessing and conversion, then reimport the
+extension schema to display these capabilities and their entity panels.
+
 ### Enterprise SCIM and hybrid correlations
 
 A token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.

@@ -11,6 +11,7 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.models.app_management import app_management_edges
 
 _ALL_REPO_PERMISSIONS = ("read", "triage", "write", "maintain", "admin")
 
@@ -84,6 +85,7 @@ class GHOrgRoleProperties(GHNodeProperties):
     Attributes:
         short_name: The short display name of the role (e.g., `Owners`, `Members`, or the custom role name).
         type: `default` for built-in roles (Owner, Member) or `custom` for custom organization roles.
+        source: GitHub role source, including `Predefined` for built-in API roles.
         environment_name: The name of the environment (GitHub organization).
         query_explicit_members: Query for explicit members.
         query_unrolled_members: Query for unrolled members.
@@ -93,6 +95,7 @@ class GHOrgRoleProperties(GHNodeProperties):
 
     short_name: str
     type: str
+    source: str | None = None
     environment_name: str | None = None
     query_explicit_members: str | None = None
     query_unrolled_members: str | None = None
@@ -108,6 +111,13 @@ class GHOrgRoleProperties(GHNodeProperties):
         properties=GHOrgRoleProperties,
     ),
     edges=[
+        EdgeDef(
+            start=nk.ORG_ROLE,
+            end=nk.APP,
+            kind=ek.CAN_MANAGE_APP,
+            description="Role can manage App registrations owned by its organization",
+            traversable=True,
+        ),
         EdgeDef(
             start=nk.ORGANIZATION,
             end=nk.ORG_ROLE,
@@ -212,6 +222,7 @@ class OrgRole(BaseAsset):
 
     # Additional
     type: str
+    source: str | None = None
     org_node_id: str
     org_login: str
 
@@ -230,6 +241,7 @@ class OrgRole(BaseAsset):
                 node_id=self.node_id,
                 short_name=self.name,
                 type=self.type,
+                source=self.source,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
                 query_explicit_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_OrgRole {{node_id:'{self.node_id}'}}) RETURN p",
@@ -390,3 +402,15 @@ class OrgRole(BaseAsset):
         yield from self._members_edge
         yield from self._can_create_repos_edge
         yield from self._custom_edges
+        is_predefined = self.source == "Predefined" or (
+            self.type == "default" and self.source in {None, "Default"}
+        )
+        if is_predefined and self.name in {"owners", "app_manager"}:
+            yield from app_management_edges(
+                self._lookup,
+                role_node_id=self.node_id,
+                role_name=self.name,
+                is_predefined=is_predefined,
+                account_node_id=self.org_node_id,
+                account_type="Organization",
+            )

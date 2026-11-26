@@ -987,6 +987,29 @@ class GithubLookup(LookupManager):
         return rows
 
     @lru_cache
+    def app_node_ids_owned_by(self, owner_node_id: str, owner_type: str):
+        """Resolve registration ownership, independent of installation context."""
+        account = {
+            "Organization": ("organizations", "node_id"),
+            "Enterprise": ("enterprise", "id"),
+        }.get(owner_type)
+        if not account:
+            return []
+        table, column = account
+        return self._find_all_objects(
+            f"""SELECT DISTINCT a.node_id
+            FROM {self.schema}.applications a
+            WHERE nullif(a.node_id, '') IS NOT NULL
+              AND json_extract_string(a.owner, '$.node_id') = ?
+              AND lower(json_extract_string(a.owner, '$.type')) = lower(?)
+              AND EXISTS (
+                  SELECT 1 FROM {self.schema}.{table} account
+                  WHERE account.{column} = ?
+              )""",
+            [owner_node_id, owner_type, owner_node_id],
+        )
+
+    @lru_cache
     def app_node_id(self, app_slug: str) -> str | None:
         """Resolve the registration shared by its organization and enterprise installations."""
         return self._find_single_object(
