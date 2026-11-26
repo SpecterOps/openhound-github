@@ -12,6 +12,8 @@ from openhound_github.main import app
 ALL_REPOSITORIES_SCOPE = "all"
 PRIVATE_OR_INTERNAL_REPOSITORIES_SCOPE = "private_or_internal"
 REPOSITORY_SCOPE_TYPE = "repository"
+REPOSITORY_BRANCH_CREATION_SCOPE_TYPE = "repository_branch_creation"
+UNRESTRICTED_BRANCH_CREATION_SCOPE = "unrestricted"
 RUNNER_GROUP_SCOPE_TYPE = "runner_group"
 ORGANIZATION_SECRET_SCOPE_TYPE = "organization_secret"
 ORGANIZATION_VARIABLE_SCOPE_TYPE = "organization_variable"
@@ -175,9 +177,7 @@ class Scope(BaseAsset):
             return _PRIVATE_REPOSITORY_CREATION_EDGE_KINDS
         return ()
 
-    def _read_secret_query(
-        self, role_node_id: str, edge_kinds: tuple[str, ...]
-    ) -> str:
+    def _read_secret_query(self, role_node_id: str, edge_kinds: tuple[str, ...]) -> str:
         creation_edges = "|".join(edge_kinds)
         return (
             f"MATCH p=(:GH_OrgRole {{node_id:'{role_node_id}'}})"
@@ -216,9 +216,7 @@ class Scope(BaseAsset):
             properties=GHEdgeProperties(
                 traversable=True,
                 composed=True,
-                query_composition=self._read_secret_query(
-                    owners_role_id, edge_kinds
-                ),
+                query_composition=self._read_secret_query(owners_role_id, edge_kinds),
             ),
         )
 
@@ -246,3 +244,16 @@ class Scope(BaseAsset):
             properties=EdgeProperties(traversable=False),
         )
         yield from self._can_read_secret_edges
+        if (
+            self.scope_type == REPOSITORY_BRANCH_CREATION_SCOPE_TYPE
+            and self.scope == UNRESTRICTED_BRANCH_CREATION_SCOPE
+        ):
+            for (repository_id,) in self._lookup.branch_creation_repositories_for_org(
+                self.org_login
+            ):
+                yield Edge(
+                    kind=ek.SCOPED_TO,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=repository_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )

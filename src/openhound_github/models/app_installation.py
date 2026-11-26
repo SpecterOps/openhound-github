@@ -7,14 +7,16 @@ from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 from pydantic import BaseModel, Field, model_validator
 
-from openhound_github.graph import GHNode, GHNodeProperties
+from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.app_permissions import split_app_permissions
 from openhound_github.models.scope import (
     ALL_REPOSITORIES_SCOPE,
+    REPOSITORY_BRANCH_CREATION_SCOPE_TYPE,
     REPOSITORY_SCOPE_TYPE,
+    UNRESTRICTED_BRANCH_CREATION_SCOPE,
     scope_node_id,
 )
 
@@ -44,8 +46,6 @@ class GHAppInstallationProperties(GHNodeProperties):
         suspended_at: When the installation was suspended, if applicable.
         environment_name: The organization or enterprise where the app is installed.
         environment_slug: The organization login or enterprise slug of the installation target.
-        query_repositories: Query for repositories.
-        query_app: Query for app.
     """
 
     id: int | None = None
@@ -68,8 +68,6 @@ class GHAppInstallationProperties(GHNodeProperties):
     suspended_at: datetime | None = None
     environment_name: str | None = None
     environment_slug: str | None = None
-    query_repositories: str | None = None
-    query_app: str | None = None
 
 
 class Account(BaseModel):
@@ -89,6 +87,16 @@ class Account(BaseModel):
         properties=GHAppInstallationProperties,
     ),
     edges=[
+        *[
+            EdgeDef(
+                start=nk.APP_INSTALLATION,
+                end=target,
+                kind=ek.CAN_CREATE_BRANCH,
+                description="App installation can create freely named branches in repository or scope",
+                traversable=True,
+            )
+            for target in (nk.REPOSITORY, nk.SCOPE)
+        ],
         *[
             EdgeDef(
                 start=nk.APP_INSTALLATION,
@@ -211,8 +219,6 @@ class AppInstallation(BaseAsset):
                 environment_name=self.environment_slug,
                 environment_slug=self.environment_slug,
                 environmentid=self.environment_node_id,
-                query_repositories=f"MATCH p=(:GH_AppInstallation {{node_id:'{self.node_id}'}})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository) RETURN p LIMIT 1000",
-                query_app=f"MATCH p=(:GH_App)-[:GH_InstalledAs]->(:GH_AppInstallation {{node_id:'{self.node_id}'}}) RETURN p",
             ),
         )
 
@@ -258,6 +264,89 @@ class AppInstallation(BaseAsset):
             )
 
     @property
+    def _branch_creation_access_query(self) -> str:
+        return (
+            f"MATCH p=(installation:GH_AppInstallation {{node_id:'{self.node_id}'}})"
+            "-[:GH_CanAccess|GH_ScopedTo*1..2]->(repository:GH_Repository) "
+            "WHERE 'contents:write' IN installation.permissions_repository "
+            "AND installation.suspended_at IS NULL "
+        )
+
+    @property
+    def _can_create_branch_edges(self):
+        if (
+            self.target_type != "Organization"
+            or self.suspended_at is not None
+            or self.permissions.get("contents") != "write"
+            or self.repository_selection not in {"all", "selected"}
+            or not self.environment_slug
+            or not self.org_node_id
+        ):
+            return
+
+        use_scope = self.repository_selection == "all" and (
+            self._lookup.branch_creation_scope_available(
+                self.environment_slug, self.org_node_id
+            )
+        )
+        if use_scope and self._lookup.canonical_scope_has_targets(
+            self.environment_slug,
+            REPOSITORY_BRANCH_CREATION_SCOPE_TYPE,
+            UNRESTRICTED_BRANCH_CREATION_SCOPE,
+        ):
+            target_scope_id = scope_node_id(
+                self.org_node_id,
+                REPOSITORY_BRANCH_CREATION_SCOPE_TYPE,
+                UNRESTRICTED_BRANCH_CREATION_SCOPE,
+            )
+            yield Edge(
+                kind=ek.CAN_CREATE_BRANCH,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(
+                    value=target_scope_id,
+                    match_by="id",
+                ),
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    reason="contents_write_and_all_repository_access",
+                    query_composition=(
+                        self._branch_creation_access_query
+                        + f"MATCH p1=(:GH_Scope {{node_id:'{target_scope_id}'}})"
+                        "-[:GH_ScopedTo]->(repository) RETURN p, p1"
+                    ),
+                ),
+            )
+        for (
+            repository_id,
+            reason,
+        ) in self._lookup.app_installation_branch_creation_repositories(
+            self.id, self.environment_slug, exclude_shared=use_scope
+        ):
+            query = (
+                self._branch_creation_access_query
+                + f"AND repository.node_id = '{repository_id}' "
+            )
+            if reason == "app_push_allowance":
+                query += (
+                    "MATCH p1=(installation)-[:GH_RestrictionsCanPush]->"
+                    "(:GH_BranchProtectionRule)<-[:GH_Contains]-(repository) RETURN p, p1"
+                )
+            else:
+                query += "RETURN p"
+            yield Edge(
+                kind=ek.CAN_CREATE_BRANCH,
+                start=EdgePath(value=self.node_id, match_by="id"),
+                end=EdgePath(value=repository_id, match_by="id"),
+                properties=GHEdgeProperties(
+                    traversable=True,
+                    composed=True,
+                    reason=reason,
+                    query_composition=query,
+                ),
+            )
+
+    @property
     def edges(self):
         """Yield containment, parent app, and target/repository access scope."""
         if self.environment_node_id:
@@ -270,6 +359,7 @@ class AppInstallation(BaseAsset):
 
         yield from self._app_edges
         yield from self._can_access_edges
+        yield from self._can_create_branch_edges
 
 
 @dataclass
@@ -298,8 +388,6 @@ class GHAppProperties(GHNodeProperties):
         installations_count: The total number of installations of this app across all organizations.
         created_at: When the app was created.
         updated_at: When the app was last updated.
-        query_owner: Query for the account that registered the app.
-        query_installations: Query for installations.
     """
 
     id: int | None = None
@@ -322,8 +410,6 @@ class GHAppProperties(GHNodeProperties):
     installations_count: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    query_owner: str | None = None
-    query_installations: str | None = None
 
 
 class Owner(BaseModel):
@@ -479,8 +565,6 @@ class App(BaseAsset):
                 events=self.events,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
-                query_owner=f"MATCH p=(owner)-[:GH_Owns]->(:GH_App {{node_id:'{aid}'}}) RETURN p",
-                query_installations=f"MATCH p=(:GH_App {{node_id:'{aid}'}})-[:GH_InstalledAs]->(:GH_AppInstallation) RETURN p",
             ),
         )
 

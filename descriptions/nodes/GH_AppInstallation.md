@@ -12,6 +12,8 @@ Enterprise collection includes the authenticating collector app's installation, 
 
 `environment_slug` identifies the target account for both installation types. `target_type` distinguishes organization and enterprise targets. Older records using `org_login` or `enterprise_name` remain readable; these fields are no longer used for new installation context. Organization repository access is evaluated only for organization targets.
 
+Active organization installations with granted `contents:write` receive traversable GH_CanCreateBranch paths to eligible repositories. All-repository access uses the organization's branch-creation scope; selected access and App-specific allowances use direct edges. These computed capabilities remain separate from non-traversable GH_CanAccess relationships.
+
 ## Properties
 
 | Property | Type | Description |
@@ -41,8 +43,6 @@ Enterprise collection includes the authenticating collector app's installation, 
 | `updated_at` | `datetime` | When the installation was last updated. |
 | `suspended_at` | `datetime` | When the installation was suspended, if applicable. |
 | `environment_name` | `string` | The name of the environment (GitHub organization or enterprise) where the app is installed. |
-| `query_repositories` | `string` | Query for repositories. |
-| `query_app` | `string` | Query for app. |
 
 ## Diagram
 
@@ -56,6 +56,8 @@ graph LR
     n0 -->|GH_InstalledAs| n1
     n1 -.->|GH_CanAccess| n2
     n1 -.->|GH_CanAccess| n3
+    n1 -->|GH_CanCreateBranch| n2
+    n1 -->|GH_CanCreateBranch| n3
     n4 -.->|GH_Contains| n1
     n5["GH_Enterprise"]
     n5 -.->|GH_Contains| n1

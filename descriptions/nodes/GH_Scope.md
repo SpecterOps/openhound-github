@@ -6,6 +6,8 @@ Represents a reusable, organization-scoped asset set. Its `scope_type` identifie
 
 Arbitrary app `selected` and PAT `subset` selections are not repository-scope nodes. Those selections remain direct GH_CanAccess relationships. A pending all-repository PAT request uses GH_RequestsAccessTo rather than GH_CanAccess because approval has not granted the requested access.
 
+The `repository_branch_creation/unrestricted` scope contains repositories where collected classic branch protections permit freely named branch creation without actor-specific allowances. Named branch restrictions may still apply. Active all-repository App installations with `contents:write` reach this scope through GH_CanCreateBranch. Selected repository grants and App-specific exceptions use direct capability edges. This capability scope is separate from repository access scopes and does not evaluate rulesets or overlapping-rule precedence.
+
 Repositories receive capability boundary edges only when the target scope has at least one matching collected runner group, organization secret, or organization variable. Populated organization-secret scopes similarly receive GH_CanReadSecret from the owners role and, where repository creation policy permits it, the members role. This avoids expanding empty scope families in sparse organizations while retaining owner exposure when the organization currently has no repositories.
 
 ## Properties
@@ -38,6 +40,7 @@ graph LR
     n8["GH_OrgSecret"]
     n9["GH_OrgVariable"]
     n0 -.->|GH_CanAccess| n1
+    n0 -->|GH_CanCreateBranch| n1
     n2 -->|GH_CanReadSecret| n1
     n3 -.->|GH_Contains| n1
     n4 -.->|GH_CanAccess| n1

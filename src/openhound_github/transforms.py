@@ -1,5 +1,7 @@
 import duckdb
 
+from openhound_github.branch_creation import branch_creation_restriction
+
 
 def ensure_optional_input_tables(
     con: duckdb.DuckDBPyConnection, schema: str = "github"
@@ -522,6 +524,15 @@ def ensure_app_installation_input_tables(
             "node_id": "VARCHAR",
             "database_id": "BIGINT",
             "org_login": "VARCHAR",
+            "default_branch": "VARCHAR",
+            "archived": "BOOLEAN",
+            "disabled": "BOOLEAN",
+        },
+        "scopes": {
+            "org_login": "VARCHAR",
+            "org_node_id": "VARCHAR",
+            "scope_type": "VARCHAR",
+            "scope": "VARCHAR",
         },
     }
     for table, columns in tables.items():
@@ -568,6 +579,69 @@ def actor_allowances(con, schema: str = "github"):
     """)
 
 
+def branch_creation_eligibility(con, schema: str = "github"):
+    """Share conservative classic-BPR creation restrictions across actor types.
+
+    No rows in the restrictions table means no *collected* broad restriction,
+    not proof of complete protection inventory. Require a collected default
+    branch before exposing repository eligibility. Rulesets are not evaluated.
+    Named exceptions and rule precedence are deliberately not used to prove
+    freely named branch creation through an otherwise restrictive rule.
+    """
+    con.execute(f"""
+        CREATE OR REPLACE TABLE {schema}.branch_creation_restrictions (
+            rule_id VARCHAR,
+            repository_node_id VARCHAR,
+            is_admin_enforced BOOLEAN,
+            reason VARCHAR
+        )
+    """)
+    restrictions = []
+    for rule_id, repository_id, pattern, blocks, pushes, enforced in con.execute(
+        f"""SELECT id, repository_node_id, pattern, blocks_creations,
+                   restricts_pushes, is_admin_enforced
+            FROM {schema}.branch_protection_rules"""
+    ).fetchall():
+        reason = branch_creation_restriction(pattern, blocks, pushes)
+        if reason:
+            restrictions.append((rule_id, repository_id, enforced, reason))
+    if restrictions:
+        con.executemany(
+            f"INSERT INTO {schema}.branch_creation_restrictions VALUES (?, ?, ?, ?)",
+            restrictions,
+        )
+    con.execute(f"""
+        CREATE OR REPLACE TABLE {schema}.repositories_with_branch_creation_evidence AS
+        SELECT DISTINCT r.node_id AS repository_node_id
+        FROM {schema}.repositories r
+        WHERE r.archived IS NOT TRUE AND r.disabled IS NOT TRUE
+        AND EXISTS (
+            SELECT 1 FROM {schema}.branches b
+            WHERE b.repository_node_id = r.node_id
+              AND b.name = r.default_branch
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM {schema}.branches b
+            WHERE b.repository_node_id = r.node_id
+              AND json_extract_string(b.branch_protection_rule, '$.id') IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM {schema}.branch_protection_rules rule
+                  WHERE rule.repository_node_id = r.node_id
+                    AND rule.id = json_extract_string(b.branch_protection_rule, '$.id')
+              )
+        )
+    """)
+    con.execute(f"""
+        CREATE OR REPLACE TABLE {schema}.repositories_allowing_branch_creation AS
+        SELECT evidence.repository_node_id
+        FROM {schema}.repositories_with_branch_creation_evidence evidence
+        WHERE NOT EXISTS (
+            SELECT 1 FROM {schema}.branch_creation_restrictions restriction
+            WHERE restriction.repository_node_id = evidence.repository_node_id
+        )
+    """)
+
+
 def role_can_create_branch(con, schema: str = "github"):
     con.execute(f"""
         CREATE OR REPLACE TABLE {schema}.role_can_create_branch AS
@@ -575,13 +649,11 @@ def role_can_create_branch(con, schema: str = "github"):
         FROM {schema}.repo_roles rr
         WHERE NOT EXISTS (
             SELECT 1
-            FROM {schema}.branch_protection_rules bpr
+            FROM {schema}.branch_creation_restrictions bpr
             WHERE bpr.repository_node_id = rr.repository_node_id
-            AND bpr.pattern           = '*'
-            AND bpr.blocks_creations  = true
             AND NOT (
-                bpr.is_admin_enforced = false
-                AND json_contains(rr.permissions, '"push_protected_branch"')
+                bpr.is_admin_enforced IS FALSE
+                AND coalesce(json_contains(rr.permissions, '"push_protected_branch"'), false)
             )
         )""")
 
@@ -658,4 +730,5 @@ def transforms(con: duckdb.DuckDBPyConnection, schema: str = "github") -> None:
     actor_allowances(con, schema)
     unprotected_branches(con, schema)
     actor_branch_gates(con, schema)
+    branch_creation_eligibility(con, schema)
     role_can_create_branch(con, schema)

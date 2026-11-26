@@ -559,6 +559,13 @@
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH (selected:GH_Repository {objectid: '%s'})\\nOPTIONAL MATCH p1 = (selected)-[:GH_Contains]->(:GH_DeployKey)\\nOPTIONAL MATCH p2 = (selected)-[:GH_Contains]->(:GH_SecretScanningAlert)\\nRETURN p1, p2\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View deploy keys and secret scanning alerts in this repository in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
+        },
+        "branch_creators": {
+          "title": "Branch Creation Capabilities",
+          "position": 14,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p=()-[:GH_CanCreateBranch]->()-[:GH_ScopedTo*0..1]->(selected:GH_Repository {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View branch creation capabilities reaching this repository in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
         }
       }
     },
@@ -1770,7 +1777,7 @@
           "title": "Inbound Traversable GH Relationships",
           "position": 2,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_App {objectid: '%s'})\\nWHERE false\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (owner)-[:GH_Owns]->(selected:GH_App {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "outbound_traversable_relationships": {
@@ -1780,16 +1787,23 @@
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_App {objectid: '%s'})-[:GH_InstalledAs]->(:GH_AppInstallation)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
+        "owner": {
+          "title": "Owner",
+          "position": 4,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (owner)-[:GH_Owns]->(selected:GH_App {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the account that owns this app in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
         "installations": {
           "title": "Installations",
-          "position": 4,
+          "position": 5,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_App {objectid: '%s'})-[:GH_InstalledAs]->(:GH_AppInstallation)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View installations of this app in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "repository_reach": {
           "title": "Repository Reach",
-          "position": 5,
+          "position": 6,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_App {objectid: '%s'})-[:GH_InstalledAs|GH_CanAccess|GH_ScopedTo*2..3]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories reachable through this app's installations in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
@@ -1808,14 +1822,14 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a reusable asset selection within one GitHub organization. `scope_type` identifies the family of assets and `scope` identifies the canonical selector. Repository, runner-group, organization-secret, and organization-variable scopes support `all` and `private_or_internal`. `member_count` reports collected outgoing membership. Per-repository capability boundaries are emitted only for non-empty target scopes."
+            "content": "## Overview\n\nRepresents a reusable asset selection within one GitHub organization. `scope_type` identifies the family of assets and `scope` identifies the canonical selector. Repository, runner-group, organization-secret, and organization-variable scopes support `all` and `private_or_internal`. `member_count` reports collected outgoing membership. Per-repository capability boundaries are emitted only for non-empty target scopes.\n\nThe repository_branch_creation/unrestricted scope groups repositories where evaluated classic protections permit freely named branch creation without actor-specific exceptions. GH_CanCreateBranch reaches each member through GH_ScopedTo. It is separate from repository access scopes."
           }
         },
         "inbound_traversable_relationships": {
           "title": "Inbound Traversable GH Relationships",
           "position": 2,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_HasSecret|GH_HasVariable|GH_CanReadSecret]->(selected:GH_Scope {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_HasSecret|GH_HasVariable|GH_CanReadSecret|GH_CanCreateBranch]->(selected:GH_Scope {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct inbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "outbound_traversable_relationships": {
@@ -1829,7 +1843,7 @@
           "title": "Credentials and Requests",
           "position": 4,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_CanAccess|GH_RequestsAccessTo]->(selected:GH_Scope {objectid: '%s'})\\nWHERE source:GH_AppInstallation OR source:GH_PersonalAccessToken OR source:GH_PersonalAccessTokenRequest\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View credentials and pending requests associated with this scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_CanAccess|GH_RequestsAccessTo|GH_CanCreateBranch]->(selected:GH_Scope {objectid: '%s'})\\nWHERE source:GH_AppInstallation OR source:GH_PersonalAccessToken OR source:GH_PersonalAccessTokenRequest\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View credentials and pending requests associated with this scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "repositories": {
@@ -1853,7 +1867,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a GitHub App installed on an organization or enterprise. The `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties record granted permissions as permission:access arrays; the parent `GH_App` records requested permissions. Unrecognized keys are retained in `permissions_unclassified`.\n\nEnterprise collection currently includes only the authenticating collector app installation. Enterprise installations do not automatically grant access to organizations or repositories.\n\n`environment_slug` records the organization login or enterprise slug for this collection context."
+            "content": "## Overview\n\nRepresents a GitHub App installed on an organization or enterprise. The `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties record granted permissions as permission:access arrays; the parent `GH_App` records requested permissions. Unrecognized keys are retained in `permissions_unclassified`.\n\nEnterprise collection currently includes only the authenticating collector app installation. Enterprise installations do not automatically grant access to organizations or repositories.\n\n`environment_slug` records the organization login or enterprise slug for this collection context.\n\nActive organization installations with granted `contents:write` receive GH_CanCreateBranch paths to eligible repositories, directly or through a shared repository_branch_creation/unrestricted scope. Selected access and App push allowances are evaluated per repository. These capabilities evaluate collected classic protections; rulesets and overlapping-rule precedence are not resolved."
           }
         },
         "inbound_traversable_relationships": {
@@ -1867,7 +1881,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_AppInstallation {objectid: '%s'})\\nWHERE false\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_AppInstallation {objectid: '%s'})-[:GH_CanCreateBranch]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "parent_app": {
@@ -1877,25 +1891,18 @@
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_App)-[:GH_InstalledAs]->(selected:GH_AppInstallation {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the GitHub App behind this installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
-        "organization_context": {
-          "title": "Organization Context",
+        "access_scope": {
+          "title": "Access Scope",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Organization)-[:GH_Contains]->(selected:GH_AppInstallation {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the organization containing this app installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_AppInstallation {objectid: '%s'})-[:GH_CanAccess]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the scopes and resources accessible to this installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
-        "repository_scope": {
-          "title": "Repository Scope",
+        "branch_creation_repositories": {
+          "title": "Branch Creation Capabilities",
           "position": 6,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_AppInstallation {objectid: '%s'})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories accessible to this app installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
-        "enterprise_context": {
-          "title": "Enterprise Context",
-          "position": 7,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Enterprise)-[:GH_Contains]->(selected:GH_AppInstallation {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the enterprise containing this app installation in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p=(selected:GH_AppInstallation {objectid: '%s'})-[:GH_CanCreateBranch]->()-[:GH_ScopedTo*0..1]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories where this installation can create branches in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -2746,7 +2753,7 @@
     },
     {
       "name": "GH_CanCreateBranch",
-      "description": "[Repository - Computed] Role can create new branches in this repository (unprotected branches that bypass the merge gate)",
+      "description": "[Computed] Role or App installation can create freely named branches in a repository, directly or through a repository capability scope",
       "is_traversable": true
     },
     {

@@ -158,7 +158,10 @@ def test_app_exception_edges_resolve_only_installations_with_access(
     with duckdb.connect(":memory:") as con:
         con.execute("CREATE SCHEMA github")
         ensure_app_installation_input_tables(con)
-        con.execute("INSERT INTO github.repositories VALUES ('REPO_1', 101, 'acme')")
+        con.execute(
+            "INSERT INTO github.repositories (node_id, database_id, org_login) "
+            "VALUES ('REPO_1', 101, 'acme')"
+        )
         # No contents grant is required to represent the configured exceptions.
         con.execute(
             "INSERT INTO github.app_installations "

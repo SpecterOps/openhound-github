@@ -4,6 +4,8 @@
 
 The traversable GH_ScopedTo edge enumerates an asset included in a reusable GH_Scope. It carries an incoming capability from a target scope to each asset in the represented set. Repository scopes contain collected repositories, runner-group scopes contain organization-facing runner groups sharing repository eligibility, and organization-secret/variable scopes contain assets sharing repository availability.
 
+Branch-creation scopes contain only repositories eligible for freely named branch creation under the evaluated classic protections. They pass an incoming GH_CanCreateBranch capability to each member; they do not expand the installation's repository access grant.
+
 ## Edge Schema
 
 | Source | Destination | Traversable |

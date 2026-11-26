@@ -170,6 +170,27 @@ deduplicating identities and retaining the rest of the rule. Successful GraphQL
 responses do not trigger this additional request. Failed or incomplete recovery
 logs an explicit allowance collection gap while preserving known actors.
 
+### Branch creation eligibility
+
+Branch creation preprocessing separates shared repository eligibility from
+actor-specific bypasses. Restrictions on exact branch names or literal namespaces
+such as `release/*`, and substring patterns such as `*protections_test*`, leave
+other names available. Broad creation restrictions and
+unrecognized patterns exclude shared eligibility; role bypasses are evaluated
+separately. A collected default branch is required, and unresolved protection-rule
+references exclude shared eligibility. This conservative check uses collected
+classic branch protections, does not resolve overlapping-rule precedence, and
+does not evaluate rulesets or prove that the protection inventory is complete.
+
+Active organization App installations with granted `contents:write` receive
+traversable `GH_CanCreateBranch` paths. All-repository installations use a shared
+`GH_Scope` (`scope_type=repository_branch_creation`, `scope=unrestricted`) with
+`GH_ScopedTo` membership; selected grants and qualifying App push allowances use
+direct repository edges. Empty scopes receive no capability edge. Older
+collections without the scope record use direct repository edges instead.
+Archived or disabled repositories are excluded. Repository access scopes retain
+their existing meaning, and no branch-write or deployment capability is implied.
+
 ### Enterprise SCIM and hybrid correlations
 
 A token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.

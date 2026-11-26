@@ -2598,6 +2598,12 @@ def org_scim_organizations(org: Organization, ctx: SourceContext):
     parallelized=True,
 )
 def scopes(org: Organization):
+    yield {
+        "org_login": org.login,
+        "org_node_id": org.node_id,
+        "scope_type": "repository_branch_creation",
+        "scope": "unrestricted",
+    }
     for scope_type in (
         "repository",
         "runner_group",
