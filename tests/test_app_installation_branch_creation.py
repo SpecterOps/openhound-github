@@ -141,6 +141,24 @@ def test_all_access_uses_shared_scope_plus_direct_app_exception(connection):
     )
 
 
+@pytest.mark.parametrize("selection", ["all", "selected"])
+def test_mixed_case_organization_emits_creation_capabilities(connection, selection):
+    connection.execute("UPDATE inventory.organizations SET login = 'AcMe'")
+    connection.executemany(
+        "INSERT INTO inventory.app_installation_repo_access VALUES (?, ?, ?)",
+        [("GH_AppInstallation_42", 1, "acme"), ("GH_AppInstallation_42", 3, "acme")],
+    )
+
+    edges = capability_edges(installation(connection, org="ACME", selection=selection))
+
+    assert {edge.end.value for edge in edges} == {
+        SCOPE_ID if selection == "all" else "R_OPEN",
+        "R_EXCEPTION",
+    }
+    assert all(edge.start.value == "GH_AppInstallation_42" for edge in edges)
+    assert all(edge.properties.traversable for edge in edges)
+
+
 def test_selected_access_only_reaches_granted_repositories(connection):
     connection.executemany(
         "INSERT INTO inventory.app_installation_repo_access VALUES (?, ?, ?)",

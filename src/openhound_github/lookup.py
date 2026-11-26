@@ -51,7 +51,7 @@ class GithubLookup(LookupManager):
     @lru_cache
     def org_id_for_login(self, org_login: str) -> str | None:
         return self._find_single_object(
-            f"""SELECT node_id FROM {self.schema}.organizations WHERE login = ?""",
+            f"""SELECT node_id FROM {self.schema}.organizations WHERE lower(login) = lower(?)""",
             [org_login],
         )
 
