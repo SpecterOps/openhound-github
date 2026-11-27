@@ -39,7 +39,11 @@ from openhound_github.auth import GithubApp
 from openhound_github.models.app_installation import App, AppInstallation
 from openhound_github.models.repo_role_assignment import RepoRoleAssignment
 from openhound_github.enterprise_team_ids import enterprise_team_node_id
-from openhound_github.resources.app_helpers import migrate_app_context_schema
+from openhound_github.resources.app_helpers import (
+    collect_app_owner,
+    migrate_app_context_schema,
+)
+from openhound_github.models.app_owner import AppOwner
 from openhound_github.models import (
     BaseUser,
     ClassicPersonalAccessToken,
@@ -1618,6 +1622,16 @@ def enterprise_applications(installation: AppInstallation, ctx: SourceContext):
         logger.warning("Skipping app metadata for '%s': %s", installation.app_slug, exc)
 
 
+@app.transformer(
+    name="enterprise_app_owners",
+    table_name="app_owners",
+    columns=AppOwner,
+    parallelized=True,
+)
+def enterprise_app_owners(application: App, ctx: SourceContext):
+    yield from collect_app_owner(application, ctx, ctx.client)
+
+
 def enterprise_resources(ctx: SourceContext):
     """Assemble enterprise resources enabled by the available authentication clients."""
     from openhound_github.resources.organization import RepositoryRoleCache
@@ -1659,10 +1673,12 @@ def enterprise_resources(ctx: SourceContext):
 
     if ctx.github_app is not None:
         installation_resource = enterprise_resource | enterprise_app_installation(ctx)
+        applications_resource = installation_resource | enterprise_applications(ctx)
         resources.extend(
             [
                 installation_resource,
-                installation_resource | enterprise_applications(ctx),
+                applications_resource,
+                applications_resource | enterprise_app_owners(ctx),
             ]
         )
 

@@ -417,6 +417,10 @@ class Owner(BaseModel):
     id: int
     node_id: str
     type: str
+    name: str | None = None
+    description: str | None = None
+    company: str | None = None
+    html_url: str | None = None
 
 
 @app.asset(
@@ -536,6 +540,10 @@ class App(BaseAsset):
         else:
             owner_exists = False
 
+        owner_exists = owner_exists or (
+            owner_type in {"user", "organization", "enterprise"}
+            and self._lookup.has_app_owner(self.owner.node_id, self.owner.type)
+        )
         return self.owner.node_id if owner_exists else None
 
     @property

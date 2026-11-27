@@ -76,6 +76,7 @@ def preproc(ctx: PreProcContext):
         "oidc_provider": "oidc_provider",
         "external_identities": "external_identities",
         "applications": "applications",
+        "app_owners": "app_owners",
         "app_installations": "app_installations",
         "app_installation_repo_access": "app_installation_repo_access",
         "enterprise": "enterprise",

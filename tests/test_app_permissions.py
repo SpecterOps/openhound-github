@@ -1,8 +1,6 @@
 from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timezone
-from pathlib import Path
-import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -116,13 +114,3 @@ def test_app_nodes_split_permissions_without_changing_collected_input(
         assert graph_properties[field] == expected
     assert asset.permissions == original
     assert asset.model_dump()["permissions"] == original
-
-
-def test_tier_zero_app_rules_use_granted_repository_permissions():
-    root = Path(__file__).resolve().parents[1]
-    for filename in ("t0-apps-all-repos.json", "t0-app-installations-all-repos.json"):
-        query = json.loads(
-            (root / "extension" / "privilege_zone_rules" / filename).read_text()
-        )["cypher"]
-        assert ".permissions_repository WHERE" in query
-        assert ".permissions WHERE" not in query

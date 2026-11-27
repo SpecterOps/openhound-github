@@ -175,6 +175,7 @@ class SourceContext:
     cache_lock: Lock = field(default_factory=Lock)
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    emitted_app_owners: set[str] = field(default_factory=set)
     team_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     repository_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     graphql_repository_batch_size: int = 50

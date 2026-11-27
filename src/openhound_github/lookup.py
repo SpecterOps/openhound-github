@@ -136,6 +136,24 @@ class GithubLookup(LookupManager):
         return enterprise_org_id is not None
 
     @lru_cache
+    def app_owner_is_collected(self, node_id: str, owner_type: str) -> bool:
+        """Identity enrichment never counts as tenant or membership inventory."""
+        if owner_type == "User":
+            return self.is_collected_user_node_id(node_id)
+        if owner_type == "Organization":
+            return self.is_tenant_organization_node_id(node_id)
+        if owner_type == "Enterprise":
+            return self.enterprise_id() == node_id
+        return False
+
+    @lru_cache
+    def has_app_owner(self, node_id: str, owner_type: str) -> bool:
+        return self._find_single_object(
+            f"SELECT node_id FROM {self.schema}.app_owners WHERE node_id = ? AND type = ?",
+            [node_id, owner_type],
+        ) is not None
+
+    @lru_cache
     def is_collected_user_node_id(self, node_id: str) -> bool:
         """Return whether a user node exists in collected organization or enterprise data."""
         organization_user_id = self._find_single_object(

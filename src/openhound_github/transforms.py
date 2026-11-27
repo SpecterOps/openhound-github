@@ -505,6 +505,10 @@ def ensure_app_installation_input_tables(
 ) -> None:
     """Provide lookup columns for empty or older installation inventories."""
     tables = {
+        "app_owners": {
+            "node_id": "VARCHAR",
+            "type": "VARCHAR",
+        },
         "applications": {
             "node_id": "VARCHAR",
             "owner": "JSON",

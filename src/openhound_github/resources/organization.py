@@ -38,7 +38,11 @@ from openhound_github.helpers import (
     scim_skip_reason,
 )
 from openhound_github.main import app
-from openhound_github.resources.app_helpers import migrate_app_context_schema
+from openhound_github.resources.app_helpers import (
+    collect_app_owner,
+    migrate_app_context_schema,
+)
+from openhound_github.models.app_owner import AppOwner
 from openhound_github.resources.branch_protection_helpers import (
     ALLOWANCE_FIELDS,
     recover_branch_allowances,
@@ -780,6 +784,12 @@ def applications(app_install: AppInstallation, ctx: SourceContext):
                 "slug": app_slug,
                 "environment_slug": app_install.environment_slug,
             }
+
+
+@app.transformer(name="app_owners", columns=AppOwner, parallelized=True)
+def app_owners(application: App, ctx: SourceContext):
+    client = _client_for_org(ctx, application.environment_slug)
+    yield from collect_app_owner(application, ctx, client)
 
 
 @app.resource(name="users", columns=User, parallelized=True)
@@ -2633,6 +2643,7 @@ def organization_resources(ctx: SourceContext):
     repositories_graphql_resource = repositories_graphql(ctx)
     environments_resource = repositories_graphql_resource | environments(ctx)
     app_installs_resource = app_installations(ctx)
+    applications_resource = app_installs_resource | applications(ctx)
     runner_groups_resource = runner_groups(ctx)
     runner_group_access_resource = runner_groups_resource | org_runner_group_access(ctx)
     branch_prot_rules_resource = (
@@ -2653,7 +2664,8 @@ def organization_resources(ctx: SourceContext):
         org_resource | roles_resource | org_role_members(ctx),
         app_installs_resource,
         app_installs_resource | app_installation_repo_access(ctx),
-        app_installs_resource | applications(ctx),
+        applications_resource,
+        applications_resource | app_owners(ctx),
         users(ctx),
         actions_permissions(ctx),
         repos_resource,

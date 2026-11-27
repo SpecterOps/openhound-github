@@ -1,0 +1,6 @@
+{
+  "query_key": "GH_third_party_apps_and_installations",
+  "name": "GitHub: Third-Party Apps and Installations",
+  "query": "MATCH p = (owner:GitHub)-[:GH_Owns]->\n  (app:GH_App {registration_origin:'third_party'})\n  -[:GH_InstalledAs]->(installation:GH_AppInstallation)\nRETURN p\nLIMIT 500",
+  "description": "Shows third-party GitHub Apps, their registration owners, and their installations. Third-party classification depends on the collected ownership and membership inventory."
+}
