@@ -1828,6 +1828,13 @@
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (owner)-[:GH_CanManageApp]->(selected:GH_App {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View roles that can manage this App in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
+        },
+        "app_managers": {
+          "title": "App Managers (Unrolled)",
+          "position": 8,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (user:GH_User)\\n  -[:GH_HasRole|GH_HasBaseRole|GH_MemberOf*1..]->(role)\\n  -[:GH_CanManageApp]->(app:GH_App {objectid:'%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View users who can manage this App through role assignments in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
         }
       }
     },

@@ -18,7 +18,7 @@ from openhound_github.main import app
     ],
 )
 class OrgRoleMember(BaseAsset):
-    """One record from `org_role_members` → one GH_HasRole edge (user → role). No node."""
+    """Emit user-to-role assignments; inherited access follows team paths. No node."""
 
     # org_role_node_id: str
     # user_node_id: str
@@ -31,6 +31,7 @@ class OrgRoleMember(BaseAsset):
     name: str | None = None
     type: str
     site_admin: bool
+    assignment: str | None = None
 
     # Additional
     org_role_id: int
@@ -48,6 +49,8 @@ class OrgRoleMember(BaseAsset):
 
     @property
     def edges(self):
+        if self.assignment == "indirect":
+            return
         yield Edge(
             kind=ek.HAS_ROLE,
             start=EdgePath(value=self.node_id, match_by="id"),
