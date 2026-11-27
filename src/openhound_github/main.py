@@ -60,6 +60,7 @@ def preproc(ctx: PreProcContext):
     return {
         "organizations": "organizations",
         "repositories": "repositories",
+        "scopes": "scopes",
         "repositories_graphql": "repositories_graphql",
         "branch_protection_rules": "branch_protection_rules",
         "branch_push_allowances": "branch_push_allowances",

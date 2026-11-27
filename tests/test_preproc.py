@@ -105,3 +105,54 @@ def test_preproc_loads_installations_and_selected_repository_grants(
             "SELECT json_extract_string(permissions, '$.contents') "
             "FROM github.app_installations WHERE id = 42"
         ).fetchone() == ("write",)
+
+
+def test_preproc_loads_branch_creation_scope_and_repository_membership(tmp_path):
+    _write_resource_rows(
+        tmp_path,
+        "repositories",
+        [
+            {
+                "node_id": "R_1",
+                "org_login": "acme",
+                "default_branch": "main",
+            }
+        ],
+    )
+    _write_resource_rows(
+        tmp_path,
+        "branches",
+        [
+            {
+                "id": "B_1",
+                "repository_node_id": "R_1",
+                "name": "main",
+            }
+        ],
+    )
+    _write_resource_rows(
+        tmp_path,
+        "scopes",
+        [
+            {
+                "org_login": "acme",
+                "org_node_id": "O_1",
+                "scope_type": "repository_branch_creation",
+                "scope": "unrestricted",
+            }
+        ],
+    )
+    lookup_file = tmp_path / "lookup.duckdb"
+
+    preproc(tmp_path, lookup_file, progress=Progress.log)
+
+    with duckdb.connect(str(lookup_file)) as con:
+        lookup = GithubLookup(con)
+        assert lookup.branch_creation_scope_available("acme", "O_1")
+        assert lookup.branch_creation_repositories_for_org("acme") == [("R_1",)]
+        assert (
+            lookup.canonical_scope_target_count(
+                "acme", "repository_branch_creation", "unrestricted"
+            )
+            == 1
+        )

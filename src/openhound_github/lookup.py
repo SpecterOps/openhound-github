@@ -51,7 +51,7 @@ class GithubLookup(LookupManager):
     @lru_cache
     def org_id_for_login(self, org_login: str) -> str | None:
         return self._find_single_object(
-            f"""SELECT node_id FROM {self.schema}.organizations WHERE login = ?""",
+            f"""SELECT node_id FROM {self.schema}.organizations WHERE lower(login) = lower(?)""",
             [org_login],
         )
 
@@ -720,6 +720,8 @@ class GithubLookup(LookupManager):
     def canonical_scope_target_count(
         self, org_login: str, scope_type: str, scope: str
     ) -> int:
+        if (scope_type, scope) == ("repository_branch_creation", "unrestricted"):
+            return len(self.branch_creation_repositories_for_org(org_login))
         predicates = {
             ("repository", "all"): ("repositories", "true"),
             ("repository", "private_or_internal"): (
@@ -770,6 +772,84 @@ class GithubLookup(LookupManager):
         self, org_login: str, scope_type: str, scope: str
     ) -> bool:
         return self.canonical_scope_target_count(org_login, scope_type, scope) > 0
+
+    @lru_cache
+    def branch_creation_repositories_for_org(self, org_login: str):
+        return self._find_all_objects(
+            f"""SELECT DISTINCT r.node_id
+            FROM {self.schema}.repositories r
+            JOIN {self.schema}.repositories_allowing_branch_creation eligible
+              ON eligible.repository_node_id = r.node_id
+            WHERE lower(r.org_login) = lower(?)""",
+            [org_login],
+        )
+
+    @lru_cache
+    def branch_creation_scope_available(self, org_login: str, org_node_id: str) -> bool:
+        """Older collections may predate this scope; do not emit dangling edges."""
+        row = self._find_single_row(
+            f"""SELECT EXISTS (
+                SELECT 1 FROM {self.schema}.scopes
+                WHERE lower(org_login) = lower(?) AND org_node_id = ?
+                  AND scope_type = 'repository_branch_creation' AND scope = 'unrestricted'
+            )""",
+            [org_login, org_node_id],
+        )
+        return bool(row and row[0])
+
+    @lru_cache
+    def app_installation_branch_creation_repositories(
+        self, installation_id: int, org_login: str, exclude_shared: bool = False
+    ):
+        """Resolve direct capabilities from granted access and positive allowance evidence.
+
+        All-repository installations normally reach shared members through a
+        scope. Return those members directly for selected grants and for older
+        collections without the capability scope. App-specific exceptions must
+        satisfy every collected broad restriction; uncertain patterns remain out.
+        """
+        return self._find_all_objects(
+            f"""SELECT DISTINCT r.node_id,
+                CASE WHEN shared.repository_node_id IS NOT NULL
+                     THEN 'shared_creation_eligibility' ELSE 'app_push_allowance' END AS reason
+            FROM {self.schema}.app_installations i
+            JOIN {self.schema}.repositories r
+              ON lower(r.org_login) = lower(coalesce(nullif(i.environment_slug, ''), i.org_login))
+            JOIN {self.schema}.repositories_with_branch_creation_evidence evidence
+              ON evidence.repository_node_id = r.node_id
+            LEFT JOIN {self.schema}.repositories_allowing_branch_creation shared
+              ON shared.repository_node_id = r.node_id
+            WHERE i.id = ? AND lower(r.org_login) = lower(?)
+              AND i.target_type = 'Organization' AND i.suspended_at IS NULL
+              AND json_extract_string(i.permissions, '$.contents') = 'write'
+              AND (
+                  i.repository_selection = 'all'
+                  OR (i.repository_selection = 'selected' AND EXISTS (
+                      SELECT 1 FROM {self.schema}.app_installation_repo_access access
+                      WHERE access.installation_node_id = 'GH_AppInstallation_' || CAST(i.id AS VARCHAR)
+                        AND access.repository_database_id = r.database_id
+                        AND lower(access.org_login) = lower(r.org_login)
+                  ))
+              )
+              AND (? = false OR shared.repository_node_id IS NULL)
+              AND NOT EXISTS (
+                  SELECT 1 FROM {self.schema}.branch_creation_restrictions restriction
+                  WHERE restriction.repository_node_id = r.node_id
+                    AND (
+                        restriction.reason <> 'broad_creation_restriction'
+                        OR NOT EXISTS (
+                            SELECT 1 FROM {self.schema}.branch_protection_rules rule,
+                                UNNEST(json_extract(rule.push_allowances, '$.nodes')::JSON[]) AS t(node)
+                            WHERE rule.id = restriction.rule_id
+                              AND rule.repository_node_id = r.node_id
+                              AND coalesce(node->>'$.actor.__typename', node->>'$.actor.typename') = 'App'
+                              AND nullif(node->>'$.actor.id', '') IS NOT NULL
+                              AND lower(node->>'$.actor.slug') = lower(i.app_slug)
+                        )
+                    )
+              )""",
+            [installation_id, org_login, exclude_shared],
+        )
 
     @lru_cache
     def actions_enabled_repositories_for_org(self, org_login: str) -> str | None:

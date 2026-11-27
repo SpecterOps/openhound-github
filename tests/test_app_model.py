@@ -42,10 +42,7 @@ def test_app_node_includes_registration_owner_properties() -> None:
     assert properties.owner_login == "example-owner"
     assert properties.owner_node_id == "OWNER_NODE_456"
     assert properties.owner_type == "Organization"
-    assert properties.query_owner == (
-        "MATCH p=(owner)-[:GH_Owns]->"
-        "(:GH_App {node_id:'APP_NODE_123'}) RETURN p"
-    )
+    assert not any(key.startswith("query_") for key in vars(properties))
 
 
 @pytest.mark.parametrize(

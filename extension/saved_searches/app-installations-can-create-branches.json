@@ -1,0 +1,6 @@
+{
+  "query_key": "GH_app_installations_can_create_branches",
+  "name": "GitHub: App Installations That Can Create Branches",
+  "query": "MATCH p=(installation:GH_AppInstallation)-[:GH_CanCreateBranch]->()-[:GH_ScopedTo*0..1]->(repository:GH_Repository)\nRETURN p\nLIMIT 1000",
+  "description": "Shows App installation branch-creation capabilities through direct repository edges or a shared capability scope. Evaluates collected classic protections; rulesets and overlapping-rule precedence are not resolved."
+}

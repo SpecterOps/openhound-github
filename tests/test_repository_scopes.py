@@ -270,10 +270,9 @@ def test_all_pat_request_uses_pending_access_edge_without_granting_access() -> N
     }
 
 
-def test_credential_repository_queries_support_direct_and_scoped_access() -> None:
+def test_pat_repository_query_supports_direct_and_scoped_access() -> None:
     expected_pattern = "[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)"
 
-    assert expected_pattern in _installation(1).as_node.properties.query_repositories
     assert expected_pattern in _pat("all").as_node.properties.query_repositories
 
 

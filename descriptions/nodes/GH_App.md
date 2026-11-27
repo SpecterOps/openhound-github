@@ -44,8 +44,6 @@ Organization membership is established from `membersWithRole`, and enterprise me
 | `installations_count` | `integer` | The total number of installations of this app across all organizations. |
 | `created_at` | `datetime` | When the app was created. |
 | `updated_at` | `datetime` | When the app was last updated. |
-| `query_owner` | `string` | Query for the account that registered the app. |
-| `query_installations` | `string` | Query for installations. |
 
 ## Diagram
 

@@ -22,6 +22,8 @@ Use the runner interception searches as a progression:
 
 ## Queries
 
+`app-installations-can-create-branches.json` shows direct and scope-mediated App installation branch-creation paths to repositories.
+
 ### :large_blue_diamond: Demo &mdash; Attack Path Scenarios
 
 | # | File | Name | Description |
