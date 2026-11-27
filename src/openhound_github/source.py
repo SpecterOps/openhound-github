@@ -175,6 +175,7 @@ class SourceContext:
     cache_lock: Lock = field(default_factory=Lock)
     organizations_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     app_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    emitted_app_owners: set[str] = field(default_factory=set)
     team_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     repository_rest_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     graphql_repository_batch_size: int = 50
@@ -446,6 +447,7 @@ def source(
             deployment_client = ctx.organizations[0].client
         if deployment_client is not None:
             _apply_github_deployment_metadata(ctx, deployment_client)
+        _canonicalize_org_names(ctx)
         return (*enterprise_resources(ctx), *organization_resources(ctx))
 
     elif credentials.auth == "org_app":

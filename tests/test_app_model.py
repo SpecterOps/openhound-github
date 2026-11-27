@@ -162,6 +162,7 @@ def test_app_skips_registration_edge_for_uncollected_owner() -> None:
     app = _app(_owner("Organization", "EXTERNAL_ORG"))
     lookup = MagicMock()
     lookup.is_tenant_organization_node_id.return_value = False
+    lookup.has_app_owner.return_value = False
     app._lookup = lookup
 
     assert app.edges == []

@@ -136,6 +136,24 @@ class GithubLookup(LookupManager):
         return enterprise_org_id is not None
 
     @lru_cache
+    def app_owner_is_collected(self, node_id: str, owner_type: str) -> bool:
+        """Identity enrichment never counts as tenant or membership inventory."""
+        if owner_type == "User":
+            return self.is_collected_user_node_id(node_id)
+        if owner_type == "Organization":
+            return self.is_tenant_organization_node_id(node_id)
+        if owner_type == "Enterprise":
+            return self.enterprise_id() == node_id
+        return False
+
+    @lru_cache
+    def has_app_owner(self, node_id: str, owner_type: str) -> bool:
+        return self._find_single_object(
+            f"SELECT node_id FROM {self.schema}.app_owners WHERE node_id = ? AND type = ?",
+            [node_id, owner_type],
+        ) is not None
+
+    @lru_cache
     def is_collected_user_node_id(self, node_id: str) -> bool:
         """Return whether a user node exists in collected organization or enterprise data."""
         organization_user_id = self._find_single_object(
@@ -985,6 +1003,29 @@ class GithubLookup(LookupManager):
             )
             return []
         return rows
+
+    @lru_cache
+    def app_node_ids_owned_by(self, owner_node_id: str, owner_type: str):
+        """Resolve registration ownership, independent of installation context."""
+        account = {
+            "Organization": ("organizations", "node_id"),
+            "Enterprise": ("enterprise", "id"),
+        }.get(owner_type)
+        if not account:
+            return []
+        table, column = account
+        return self._find_all_objects(
+            f"""SELECT DISTINCT a.node_id
+            FROM {self.schema}.applications a
+            WHERE nullif(a.node_id, '') IS NOT NULL
+              AND json_extract_string(a.owner, '$.node_id') = ?
+              AND lower(json_extract_string(a.owner, '$.type')) = lower(?)
+              AND EXISTS (
+                  SELECT 1 FROM {self.schema}.{table} account
+                  WHERE account.{column} = ?
+              )""",
+            [owner_node_id, owner_type, owner_node_id],
+        )
 
     @lru_cache
     def app_node_id(self, app_slug: str) -> str | None:

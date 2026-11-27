@@ -505,6 +505,14 @@ def ensure_app_installation_input_tables(
 ) -> None:
     """Provide lookup columns for empty or older installation inventories."""
     tables = {
+        "app_owners": {
+            "node_id": "VARCHAR",
+            "type": "VARCHAR",
+        },
+        "applications": {
+            "node_id": "VARCHAR",
+            "owner": "JSON",
+        },
         "app_installations": {
             "id": "BIGINT",
             "app_slug": "VARCHAR",
@@ -653,7 +661,12 @@ def role_can_create_branch(con, schema: str = "github"):
             WHERE bpr.repository_node_id = rr.repository_node_id
             AND NOT (
                 bpr.is_admin_enforced IS FALSE
-                AND coalesce(json_contains(rr.permissions, '"push_protected_branch"'), false)
+                AND coalesce(
+                    rr.name = 'admin'
+                    OR rr.base_role = 'admin'
+                    OR json_contains(rr.permissions, '"push_protected_branch"'),
+                    false
+                )
             )
         )""")
 

@@ -8,6 +8,7 @@ INHERITED_FROM = "GH_InheritedFrom"
 # Administrative edges
 ADMIN_TO = "GH_AdminTo"
 OWNS = "GH_Owns"
+CAN_MANAGE_APP = "GH_CanManageApp"
 
 # Role and permission edges
 HAS_MEMBER = "GH_HasMember"
