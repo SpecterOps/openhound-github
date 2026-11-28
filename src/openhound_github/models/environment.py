@@ -354,7 +354,7 @@ class Environment(BaseAsset):
         )
 
     def _admin_bypass_query(self) -> str:
-        admin_role_id = f"{self.repository_node_id}_admin"
+        admin_role_id = self._lookup.repo_role_node_id(self.repository_node_id, "admin")
         return (
             f"MATCH p=(:GH_RepoRole {{node_id:'{admin_role_id}'}})"
             f"-[:GH_AdminTo]->(:GH_Repository {{node_id:'{self.repository_node_id}'}})"
@@ -508,7 +508,7 @@ class Environment(BaseAsset):
         yield Edge(
             kind=ek.CAN_EDIT_ENVIRONMENT,
             start=EdgePath(
-                value=f"{self.repository_node_id}_admin",
+                value=self._lookup.repo_role_node_id(self.repository_node_id, "admin"),
                 match_by="id",
             ),
             end=EdgePath(value=self.node_id, match_by="id"),
@@ -591,7 +591,7 @@ class Environment(BaseAsset):
             yield Edge(
                 kind=ek.CAN_DEPLOY_TO_ENVIRONMENT,
                 start=EdgePath(
-                    value=f"{self.repository_node_id}_admin",
+                    value=self._lookup.repo_role_node_id(self.repository_node_id, "admin"),
                     match_by="id",
                 ),
                 end=EdgePath(value=self.node_id, match_by="id"),

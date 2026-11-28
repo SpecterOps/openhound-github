@@ -1,0 +1,940 @@
+{
+  "metadata": {
+    "source": "User-supplied built-in role permission definitions for BED-10720",
+    "received_on": "2026-11-27",
+    "source_sha256": "ee019239af241db74f9eee8fb1694ce9c441d9b8c3702a8c01d28cadfbcdb0c9",
+    "notes": [
+      "Snapshot provenance does not establish a GitHub release or completeness guarantee.",
+      "Retain the original declared lists; some repeat permissions of their base role.",
+      "Current API declarations may differ. Do not overwrite or silently supplement them with this snapshot.",
+      "Null role targets in the source remain unresolved; do not infer them from role names.",
+      "Base target types are resolved explicitly from the referenced definitions in the supplied snapshot."
+    ],
+    "known_missing_roles": {
+      "Repository": [
+        "moderate"
+      ],
+      "Organization": [
+        "owners",
+        "members",
+        "app_manager",
+        "ci_cd_admin",
+        "open_source_license_manager",
+        "all_repo_moderate"
+      ],
+      "Business": [
+        "owners",
+        "members",
+        "enterprise_app_manager",
+        "enterprise_open_source_license_manager"
+      ]
+    },
+    "supplemental_permission_targets": {
+      "source": "Explicit user classifications for BED-10720",
+      "received_on": "2026-11-27",
+      "notes": "Target classifications only; does not assert custom-role availability or alter role baselines."
+    }
+  },
+  "system_roles": [
+    {
+      "name": "read",
+      "base": null,
+      "target_type": "Repository",
+      "permissions": [
+        "read_repo_metadata",
+        "read_repo",
+        "read_repo_contents",
+        "read_repo_pull_requests"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "write",
+      "base": null,
+      "target_type": "Repository",
+      "permissions": [
+        "read_repo_metadata",
+        "read_repo_contents",
+        "write_repo_contents",
+        "add_label",
+        "remove_label",
+        "close_issue",
+        "reopen_issue",
+        "read_repo_pull_requests",
+        "write_repo_pull_requests",
+        "close_pull_request",
+        "reopen_pull_request",
+        "add_assignee",
+        "set_issue_type",
+        "remove_assignee",
+        "request_pr_review",
+        "mark_as_duplicate",
+        "set_milestone",
+        "read_code_scanning",
+        "write_code_scanning",
+        "create_discussion",
+        "delete_discussion",
+        "toggle_discussion_answer",
+        "toggle_discussion_comment_minimize",
+        "manage_discussion_spotlights",
+        "create_discussion_category",
+        "edit_discussion_category",
+        "convert_issues_to_discussions",
+        "close_discussion",
+        "reopen_discussion",
+        "edit_category_on_discussion",
+        "edit_discussion_comment",
+        "delete_discussion_comment",
+        "view_dependabot_alerts",
+        "resolve_dependabot_alerts",
+        "manage_discussion_badges",
+        "read_repo",
+        "write_repo"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "admin",
+      "base": null,
+      "target_type": "Repository",
+      "permissions": [
+        "read_repo_metadata",
+        "read_repo_contents",
+        "write_repo_contents",
+        "add_label",
+        "remove_label",
+        "close_issue",
+        "reopen_issue",
+        "read_repo_pull_requests",
+        "write_repo_pull_requests",
+        "close_pull_request",
+        "reopen_pull_request",
+        "add_assignee",
+        "delete_issue",
+        "remove_assignee",
+        "request_pr_review",
+        "mark_as_duplicate",
+        "set_milestone",
+        "set_issue_type",
+        "manage_topics",
+        "manage_settings_discussions",
+        "manage_settings_wiki",
+        "manage_settings_projects",
+        "manage_settings_merge_types",
+        "manage_settings_pages",
+        "manage_webhooks",
+        "manage_deploy_keys",
+        "edit_repo_metadata",
+        "set_interaction_limits",
+        "set_social_preview",
+        "push_protected_branch",
+        "read_code_scanning",
+        "write_code_scanning",
+        "delete_alerts_code_scanning",
+        "view_secret_scanning_alerts",
+        "resolve_secret_scanning_alerts",
+        "run_org_migration",
+        "create_discussion",
+        "create_discussion_announcement",
+        "create_discussion_category",
+        "edit_discussion_category",
+        "delete_discussion_category",
+        "delete_discussion",
+        "manage_discussion_spotlights",
+        "toggle_discussion_answer",
+        "toggle_discussion_comment_minimize",
+        "convert_issues_to_discussions",
+        "create_tag",
+        "delete_tag",
+        "view_dependabot_alerts",
+        "resolve_dependabot_alerts",
+        "bypass_branch_protection",
+        "manage_security_products",
+        "manage_repo_security_products",
+        "edit_repo_protections",
+        "edit_repo_announcement_banners",
+        "close_discussion",
+        "reopen_discussion",
+        "edit_category_on_discussion",
+        "manage_discussion_badges",
+        "edit_discussion_comment",
+        "delete_discussion_comment",
+        "read_repo",
+        "write_repo",
+        "admin_repo",
+        "jump_merge_queue",
+        "create_solo_merge_queue_entry",
+        "edit_repo_custom_properties_values"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "triage",
+      "base": "read",
+      "target_type": "Repository",
+      "permissions": [
+        "read_repo_metadata",
+        "read_repo_contents",
+        "add_label",
+        "remove_label",
+        "close_issue",
+        "reopen_issue",
+        "read_repo_pull_requests",
+        "close_pull_request",
+        "reopen_pull_request",
+        "add_assignee",
+        "remove_assignee",
+        "request_pr_review",
+        "mark_as_duplicate",
+        "set_milestone",
+        "set_issue_type",
+        "create_discussion",
+        "delete_discussion",
+        "toggle_discussion_answer",
+        "toggle_discussion_comment_minimize",
+        "edit_discussion_category",
+        "create_discussion_category",
+        "convert_issues_to_discussions",
+        "close_discussion",
+        "reopen_discussion",
+        "edit_category_on_discussion",
+        "edit_discussion_comment",
+        "delete_discussion_comment",
+        "read_repo"
+      ],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "maintain",
+      "base": "write",
+      "target_type": "Repository",
+      "permissions": [
+        "read_repo_metadata",
+        "read_repo_contents",
+        "write_repo_contents",
+        "add_label",
+        "remove_label",
+        "close_issue",
+        "reopen_issue",
+        "read_repo_pull_requests",
+        "write_repo_pull_requests",
+        "close_pull_request",
+        "reopen_pull_request",
+        "add_assignee",
+        "remove_assignee",
+        "request_pr_review",
+        "mark_as_duplicate",
+        "set_milestone",
+        "set_issue_type",
+        "manage_topics",
+        "manage_settings_wiki",
+        "manage_settings_projects",
+        "manage_settings_merge_types",
+        "manage_settings_pages",
+        "edit_repo_metadata",
+        "set_interaction_limits",
+        "set_social_preview",
+        "push_protected_branch",
+        "read_code_scanning",
+        "write_code_scanning",
+        "create_discussion",
+        "delete_discussion",
+        "create_discussion_announcement",
+        "create_discussion_category",
+        "edit_discussion_category",
+        "delete_discussion_category",
+        "manage_discussion_spotlights",
+        "manage_settings_discussions",
+        "toggle_discussion_answer",
+        "toggle_discussion_comment_minimize",
+        "convert_issues_to_discussions",
+        "create_tag",
+        "edit_repo_announcement_banners",
+        "close_discussion",
+        "reopen_discussion",
+        "edit_category_on_discussion",
+        "edit_discussion_comment",
+        "delete_discussion_comment",
+        "view_dependabot_alerts",
+        "resolve_dependabot_alerts",
+        "manage_discussion_badges",
+        "read_repo",
+        "write_repo"
+      ],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "all_repo_read",
+      "base": "read",
+      "target_type": "Organization",
+      "permissions": [],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "all_repo_triage",
+      "base": "triage",
+      "target_type": "Organization",
+      "permissions": [],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "all_repo_write",
+      "base": "write",
+      "target_type": "Organization",
+      "permissions": [],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "all_repo_maintain",
+      "base": "maintain",
+      "target_type": "Organization",
+      "permissions": [],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "all_repo_admin",
+      "base": "admin",
+      "target_type": "Organization",
+      "permissions": [],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "enterprise_security_manager",
+      "base": null,
+      "target_type": "Business",
+      "permissions": [
+        "manage_enterprise_security_products"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "security_manager",
+      "base": "read",
+      "target_type": "Organization",
+      "permissions": [
+        "manage_security_products",
+        "manage_repo_security_products",
+        "manage_org_security_products",
+        "manage_dependabot_alerts_enablement",
+        "manage_advanced_security_enablement",
+        "manage_secret_scanning_settings",
+        "view_security_managers",
+        "read_code_scanning",
+        "write_code_scanning",
+        "delete_alerts_code_scanning",
+        "view_secret_scanning_alerts",
+        "resolve_secret_scanning_alerts",
+        "view_dependabot_alerts",
+        "resolve_dependabot_alerts"
+      ],
+      "base_target_type": "Repository"
+    },
+    {
+      "name": "codespace_org_creator",
+      "base": null,
+      "target_type": null,
+      "permissions": [
+        "write_org_codespace"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "octoshift_migrator",
+      "base": null,
+      "target_type": null,
+      "permissions": [
+        "run_org_migration"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "package_reader",
+      "base": null,
+      "target_type": "Package",
+      "permissions": [
+        "read_package"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "package_writer",
+      "base": null,
+      "target_type": "Package",
+      "permissions": [
+        "read_package",
+        "write_package"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "package_admin",
+      "base": null,
+      "target_type": "Package",
+      "permissions": [
+        "read_package",
+        "write_package",
+        "admin_package"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "team_writer",
+      "base": null,
+      "target_type": "Team",
+      "permissions": [
+        "write_team_post"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "project_reader",
+      "base": null,
+      "target_type": "MemexProject",
+      "permissions": [
+        "read_project"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "project_writer",
+      "base": null,
+      "target_type": "MemexProject",
+      "permissions": [
+        "read_project",
+        "write_project"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "project_admin",
+      "base": null,
+      "target_type": "MemexProject",
+      "permissions": [
+        "read_project",
+        "write_project",
+        "admin_project"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "vulnerability_reporter",
+      "base": null,
+      "target_type": "Repository",
+      "permissions": [
+        "read_repo_metadata",
+        "read_repo_contents",
+        "write_repo_contents",
+        "read_repo_pull_requests",
+        "write_repo_pull_requests"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "ref_rules_manager",
+      "base": null,
+      "target_type": null,
+      "permissions": [
+        "manage_organization_ref_rules"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "custom_properties_org_definitions_manager",
+      "base": null,
+      "target_type": null,
+      "permissions": [
+        "manage_org_custom_properties_definitions"
+      ],
+      "base_target_type": null
+    },
+    {
+      "name": "custom_properties_org_values_editor",
+      "base": null,
+      "target_type": null,
+      "permissions": [
+        "edit_org_custom_properties_values"
+      ],
+      "base_target_type": null
+    }
+  ],
+  "fine_grained_permissions": {
+    "read_project": {
+      "custom_role_enabled": false,
+      "target_type": "MemexProject"
+    },
+    "write_project": {
+      "custom_role_enabled": false,
+      "target_type": "MemexProject"
+    },
+    "admin_project": {
+      "custom_role_enabled": false,
+      "target_type": "MemexProject"
+    },
+    "write_team_post": {
+      "custom_role_enabled": false,
+      "target_type": "Team"
+    },
+    "read_package": {
+      "custom_role_enabled": false,
+      "target_type": "Package"
+    },
+    "write_package": {
+      "custom_role_enabled": false,
+      "target_type": "Package"
+    },
+    "admin_package": {
+      "custom_role_enabled": false,
+      "target_type": "Package"
+    },
+    "run_org_migration": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "write_org_codespace": {
+      "custom_role_enabled": false,
+      "target_type": "Organization"
+    },
+    "manage_security_products": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "manage_repo_security_products": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "manage_org_security_products": {
+      "custom_role_enabled": false,
+      "target_type": "Organization"
+    },
+    "manage_enterprise_security_products": {
+      "custom_role_enabled": false,
+      "target_type": "Business"
+    },
+    "manage_dependabot_alerts_enablement": {
+      "custom_role_enabled": false,
+      "target_type": "Organization"
+    },
+    "manage_advanced_security_enablement": {
+      "custom_role_enabled": false,
+      "target_type": "Organization"
+    },
+    "manage_secret_scanning_settings": {
+      "custom_role_enabled": false,
+      "target_type": "Organization"
+    },
+    "view_security_managers": {
+      "custom_role_enabled": false,
+      "target_type": "Organization"
+    },
+    "read_repo_metadata": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "read_repo_contents": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "write_repo_contents": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "create_discussion_announcement": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "delete_discussion_category": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "manage_discussion_spotlights": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "manage_settings_discussions": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "create_discussion": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "read_repo_pull_requests": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "write_repo_pull_requests": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "write_organization_custom_org_role": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "read_organization_custom_org_role": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "write_organization_custom_repo_role": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "read_organization_custom_repo_role": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "read_audit_logs": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "manage_organization_webhooks": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "manage_organization_oauth_application_policy": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "manage_organization_actions_self_hosted_runners": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "manage_organization_ref_rules": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "manage_org_custom_properties_definitions": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "edit_org_custom_properties_values": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "write_organization_actions_settings": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "write_organization_actions_secrets": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "write_organization_actions_variables": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "write_organization_runners_and_runner_groups": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "write_organization_packages": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "read_organization_actions_usage_metrics": {
+      "custom_role_enabled": true,
+      "target_type": "Organization"
+    },
+    "read_repo": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "write_repo": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "admin_repo": {
+      "custom_role_enabled": false,
+      "target_type": "Repository"
+    },
+    "add_label": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "remove_label": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "close_issue": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "reopen_issue": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "close_pull_request": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "reopen_pull_request": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "add_assignee": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "delete_issue": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "remove_assignee": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "request_pr_review": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "mark_as_duplicate": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "set_milestone": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "set_issue_type": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_topics": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_settings_wiki": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_settings_projects": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_settings_merge_types": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_settings_pages": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_webhooks": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_deploy_keys": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "edit_repo_metadata": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "set_interaction_limits": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "set_social_preview": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "push_protected_branch": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "read_code_scanning": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "write_code_scanning": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "delete_alerts_code_scanning": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "view_secret_scanning_alerts": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "resolve_secret_scanning_alerts": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "delete_discussion": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "toggle_discussion_answer": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "toggle_discussion_comment_minimize": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "edit_discussion_category": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "create_discussion_category": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "convert_issues_to_discussions": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "view_dependabot_alerts": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "resolve_dependabot_alerts": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "create_tag": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "delete_tag": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "bypass_branch_protection": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "edit_repo_protections": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "edit_repo_announcement_banners": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "close_discussion": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "reopen_discussion": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "edit_category_on_discussion": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "manage_discussion_badges": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "edit_discussion_comment": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "delete_discussion_comment": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "jump_merge_queue": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "create_solo_merge_queue_entry": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    },
+    "edit_repo_custom_properties_values": {
+      "custom_role_enabled": true,
+      "target_type": "Repository"
+    }
+  },
+  "supplemental_permission_targets": {
+    "edit_custom_properties_for_organizations": {
+      "target_type": "Organization"
+    },
+    "org_bypass_code_scanning_dismissal_requests": {
+      "target_type": "Organization"
+    },
+    "org_bypass_dependabot_alert_dismissal_requests": {
+      "target_type": "Organization"
+    },
+    "org_bypass_secret_scanning_closure_requests": {
+      "target_type": "Organization"
+    },
+    "org_review_and_manage_secret_scanning_bypass_requests": {
+      "target_type": "Organization"
+    },
+    "org_review_and_manage_secret_scanning_closure_requests": {
+      "target_type": "Organization"
+    },
+    "read_custom_properties_for_organizations": {
+      "target_type": "Organization"
+    },
+    "read_organization_network_configurations": {
+      "target_type": "Organization"
+    },
+    "read_organization_runner_custom_images": {
+      "target_type": "Organization"
+    },
+    "review_license_compliance_closure_requests": {
+      "target_type": "Organization"
+    },
+    "review_org_code_scanning_dismissal_requests": {
+      "target_type": "Organization"
+    },
+    "review_org_dependabot_alert_dismissal_requests": {
+      "target_type": "Organization"
+    },
+    "view_license_compliance_closure_requests": {
+      "target_type": "Organization"
+    },
+    "view_org_api_insights": {
+      "target_type": "Organization"
+    },
+    "view_org_code_scanning_dismissal_requests": {
+      "target_type": "Organization"
+    },
+    "view_org_dependabot_alert_dismissal_requests": {
+      "target_type": "Organization"
+    },
+    "write_organization_network_configurations": {
+      "target_type": "Organization"
+    },
+    "write_organization_runner_custom_images": {
+      "target_type": "Organization"
+    },
+    "publish_repository_advisories": {
+      "target_type": "Repository"
+    },
+    "read_code_quality": {
+      "target_type": "Repository"
+    },
+    "read_repository_advisories": {
+      "target_type": "Repository"
+    },
+    "triage_repository_advisories": {
+      "target_type": "Repository"
+    },
+    "view_repository_license_policy": {
+      "target_type": "Repository"
+    },
+    "write_code_quality": {
+      "target_type": "Repository"
+    },
+    "write_repository_advisories": {
+      "target_type": "Repository"
+    },
+    "edit_enterprise_license_policy": {
+      "target_type": "Business"
+    },
+    "edit_enterprise_package_firewall_policy": {
+      "target_type": "Business"
+    },
+    "view_enterprise_license_policy": {
+      "target_type": "Business"
+    }
+  }
+}

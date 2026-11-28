@@ -4,6 +4,7 @@ from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperti
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.role_ids import role_node_id
 
 
 @app.asset(
@@ -45,7 +46,15 @@ class OrgRoleMember(BaseAsset):
 
     @property
     def org_role_node_id(self) -> str:
-        return f"{self.org_node_id}_{self.org_role_name}"
+        builtin = (self.org_role_id, self.org_role_name) in {
+            (1, "owners"), (2, "members")
+        }
+        return role_node_id(
+            "organization",
+            self._lookup.role_parent_database_id("organization", self.org_node_id),
+            self.org_role_name if builtin else self.org_role_id,
+            builtin=builtin,
+        )
 
     @property
     def edges(self):

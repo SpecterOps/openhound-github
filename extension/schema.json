@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.5.1",
+    "version": "v1.5.2",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -164,7 +164,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a built-in or custom enterprise role. Enterprise roles are assigned directly to users or to enterprise teams and carry enterprise-wide permissions such as managing enterprise admins, members, or organization admins.\n\nQualifying predefined owner and App manager roles have composed GH_CanManageApp edges to Apps registered to their exact account. Raw empty permission arrays do not remove this authority. Custom roles with matching names do not qualify."
+            "content": "## Overview\n\nRepresents a built-in or custom enterprise role. Enterprise roles are assigned directly to users or to enterprise teams and carry enterprise-wide permissions such as managing enterprise admins, members, or organization admins.\n\nQualifying predefined owner and App manager roles have composed GH_CanManageApp edges to Apps registered to their exact account. Raw empty permission arrays do not remove this authority. Custom roles with matching names do not qualify.\n\nRole identity uses a collector-generated GH_ER_ MessagePack ID scoped to the parent database ID. The graph id and node_id match; github_role_id preserves the original role record ID.\n\nA non-traversable GH_CanAccess edge identifies this role’s parent resource, including roles with empty direct permission arrays."
           }
         },
         "inbound_traversable_relationships": {
@@ -185,35 +185,14 @@
           "title": "Enterprise Context",
           "position": 4,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Enterprise)-[:GH_Contains]->(selected:GH_EnterpriseRole {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the enterprise containing this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_CanAccess]->(:GH_Enterprise)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the enterprise containing this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
-        "explicit_members": {
-          "title": "Explicit Members",
+        "access_scope": {
+          "title": "Access Scope",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_User)-[:GH_HasRole]->(selected:GH_EnterpriseRole {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View users directly assigned this enterprise role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
-        "team_members": {
-          "title": "Team Members",
-          "position": 6,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_User)-[:GH_HasRole]->(:GH_TeamRole)-[:GH_MemberOf]->(:GH_EnterpriseTeam)-[:GH_HasRole]->(selected:GH_EnterpriseRole {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View users who inherit this enterprise role through a team in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
-        "enterprise_permissions": {
-          "title": "Enterprise Permissions",
-          "position": 7,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_CreateEnterpriseOrganizations|GH_EditEnterpriseCustomPropertiesForOrganizations|GH_ManageEnterpriseAdmins|GH_ManageEnterpriseIdentityProvider|GH_ManageEnterpriseMembers|GH_ManageEnterpriseOrganizationAdmins|GH_ManageEnterpriseOrganizations|GH_ManageEnterpriseReferrals|GH_ManageEnterpriseTeams|GH_ReadEnterpriseAuditLog|GH_ReadEnterpriseDomainVerification|GH_ReadEnterpriseMembers|GH_ReadEnterpriseOrgProjects|GH_ReadEnterpriseOrganizationAdmin|GH_SetEnterpriseInteractionLimits|GH_ViewEnterpriseActionsUsageMetrics|GH_ViewEnterpriseBilling|GH_ViewEnterpriseSecretScanningAlerts|GH_WriteEnterpriseActionsPolicies|GH_WriteEnterpriseBilling|GH_WriteEnterprisePersonalAccessTokenPolicies|GH_WriteEnterpriseSso|GH_WriteEnterpriseTeamMembers]->(:GH_Enterprise)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View enterprise permissions granted by this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
-        "managed_apps": {
-          "title": "Managed Apps",
-          "position": 8,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p=(selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_CanManageApp]->(:GH_App)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View Apps this role can manage in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_EnterpriseRole {objectid: '%s'})-[:GH_CanAccess]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the resources and scopes accessible to this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -713,7 +692,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents an organization-level role such as Owner, Member, or a custom organization role. Organization roles define what permissions users and teams have at the organization level and may also inherit repository-wide base roles.\n\nQualifying predefined owner and App manager roles have composed GH_CanManageApp edges to Apps registered to their exact account. Raw empty permission arrays do not remove this authority. Custom roles with matching names do not qualify."
+            "content": "## Overview\n\nRepresents an organization-level role such as Owner, Member, or a custom organization role. Organization roles define what permissions users and teams have at the organization level and may also inherit repository-wide base roles. Roles with explicit repository permissions have a non-traversable GH_CanAccess edge to their organization’s all-repositories GH_Scope.\n\nQualifying predefined owner and App manager roles have composed GH_CanManageApp edges to Apps registered to their exact account. Raw empty permission arrays do not remove this authority. Custom roles with matching names do not qualify.\n\nRole identity uses a collector-generated GH_OR_ MessagePack ID scoped to the parent database ID. The graph id and node_id match; github_role_id preserves the original role record ID.\n\nA non-traversable GH_CanAccess edge identifies this role’s parent resource, including roles with empty direct permission arrays."
           }
         },
         "inbound_traversable_relationships": {
@@ -741,7 +720,7 @@
           "title": "Organization Permissions",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_ManageOrganizationWebhooks|GH_OrgBypassCodeScanningDismissalRequests|GH_OrgBypassSecretScanningClosureRequests|GH_OrgReviewAndManageSecretScanningBypassRequests|GH_OrgReviewAndManageSecretScanningClosureRequests|GH_ReadOrganizationActionsUsageMetrics|GH_ReadOrganizationCustomOrgRole|GH_ReadOrganizationCustomRepoRole|GH_ResolveSecretScanningAlerts|GH_ViewSecretScanningAlerts|GH_WriteOrganizationActionsSecrets|GH_WriteOrganizationActionsSettings|GH_WriteOrganizationActionsVariables|GH_WriteOrganizationCustomOrgRole|GH_WriteOrganizationCustomRepoRole|GH_WriteOrganizationNetworkConfigurations|GH_CanCreateRepositories|GH_CanCreatePublicRepositories|GH_CanCreatePrivateRepositories|GH_CanCreateInternalRepositories|GH_CreateTeam|GH_InviteMember|GH_AddCollaborator|GH_TransferRepository]->(:GH_Organization)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View organization permissions granted by this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_CanAccess]->(:GH_Organization)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the organization accessible to this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "inherited_role_paths": {
@@ -751,18 +730,18 @@
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_HasBaseRole*1..]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View base roles inherited by this organization role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
-        "secret_and_runner_exposure": {
-          "title": "Secret and Runner Exposure",
-          "position": 7,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_CanReadSecret|GH_ScopedTo*1..2]->(:GH_OrgSecret)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View organization secrets exposed through this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
         "managed_apps": {
           "title": "Managed Apps",
-          "position": 8,
+          "position": 7,
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p=(selected:GH_OrgRole {objectid: '%s'})-[:GH_CanManageApp]->(:GH_App)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View Apps this role can manage in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
+        },
+        "access_scope": {
+          "title": "Access Scope",
+          "position": 8,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_OrgRole {objectid: '%s'})-[:GH_CanAccess]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the resources and scopes accessible to this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -831,7 +810,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a repository-level permission role. Each repository has default roles such as Read, Write, Admin, Triage, and Maintain, plus any applicable custom roles. These roles are the bridge between users or teams and the repository, branches, environments, and security data they can affect."
+            "content": "## Overview\n\nRepresents a repository-level permission role. Each repository has default roles such as Read, Write, Admin, Triage, and Maintain, plus any applicable custom roles. These roles are the bridge between users or teams and the repository, branches, environments, and security data they can affect.\n\nRole identity uses a collector-generated GH_RR_ MessagePack ID scoped to the parent database ID. The graph id and node_id match; github_role_id preserves the original role record ID.\n\nA non-traversable GH_CanAccess edge identifies this role’s parent resource, including roles with empty direct permission arrays."
           }
         },
         "inbound_traversable_relationships": {
@@ -855,32 +834,11 @@
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (user:GH_User)-[:GH_HasRole|GH_MemberOf|GH_HasBaseRole*1..]->(selected:GH_RepoRole {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View users who effectively hold this repository role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
-        "assigned_principals": {
-          "title": "Assigned Principals",
+        "access_scope": {
+          "title": "Access Scope",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = ()-[:GH_HasRole]->(selected:GH_RepoRole {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View users and teams directly assigned this repository role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
-        "repository_control": {
-          "title": "Repository Control",
-          "position": 6,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_RepoRole {objectid: '%s'})-[:GH_AdminTo|GH_CanCreateBranch|GH_CanPwnRequest]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repository control granted by this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
-        "branch_and_environment_capabilities": {
-          "title": "Branch and Environment Capabilities",
-          "position": 7,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_RepoRole {objectid: '%s'})-[:GH_CanWriteBranch|GH_CanEditProtection|GH_CanDeployToEnvironment|GH_CanEditEnvironment]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View branch and environment capabilities granted by this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
-          }
-        },
-        "secret_scanning_exposure": {
-          "title": "Secret Scanning Exposure",
-          "position": 8,
-          "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_RepoRole {objectid: '%s'})-[:GH_CanReadSecretScanningAlert]->(:GH_SecretScanningAlert)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View secret scanning alerts exposed through this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_RepoRole {objectid: '%s'})-[:GH_CanAccess]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the resources and scopes accessible to this role in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -1868,10 +1826,10 @@
           }
         },
         "credentials": {
-          "title": "Credentials and Requests",
+          "title": "Roles, Credentials and Requests",
           "position": 4,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_CanAccess|GH_RequestsAccessTo|GH_CanCreateBranch]->(selected:GH_Scope {objectid: '%s'})\\nWHERE source:GH_AppInstallation OR source:GH_PersonalAccessToken OR source:GH_PersonalAccessTokenRequest\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View credentials and pending requests associated with this scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (source)-[:GH_CanAccess|GH_RequestsAccessTo|GH_CanCreateBranch]->(selected:GH_Scope {objectid: '%s'})\\nWHERE source:GH_OrgRole OR source:GH_AppInstallation OR source:GH_PersonalAccessToken OR source:GH_PersonalAccessTokenRequest\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View roles, credentials and pending requests associated with this scope in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "repositories": {
@@ -2756,7 +2714,7 @@
     },
     {
       "name": "GH_CanAccess",
-      "description": "Personal access token, app installation, or deploy key has access scope to a repository, reusable scope, organization, or enterprise",
+      "description": "Repository, organization, or enterprise role, personal access token, app installation, or deploy key has access scope to a repository, reusable scope, organization, or enterprise",
       "is_traversable": false
     },
     {

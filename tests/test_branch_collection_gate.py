@@ -1,3 +1,4 @@
+from role_id_helpers import configure_role_ids
 import duckdb
 from unittest.mock import MagicMock
 
@@ -18,7 +19,7 @@ def _make_repo_role() -> RepoRole:
         repository_name="repo",
         repository_full_name="org/repo",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "O_1"
     lookup.unprotected_branches.return_value = [("B_feature",)]
     lookup._write_admin_bypass.return_value = [("B_protected",)]
@@ -92,7 +93,7 @@ def test_actor_branch_write_edges_require_collected_default_branch() -> None:
         role_name="write",
         base_role="write",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.repository_default_branch_collected.return_value = False
     lookup.actor_gate_bypass.return_value = [("B_1",)]
     assignment._lookup = lookup

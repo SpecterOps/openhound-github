@@ -203,6 +203,62 @@ permission arrays and a legacy `type=custom` label. Per-App manager assignments
 are not yet enumerated. Re-run preprocessing and conversion, then reimport the
 extension schema to display these capabilities and their entity panels.
 
+### Role permission catalog
+
+The preparatory catalog in `src/openhound_github/data/role_permissions.json`
+preserves the supplied role definitions, native permission names, target types,
+and source checksum. Supplemental target mappings record explicit user
+classifications separately from the original definitions. It is a partial snapshot, not a complete definition of
+current GitHub permissions. Missing built-in baselines and unresolved role
+targets are tracked explicitly; collected API declarations are not automatically
+overwritten or supplemented by the snapshot.
+
+Catalog helpers classify native actions into `permissions_repository`,
+`permissions_organization`, and `permissions_enterprise` using declared resource
+targets (`Business` maps to enterprise). Unknown actions and unsupported targets
+are retained in `permissions_unclassified`, without guessing from their names.
+Direct built-in lists exclude permissions supplied by their explicit base chain;
+cross-resource inheritance remains a role relationship. Roles are identified by
+both name and target type, so equal names at different scopes remain distinct.
+
+Repository, organization, and enterprise role nodes export these scoped arrays
+and a nullable `base_role`. API permission lists (including empty lists) are
+preserved as direct grants. Collector-synthesized built-ins use verified catalog
+baselines; missing synthesized baselines export empty placeholder arrays until
+their definitions are added. These placeholders do not imply the roles lack
+permissions. Enterprise role nodes export scoped
+arrays in place of the former unscoped `permissions` property. Raw collected
+permission lists are retained for existing evaluators.
+
+Existing role inheritance and capability edges continue to use their current
+logic; the new properties do not drive permission evaluation. Organization
+roles with explicit repository permissions also receive a non-traversable
+`GH_CanAccess` edge to their organization's all-repositories `GH_Scope`.
+Roles with only inherited repository permissions keep their `GH_HasBaseRole`
+edges without an additional repository scope edge. Organization-only roles do
+not receive this edge.
+Each repository, organization, and enterprise role also has an unconditional,
+non-traversable `GH_CanAccess` edge to its exact parent resource, including roles
+whose direct permission arrays are empty or pending baseline definitions.
+
+Repository, organization, and enterprise role nodes do not export `query_*`
+properties.
+Organization role schema panels
+provide direct inbound assignments, Effective Members, Inherited Role Paths,
+and organization access through `GH_CanAccess`.
+
+Role graph IDs use `GH_RR_` (repository), `GH_OR_` (organization), and `GH_ER_`
+(enterprise), followed by unpadded Base64url-encoded MessagePack:
+`[1, parent_database_id, "builtin" | "api", role_key_or_id]`. These are collector
+IDs, not native GitHub node IDs. The graph `id` and `node_id` property match.
+Collector-synthesized roles use a stable name key; API roles, including predefined
+ones, use their numeric role ID so renaming them preserves identity. Parent IDs
+come from collected numeric database IDs. `github_role_id` retains the source
+record's ID. Assignments, inheritance, capability edges, and composition queries
+use the same encoded role identities. Refresh the lookup and graph with
+preprocess/convert; no recollection is needed when parent database IDs and role
+records are already present.
+
 ### Enterprise SCIM and hybrid correlations
 
 A token with enterprise SCIM access is used to collect both `/scim/v2/enterprises/{enterprise}/Users` and `/scim/v2/enterprises/{enterprise}/Groups`. The collector emits normalized `SCIM_Organization`, `SCIM_User`, and `SCIM_Group` nodes plus `SCIM_Contains`, `SCIM_MemberOf`, and `SCIM_Provisioned` relationships. Install the BloodHound SCIM extension alongside this extension to register the shared SCIM kinds.

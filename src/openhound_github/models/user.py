@@ -162,9 +162,9 @@ class User(BaseAsset):
     def edges(self):
         org_node_id = self._org_node_id
         role_node_id = (
-            f"{org_node_id}_owners"
+            self._lookup.org_role_node_id(org_node_id, "owners")
             if self.org_role == "ADMIN"
-            else f"{org_node_id}_members"
+            else self._lookup.org_role_node_id(org_node_id, "members")
         )
         yield Edge(
             kind=ek.HAS_ROLE,

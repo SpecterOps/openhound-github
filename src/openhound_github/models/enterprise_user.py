@@ -8,7 +8,6 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.enterprise_helpers import enterprise_role_node_id
 
 
 @dataclass
@@ -106,7 +105,7 @@ class EnterpriseUser(BaseAsset):
             kind=ek.HAS_ROLE,
             start=EdgePath(value=self.node_id, match_by="id"),
             end=EdgePath(
-                value=enterprise_role_node_id(
+                value=self._lookup.enterprise_role_node_id(
                     self._lookup.enterprise_id(), "members"
                 ),
                 match_by="id",

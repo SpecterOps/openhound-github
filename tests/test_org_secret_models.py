@@ -1,3 +1,4 @@
+from role_id_helpers import configure_role_ids, org_role_id
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -42,7 +43,7 @@ def _secret_scope(
         scope_type=ORGANIZATION_SECRET_SCOPE_TYPE,
         scope=scope,
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.canonical_scope_has_targets.return_value = target_count > 0
     lookup.members_can_create_repository.return_value = creation_flags
     secret_scope._lookup = lookup
@@ -54,7 +55,7 @@ def test_all_secret_scope_requires_an_actual_member_creation_capability() -> Non
 
     edges = list(scope._can_read_secret_edges)
 
-    assert [edge.start.value for edge in edges] == ["O_1_owners"]
+    assert [edge.start.value for edge in edges] == [org_role_id("owners")]
     assert edges[0].end.value == scope.node_id
     assert scope.node_id in edges[0].properties.query_composition
     assert ":GH_Scope" in edges[0].properties.query_composition
@@ -65,7 +66,7 @@ def test_all_secret_scope_allows_any_repository_creation_capability() -> None:
 
     edges = list(scope._can_read_secret_edges)
 
-    assert [edge.start.value for edge in edges] == ["O_1_owners", "O_1_members"]
+    assert [edge.start.value for edge in edges] == [org_role_id("owners"), org_role_id("members")]
     assert "GH_CanCreateRepositories" in edges[1].properties.query_composition
     assert "GH_CanCreatePublicRepositories" in edges[1].properties.query_composition
     assert "GH_CanCreateInternalRepositories" in edges[1].properties.query_composition
@@ -79,7 +80,7 @@ def test_private_secret_scope_only_allows_private_or_internal_creation() -> None
 
     edges = list(scope._can_read_secret_edges)
 
-    assert [edge.start.value for edge in edges] == ["O_1_owners"]
+    assert [edge.start.value for edge in edges] == [org_role_id("owners")]
     query = edges[0].properties.query_composition
     assert "GH_CanCreateInternalRepositories" in query
     assert "GH_CanCreatePrivateRepositories" in query
@@ -94,7 +95,7 @@ def test_private_secret_scope_allows_internal_repository_creation() -> None:
 
     edges = list(scope._can_read_secret_edges)
 
-    assert [edge.start.value for edge in edges] == ["O_1_owners", "O_1_members"]
+    assert [edge.start.value for edge in edges] == [org_role_id("owners"), org_role_id("members")]
 
 
 def test_empty_secret_scope_does_not_emit_latent_read_edges() -> None:
@@ -149,7 +150,7 @@ def test_owners_always_emit_repository_creation_edges_needed_for_secret_paths() 
         org_node_id="O_1",
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.members_can_create_repository.return_value = (False, False, False, False)
     role._lookup = lookup
 
@@ -170,7 +171,7 @@ def test_custom_org_role_write_definition_edge_is_traversable() -> None:
         org_node_id="O_1",
         org_login="acme",
     )
-    role._lookup = MagicMock()
+    role._lookup = configure_role_ids(MagicMock())
 
     edge = next(
         edge

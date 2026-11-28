@@ -6,6 +6,7 @@ import pytest
 
 from openhound_github.kinds import edges as ek
 from openhound_github.lookup import GithubLookup
+from openhound_github.models.app_management import app_management_edges
 from openhound_github.models.app_installation import AppInstallation
 from openhound_github.models.enterprise_role import EnterpriseRole
 from openhound_github.models.org_role import OrgRole
@@ -22,14 +23,16 @@ def lookup():
         ensure_optional_input_tables(con, "inventory")
         ensure_app_installation_input_tables(con, "inventory")
         con.execute(
-            "CREATE TABLE inventory.organizations (node_id VARCHAR, login VARCHAR)"
+            "CREATE TABLE inventory.organizations (node_id VARCHAR, login VARCHAR, database_id BIGINT)"
         )
         con.execute(
-            "INSERT INTO inventory.organizations VALUES ('ORG_A','a'), ('ORG_B','b')"
+            "INSERT INTO inventory.organizations VALUES ('ORG_A','a',1), ('ORG_B','b',2)"
         )
         con.execute(
             "INSERT INTO inventory.enterprise (id, slug) VALUES ('ENT_A','enterprise-a')"
         )
+        con.execute("ALTER TABLE inventory.enterprise ADD COLUMN database_id BIGINT")
+        con.execute("UPDATE inventory.enterprise SET database_id = 1")
         con.execute("ALTER TABLE inventory.applications ADD COLUMN slug VARCHAR")
         con.execute(
             "ALTER TABLE inventory.applications ADD COLUMN environment_slug VARCHAR"
@@ -174,8 +177,14 @@ def test_app_management_is_scoped_to_exact_account_id(lookup):
     assert {
         edge.end.value for edge in management_edges(org_role(lookup, account="ORG_B"))
     } == {"APP_B"}
-    assert management_edges(org_role(lookup, account="MISSING_ORG")) == []
-    assert management_edges(enterprise_role(lookup, account="MISSING_ENTERPRISE")) == []
+    for account_type, account, role in [
+        ("Organization", "MISSING_ORG", org_role(lookup)),
+        ("Enterprise", "MISSING_ENTERPRISE", enterprise_role(lookup)),
+    ]:
+        assert list(app_management_edges(
+            lookup, role_node_id=role.node_id, role_name=role.name,
+            is_predefined=True, account_node_id=account, account_type=account_type,
+        )) == []
 
 
 def test_missing_owner_and_empty_app_inventory_do_not_grant_control(lookup):
@@ -188,6 +197,8 @@ def test_missing_owner_and_empty_app_inventory_do_not_grant_control(lookup):
 
 
 def test_account_must_exist_even_when_app_owner_metadata_matches(lookup):
+    # Keep the numeric parent identity known while removing the account inventory.
+    lookup.role_parent_database_id("organization", "ORG_A")
     lookup.client.execute("DELETE FROM inventory.organizations WHERE node_id='ORG_A'")
     assert management_edges(org_role(lookup)) == []
 

@@ -1,3 +1,4 @@
+from role_id_helpers import configure_role_ids, repo_role_id
 from unittest.mock import MagicMock
 
 from openhound_github.kinds import edges as ek
@@ -85,7 +86,7 @@ def _make_environment() -> Environment:
         repository_full_name="github/hello-world",
         repository_node_id="R_123",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "O_123"
     lookup.branches_with_bpr.return_value = []
     lookup.environment_branch_policy_names.return_value = []
@@ -343,7 +344,7 @@ def test_environment_with_prevent_self_review_keeps_admin_bypass_edge() -> None:
 
     deploy_edges = _deploy_edges(env)
 
-    assert {edge.start.value for edge in deploy_edges} == {"R_123_admin"}
+    assert {edge.start.value for edge in deploy_edges} == {repo_role_id("admin")}
 
 
 def test_environment_branch_policy_single_star_does_not_cross_slashes() -> None:

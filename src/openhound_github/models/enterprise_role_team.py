@@ -4,9 +4,6 @@ from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperti
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.enterprise_helpers import (
-    enterprise_role_node_id,
-)
 
 
 @app.asset(
@@ -42,7 +39,7 @@ class EnterpriseRoleTeam(BaseAsset):
                 match_by="id",
             ),
             end=EdgePath(
-                value=enterprise_role_node_id(self.enterprise_node_id, self.role_id),
+                value=self._lookup.enterprise_role_node_id(self.enterprise_node_id, self.role_id),
                 match_by="id",
             ),
             properties=EdgeProperties(traversable=True),
