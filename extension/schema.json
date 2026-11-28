@@ -2,7 +2,7 @@
   "schema": {
     "name": "SOGitHub",
     "display_name": "GitHub Extension (by SpecterOps)",
-    "version": "v1.5.1",
+    "version": "v1.5.2",
     "namespace": "GH"
   },
   "node_kinds": [
@@ -1992,7 +1992,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a fine-grained personal access token that has been granted access to organization resources. The token is linked to its owner, the organization that approved it, and the repositories it can access."
+            "content": "## Overview\n\nRepresents a fine-grained personal access token that has been granted access to organization resources. The token is linked to its owner, the organization that approved it, and the repositories it can access.\n\nThe `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties store granted permissions as permission:access arrays using the same catalog as GitHub Apps. Unknown keys are preserved in `permissions_unclassified`; empty categories are empty arrays.\n\nNode IDs use PAT_ plus unpadded URL-safe Base64 of MessagePack [1, organization_database_id, grant_id]. The grant_id is the API record id; token_id is not used for node identity.\n\nActive tokens require contents:write and an existing effective owner GH_CanCreateBranch path for each target repository. A shared branch-creation scope is used only when the owner is authorized over every member; partial authority and selected grants use direct edges. Token expiration and repository selection further limit access. Pending requests do not grant active capabilities.\n\nGH_CanAccess links to the organization only when permissions_organization is nonempty. An enterprise link additionally requires nonempty permissions_enterprise and an unambiguous collected enterprise parent. Repository access uses the all-repository scope or explicitly enumerated selected repositories."
           }
         },
         "inbound_traversable_relationships": {
@@ -2006,7 +2006,7 @@
           "title": "Outbound Traversable GH Relationships",
           "position": 3,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessToken {objectid: '%s'})\\nWHERE false\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessToken {objectid: '%s'})-[:GH_CanCreateBranch]->()\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View direct outbound relationships in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "owner": {
@@ -2029,6 +2029,13 @@
           "markdown": {
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessToken {objectid: '%s'})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories accessible to this token in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
+        },
+        "branch_creation_repositories": {
+          "title": "Branch Creation Capabilities",
+          "position": 7,
+          "markdown": {
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p=(selected:GH_PersonalAccessToken {objectid: '%s'})-[:GH_CanCreateBranch]->()-[:GH_ScopedTo*0..1]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories where this token can create branches in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+          }
         }
       }
     },
@@ -2044,7 +2051,7 @@
           "title": "Description",
           "position": 1,
           "markdown": {
-            "content": "## Overview\n\nRepresents a pending request from an organization member to access organization resources with a fine-grained personal access token. Requested permissions are stored on the node. An all-repository request uses non-traversable GH_RequestsAccessTo rather than granted-access GH_CanAccess."
+            "content": "## Overview\n\nRepresents a pending request from an organization member to access organization resources with a fine-grained personal access token. Requested permissions are stored on the node. A pending request uses non-traversable GH_CanAccess to record requested resource scope; this does not indicate approval or grant active capabilities.\n\nThe `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account` properties store requested permissions as permission:access arrays using the same catalog as GitHub Apps. Unknown keys are preserved in `permissions_unclassified`; empty categories are empty arrays.\n\nNode IDs use PATR_ plus unpadded URL-safe Base64 of MessagePack [1, organization_database_id, request_id]. Request identity does not depend on token_id.\n\nGH_CanAccess links to the organization only when permissions_organization is nonempty. An enterprise link additionally requires nonempty permissions_enterprise and an unambiguous collected enterprise parent. Repository access uses the all-repository scope or explicitly enumerated selected repositories."
           }
         },
         "inbound_traversable_relationships": {
@@ -2068,18 +2075,18 @@
             "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_User)-[:GH_HasPersonalAccessTokenRequest]->(selected:GH_PersonalAccessTokenRequest {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the user who submitted this request in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
-        "organization_context": {
-          "title": "Organization Context",
+        "organization_scope": {
+          "title": "Organization Scope",
           "position": 5,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (:GH_Organization)-[:GH_Contains]->(selected:GH_PersonalAccessTokenRequest {objectid: '%s'})\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the organization containing this request in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessTokenRequest {objectid: '%s'})-[:GH_CanAccess]->(:GH_Organization)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View the organization permissions requested by this token request in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         },
         "requested_repositories": {
           "title": "Requested Repositories",
           "position": 6,
           "markdown": {
-            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessTokenRequest {objectid: '%s'})-[:GH_RequestsAccessTo|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories requested by this token request in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
+            "content": "{{ $objectID := .Properties.objectid | default \"\" | trim }}\n{{ $escapedObjectID := $objectID | replace \"\\\\\" \"\\\\\\\\\" | replace \"'\" \"\\\\'\" }}\n{{ if ne $objectID \"\" }}\n{{ $query := printf \"MATCH p = (selected:GH_PersonalAccessTokenRequest {objectid: '%s'})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)\\nRETURN p\\nLIMIT 500\" $escapedObjectID }}\n{{ $encodedQuery := $query | b64enc | urlquery }}\n[View repositories requested by this token request in Explore](/ui/explore?exploreSearchTab=cypher&searchType=cypher&cypherSearch={{ $encodedQuery }})\n{{ else }}\nExplore navigation is unavailable because this object has no stable identifier.\n{{ end }}"
           }
         }
       }
@@ -2106,7 +2113,7 @@
     },
     {
       "name": "GH_RequestsAccessTo",
-      "description": "Pending fine-grained PAT request requests access to this repository scope",
+      "description": "Legacy pending PAT request scope relationship; new exports use non-traversable GH_CanAccess metadata",
       "is_traversable": false
     },
     {
@@ -2756,7 +2763,7 @@
     },
     {
       "name": "GH_CanAccess",
-      "description": "Personal access token, app installation, or deploy key has access scope to a repository, reusable scope, organization, or enterprise",
+      "description": "Non-traversable credential resource scope; pending PAT requests describe requested access, not approval",
       "is_traversable": false
     },
     {
@@ -2781,7 +2788,7 @@
     },
     {
       "name": "GH_CanCreateBranch",
-      "description": "[Computed] Role or App installation can create freely named branches in a repository, directly or through a repository capability scope",
+      "description": "[Computed] Role, App installation, or fine-grained PAT can create freely named branches in a repository, directly or through a repository capability scope",
       "is_traversable": true
     },
     {

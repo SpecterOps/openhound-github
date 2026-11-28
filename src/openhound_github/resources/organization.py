@@ -74,6 +74,7 @@ from openhound_github.models import (
     PatRepoAccess,
     PersonalAccessToken,
     PersonalAccessTokenRequest,
+    PatRequestRepoAccess,
     ProjectedEnterpriseTeam,
     RepoRole,
     RepoRoleAssignment,
@@ -2326,6 +2327,51 @@ def personal_access_token_requests(ctx: SourceContext):
             continue
 
 
+@app.transformer(name="pat_request_repo_access", columns=PatRequestRepoAccess, parallelized=True)
+def pat_request_repo_access(request: PersonalAccessTokenRequest, ctx: SourceContext):
+    """Collect explicitly requested repositories without granting capabilities."""
+    if not isinstance(request, PersonalAccessTokenRequest):
+        request = PersonalAccessTokenRequest.model_validate(request)
+    if request.repository_selection not in {"selected", "subset"}:
+        return
+    repositories = []
+    complete = True
+    try:
+        client = _client_for_org(ctx, request.org_login)
+        for page in client.paginate(
+            f"/orgs/{quote(request.org_login, safe='')}/personal-access-token-requests/{request.id}/repositories",
+            params={"per_page": 100},
+        ):
+            for repository in page:
+                repositories.append(
+                    {
+                        "request_id": request.id,
+                        "node_id": repository["node_id"],
+                        "org_login": request.org_login,
+                    }
+                )
+    except Exception as exc:
+        complete = False
+        logger.error(
+            "Error in resource 'pat_request_repo_access' processing organization %r request %s; "
+            "repository listing is incomplete (%s repositories retained): %s",
+            request.org_login,
+            request.id,
+            len(repositories),
+            exc,
+            extra={
+                "resource": "pat_request_repo_access",
+                "phase": "resource_iteration",
+                "org_login": request.org_login,
+                "request_id": request.id,
+                "repository_listing_complete": False,
+            },
+        )
+    # Buffer this request's rows so a later page failure marks every retained row.
+    for repository in repositories:
+        yield {**repository, "repository_listing_complete": complete}
+
+
 @app.resource(name="saml_provider", columns=SamlProvider, parallelized=True)
 def saml_provider(ctx: SourceContext):
     """Fetch the SAML identity provider for the organization.
@@ -2637,6 +2683,7 @@ def organization_resources(ctx: SourceContext):
     repos_resource = repositories(ctx)
     workflows_resource = repos_resource | workflows(ctx)
     personal_access_tokens_resource = personal_access_tokens(ctx)
+    personal_access_token_requests_resource = personal_access_token_requests(ctx)
 
     teams_resource = teams(ctx)
     team_external_groups_resource = team_external_groups(ctx)
@@ -2709,5 +2756,6 @@ def organization_resources(ctx: SourceContext):
         organization_secrets_resource | selected_organization_secrets(ctx),
         organization_vars_resource,
         organization_vars_resource | selected_organization_variables(ctx),
-        personal_access_token_requests(ctx),
+        personal_access_token_requests_resource,
+        personal_access_token_requests_resource | pat_request_repo_access(ctx),
     )

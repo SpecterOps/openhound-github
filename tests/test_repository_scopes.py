@@ -36,6 +36,7 @@ SCOPE_NODE_ID = scope_node_id(
 def _lookup() -> MagicMock:
     lookup = MagicMock()
     lookup.org_id_for_login.return_value = ORG_NODE_ID
+    lookup.org_database_id_for_login.return_value = 1
     lookup.repository_graphql_counts.return_value = (None, None, None)
     lookup.repository_workflow_permissions.return_value = None
     lookup.canonical_scope_target_count.return_value = 4
@@ -253,7 +254,7 @@ def test_arbitrary_selections_do_not_use_repository_scope() -> None:
     assert SCOPE_NODE_ID not in pat_access_targets
 
 
-def test_all_pat_request_uses_pending_access_edge_without_granting_access() -> None:
+def test_all_pat_request_uses_nontraversable_access_scope_metadata() -> None:
     all_request = _pat_request("all")
     access_edges = [
         edge
@@ -262,7 +263,7 @@ def test_all_pat_request_uses_pending_access_edge_without_granting_access() -> N
     ]
 
     assert [(edge.kind, edge.end.value) for edge in access_edges] == [
-        (ek.REQUESTS_ACCESS_TO, SCOPE_NODE_ID)
+        (ek.CAN_ACCESS, SCOPE_NODE_ID)
     ]
     assert access_edges[0].properties.traversable is False
     assert ek.REQUESTS_ACCESS_TO not in {
@@ -272,8 +273,14 @@ def test_all_pat_request_uses_pending_access_edge_without_granting_access() -> N
 
 def test_pat_repository_query_supports_direct_and_scoped_access() -> None:
     expected_pattern = "[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository)"
-
-    assert expected_pattern in _pat("all").as_node.properties.query_repositories
+    schema_path = Path(__file__).resolve().parents[1] / "extension/schema.json"
+    schema = json.loads(schema_path.read_text())
+    pat = next(
+        node
+        for node in schema["node_kinds"]
+        if node["name"] == nk.PERSONAL_ACCESS_TOKEN
+    )
+    assert expected_pattern in pat["info"]["repository_scope"]["markdown"]["content"]
 
 
 def test_schema_registers_repository_scope_and_compatible_panel_queries() -> None:
@@ -292,7 +299,15 @@ def test_schema_registers_repository_scope_and_compatible_panel_queries() -> Non
     schema_text = schema_path.read_text()
     assert "GH_CanAccess|GH_ScopedTo*1..2" in schema_text
     assert "GH_InstalledAs|GH_CanAccess|GH_ScopedTo*2..3" in schema_text
-    assert "GH_RequestsAccessTo|GH_ScopedTo*1..2" in schema_text
+    request = next(
+        node
+        for node in schema["node_kinds"]
+        if node["name"] == nk.PERSONAL_ACCESS_TOKEN_REQUEST
+    )
+    assert (
+        "GH_CanAccess|GH_ScopedTo*1..2"
+        in request["info"]["requested_repositories"]["markdown"]["content"]
+    )
     assert "GH_IsEligibleFor|GH_ScopedTo*1..2" in schema_text
     assert "GH_HasSecret|GH_ScopedTo*1..2" in schema_text
     assert "GH_HasVariable|GH_ScopedTo*1..2" in schema_text

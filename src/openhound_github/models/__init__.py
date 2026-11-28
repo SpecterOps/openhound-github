@@ -36,6 +36,7 @@ from .org_variable import OrgVariable, SelectedOrgVariable
 from .personal_access_token import PersonalAccessToken
 from .personal_access_token_access import PatRepoAccess
 from .personal_access_token_request import PersonalAccessTokenRequest
+from .personal_access_token_request_access import PatRequestRepoAccess
 from .projected_enterprise_team import ProjectedEnterpriseTeam
 from .repo_role_assignment import RepoRoleAssignment
 from .repository import Repository, RepositoryQL
@@ -121,6 +122,7 @@ __all__ = [
     "PersonalAccessToken",
     "ClassicPersonalAccessToken",
     "PatRepoAccess",
+    "PatRequestRepoAccess",
     "ProjectedEnterpriseTeam",
     "SelectedOrgSecret",
     "PersonalAccessTokenRequest",

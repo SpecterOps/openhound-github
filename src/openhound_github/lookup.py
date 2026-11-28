@@ -56,6 +56,14 @@ class GithubLookup(LookupManager):
         )
 
     @lru_cache
+    def org_database_id_for_login(self, org_login: str) -> int | None:
+        row = self._find_single_row(
+            f"SELECT database_id FROM {self.schema}.organizations WHERE lower(login) = lower(?)",
+            [org_login],
+        )
+        return row[0] if row else None
+
+    @lru_cache
     def user_node_id_for_login(self, org_login: str, user_login: str) -> str | None:
         return self._find_single_object(
             f"""
@@ -95,6 +103,17 @@ class GithubLookup(LookupManager):
     def enterprise_id(self) -> str | None:
         res = self._find_single_object(f"""SELECT id FROM {self.schema}.enterprise""")
         return res
+
+    @lru_cache
+    def enterprise_id_for_organization(self, org_node_id: str) -> str | None:
+        """Resolve only a collected, unambiguous enterprise parent."""
+        rows = self._find_all_objects(
+            f"""SELECT DISTINCT e.id FROM {self.schema}.enterprise e
+            JOIN {self.schema}.enterprise_organizations o ON o.enterprise_node_id = e.id
+            WHERE o.id = ?""",
+            [org_node_id],
+        )
+        return rows[0][0] if len(rows) == 1 else None
 
     @lru_cache
     def enterprise_user_id_for_database_id(self, database_id: int) -> str | None:
@@ -815,58 +834,188 @@ class GithubLookup(LookupManager):
         )
         return bool(row and row[0])
 
-    @lru_cache
-    def app_installation_branch_creation_repositories(
-        self, installation_id: int, org_login: str, exclude_shared: bool = False
+    def _branch_creation_repositories_for_access(
+        self,
+        org_login: str,
+        *,
+        access_query: str,
+        access_parameters: list,
+        restriction_bypass_query: str,
+        bypass_reason: str,
+        exclude_shared: bool = False,
     ):
-        """Resolve direct capabilities from granted access and positive allowance evidence.
+        """Intersect authorized repository candidates with shared protection gates.
 
-        All-repository installations normally reach shared members through a
-        scope. Return those members directly for selected grants and for older
-        collections without the capability scope. App-specific exceptions must
-        satisfy every collected broad restriction; uncertain patterns remain out.
+        SQL fragments are internal credential policies, not user input. The access
+        query supplies repository_node_id and any actor evidence used by its
+        bypass query. Unknown restrictions cannot be bypassed, even when an
+        actor's bypass predicate succeeds. Missing collection evidence and
+        repositories outside the target organization never qualify.
         """
         return self._find_all_objects(
-            f"""SELECT DISTINCT r.node_id,
+            f"""WITH access AS ({access_query})
+            SELECT DISTINCT r.node_id,
                 CASE WHEN shared.repository_node_id IS NOT NULL
-                     THEN 'shared_creation_eligibility' ELSE 'app_push_allowance' END AS reason
-            FROM {self.schema}.app_installations i
+                     THEN 'shared_creation_eligibility' ELSE ? END AS reason
+            FROM access
             JOIN {self.schema}.repositories r
-              ON lower(r.org_login) = lower(coalesce(nullif(i.environment_slug, ''), i.org_login))
+              ON r.node_id = access.repository_node_id
             JOIN {self.schema}.repositories_with_branch_creation_evidence evidence
               ON evidence.repository_node_id = r.node_id
             LEFT JOIN {self.schema}.repositories_allowing_branch_creation shared
               ON shared.repository_node_id = r.node_id
-            WHERE i.id = ? AND lower(r.org_login) = lower(?)
-              AND i.target_type = 'Organization' AND i.suspended_at IS NULL
-              AND json_extract_string(i.permissions, '$.contents') = 'write'
-              AND (
-                  i.repository_selection = 'all'
-                  OR (i.repository_selection = 'selected' AND EXISTS (
-                      SELECT 1 FROM {self.schema}.app_installation_repo_access access
-                      WHERE access.installation_node_id = 'GH_AppInstallation_' || CAST(i.id AS VARCHAR)
-                        AND access.repository_database_id = r.database_id
-                        AND lower(access.org_login) = lower(r.org_login)
-                  ))
-              )
+            WHERE lower(r.org_login) = lower(?)
               AND (? = false OR shared.repository_node_id IS NULL)
               AND NOT EXISTS (
                   SELECT 1 FROM {self.schema}.branch_creation_restrictions restriction
                   WHERE restriction.repository_node_id = r.node_id
                     AND (
                         restriction.reason <> 'broad_creation_restriction'
-                        OR NOT EXISTS (
-                            SELECT 1 FROM {self.schema}.branch_protection_rules rule,
-                                UNNEST(json_extract(rule.push_allowances, '$.nodes')::JSON[]) AS t(node)
-                            WHERE rule.id = restriction.rule_id
-                              AND rule.repository_node_id = r.node_id
-                              AND coalesce(node->>'$.actor.__typename', node->>'$.actor.typename') = 'App'
-                              AND nullif(node->>'$.actor.id', '') IS NOT NULL
-                              AND lower(node->>'$.actor.slug') = lower(i.app_slug)
-                        )
+                        OR NOT coalesce(({restriction_bypass_query}), false)
                     )
               )""",
-            [installation_id, org_login, exclude_shared],
+            [*access_parameters, bypass_reason, org_login, exclude_shared],
+        )
+
+    @lru_cache
+    def app_installation_branch_creation_repositories(
+        self, installation_id: int, org_login: str, exclude_shared: bool = False
+    ):
+        """Supply App-specific access and allowance policies to shared evaluation."""
+        return self._branch_creation_repositories_for_access(
+            org_login,
+            access_query=f"""SELECT r.node_id AS repository_node_id, i.app_slug
+            FROM {self.schema}.app_installations i
+            JOIN {self.schema}.repositories r
+              ON lower(r.org_login) = lower(coalesce(nullif(i.environment_slug, ''), i.org_login))
+            WHERE i.id = ?
+              AND i.target_type = 'Organization' AND i.suspended_at IS NULL
+              AND json_extract_string(i.permissions, '$.contents') = 'write'
+              AND (
+                  i.repository_selection = 'all'
+                  OR (i.repository_selection = 'selected' AND EXISTS (
+                      SELECT 1 FROM {self.schema}.app_installation_repo_access repo_access
+                      WHERE repo_access.installation_node_id = 'GH_AppInstallation_' || CAST(i.id AS VARCHAR)
+                        AND repo_access.repository_database_id = r.database_id
+                        AND lower(repo_access.org_login) = lower(r.org_login)
+                  ))
+              )""",
+            access_parameters=[installation_id],
+            restriction_bypass_query=f"""EXISTS (
+                SELECT 1 FROM {self.schema}.branch_protection_rules rule,
+                    UNNEST(json_extract(rule.push_allowances, '$.nodes')::JSON[]) AS t(node)
+                WHERE rule.id = restriction.rule_id
+                  AND rule.repository_node_id = r.node_id
+                  AND coalesce(node->>'$.actor.__typename', node->>'$.actor.typename') = 'App'
+                  AND nullif(node->>'$.actor.id', '') IS NOT NULL
+                  AND lower(node->>'$.actor.slug') = lower(access.app_slug)
+            )""",
+            bypass_reason="app_push_allowance",
+            exclude_shared=exclude_shared,
+        )
+
+    def _pat_branch_creation_access_query(self) -> str:
+        """Authorized repository candidates, capped by the token owner's roles."""
+        return f"""WITH RECURSIVE
+        context(owner_id, org_login, grant_id, selection) AS (VALUES (?, ?, ?, ?)),
+        actor_teams(team_id) AS (
+            SELECT tm.team_id FROM {self.schema}.team_members tm, context c
+            WHERE tm.id = c.owner_id
+            UNION
+            SELECT json_extract_string(t.parent_team, '$.id')
+            FROM {self.schema}.teams t JOIN actor_teams a ON a.team_id = t.id
+            WHERE json_extract_string(t.parent_team, '$.id') IS NOT NULL
+        ),
+        org_authority(base_role) AS (
+            SELECT CASE WHEN u.role = 'ADMIN' THEN 'admin' ELSE roles.base_role END
+            FROM {self.schema}.users u CROSS JOIN context c
+            LEFT JOIN {self.schema}.org_roles roles
+              ON lower(roles.org_login) = lower(u.org_login)
+             AND roles.name = CASE WHEN u.role = 'ADMIN' THEN 'owners' ELSE 'members' END
+            WHERE u.id = c.owner_id AND lower(u.org_login) = lower(c.org_login)
+              AND u.role IN ('ADMIN', 'MEMBER') AND roles.name IS NOT NULL
+            UNION
+            SELECT roles.base_role
+            FROM {self.schema}.org_roles roles CROSS JOIN context c
+            WHERE lower(roles.org_login) = lower(c.org_login) AND (
+                EXISTS (SELECT 1 FROM {self.schema}.org_role_members members
+                    WHERE members.node_id = c.owner_id
+                      AND lower(members.org_login) = lower(roles.org_login)
+                      AND members.org_role_name = roles.name)
+                OR EXISTS (SELECT 1 FROM {self.schema}.org_role_teams teams
+                    WHERE teams.node_id IN (SELECT team_id FROM actor_teams)
+                      AND lower(teams.org_login) = lower(roles.org_login)
+                      AND teams.org_role_name = roles.name)
+            )
+        ),
+        repository_authority(repository_node_id, role_id, admin_bypass) AS (
+            SELECT assignments.repo_node_id, roles.id,
+                coalesce(assignments.role_name = 'admin'
+                    OR coalesce(assignments.base_role, roles.base_role) = 'admin'
+                    OR json_contains(assignments.role_permissions, '"push_protected_branch"')
+                    OR json_contains(roles.permissions, '"push_protected_branch"'), false)
+            FROM {self.schema}.repo_role_assignments assignments CROSS JOIN context c
+            LEFT JOIN {self.schema}.repo_roles roles
+              ON roles.repository_node_id = assignments.repo_node_id
+             AND roles.name = assignments.role_name
+            WHERE (
+                (lower(assignments.assignee_type) = 'user' AND assignments.node_id = c.owner_id)
+                OR (lower(assignments.assignee_type) = 'team'
+                    AND assignments.node_id IN (SELECT team_id FROM actor_teams))
+            ) AND (assignments.role_name IN ('write', 'maintain', 'admin')
+                OR coalesce(assignments.base_role, roles.base_role) IN ('write', 'maintain', 'admin'))
+            UNION ALL
+            SELECT r.node_id, roles.id, authority.base_role = 'admin'
+            FROM {self.schema}.repositories r CROSS JOIN context c CROSS JOIN org_authority authority
+            JOIN {self.schema}.repo_roles roles
+              ON roles.repository_node_id = r.node_id AND roles.name = authority.base_role
+            WHERE lower(r.org_login) = lower(c.org_login)
+              AND authority.base_role IN ('write', 'maintain', 'admin')
+        )
+        SELECT r.node_id AS repository_node_id, c.owner_id,
+            bool_or(authority.admin_bypass) AS admin_bypass
+        FROM repository_authority authority
+        JOIN {self.schema}.repositories r ON r.node_id = authority.repository_node_id
+        JOIN {self.schema}.role_can_create_branch creation
+          ON creation.id = authority.role_id AND creation.repository_node_id = r.node_id
+        CROSS JOIN context c
+        WHERE lower(r.org_login) = lower(c.org_login)
+          AND (c.selection = 'all' OR (c.selection IN ('selected', 'subset') AND EXISTS (
+              SELECT 1 FROM {self.schema}.pat_repo_access granted
+              WHERE granted.pat_id = c.grant_id AND granted.node_id = r.node_id
+                AND lower(granted.org_login) = lower(c.org_login)
+          )))
+        GROUP BY r.node_id, c.owner_id"""
+
+    @lru_cache
+    def pat_branch_creation_scope_authorized(
+        self, owner_id: str, org_login: str, grant_id: int
+    ) -> bool:
+        """All-repository token selection alone never establishes scope authority."""
+        row = self._find_single_row(
+            f"""WITH access AS ({self._pat_branch_creation_access_query()})
+            SELECT NOT EXISTS (
+                SELECT 1 FROM {self.schema}.repositories_allowing_branch_creation shared
+                JOIN {self.schema}.repositories r ON r.node_id = shared.repository_node_id
+                WHERE lower(r.org_login) = lower(?)
+                  AND NOT EXISTS (SELECT 1 FROM access WHERE access.repository_node_id = r.node_id)
+            )""",
+            [owner_id, org_login, grant_id, 'all', org_login],
+        )
+        return bool(row and row[0])
+
+    @lru_cache
+    def pat_branch_creation_repositories(
+        self, owner_id: str, org_login: str, grant_id: int, selection: str,
+        exclude_shared: bool = False,
+    ):
+        return self._branch_creation_repositories_for_access(
+            org_login,
+            access_query=self._pat_branch_creation_access_query(),
+            access_parameters=[owner_id, org_login, grant_id, selection],
+            restriction_bypass_query="restriction.is_admin_enforced IS FALSE AND access.admin_bypass",
+            bypass_reason='owner_creation_capability',
+            exclude_shared=exclude_shared,
         )
 
     @lru_cache

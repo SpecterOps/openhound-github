@@ -4,7 +4,7 @@
 
 Represents a reusable, organization-scoped asset set. Its `scope_type` identifies the kind of asset being grouped and its `scope` identifies the canonical selector. Repository, runner-group, organization-secret, and organization-variable scopes support `all` and `private_or_internal`, matching GitHub's organization-policy semantics. GH_ScopedTo is traversable so an incoming traversable capability reaches each member.
 
-Arbitrary app `selected` and PAT `subset` selections are not repository-scope nodes. Those selections remain direct GH_CanAccess relationships. A pending all-repository PAT request uses GH_RequestsAccessTo rather than GH_CanAccess because approval has not granted the requested access.
+Arbitrary app `selected` and PAT `subset` selections are not repository-scope nodes. Those selections remain direct GH_CanAccess relationships. A pending all-repository PAT request uses non-traversable GH_CanAccess to describe requested scope; the pending node type distinguishes this from approved access.
 
 The `repository_branch_creation/unrestricted` scope contains repositories where collected classic branch protections permit freely named branch creation without actor-specific allowances. Named branch restrictions may still apply. Active all-repository App installations with `contents:write` reach this scope through GH_CanCreateBranch. Selected repository grants and App-specific exceptions use direct capability edges. This capability scope is separate from repository access scopes and does not evaluate rulesets or overlapping-rule precedence.
 
@@ -44,7 +44,7 @@ graph LR
     n2 -->|GH_CanReadSecret| n1
     n3 -.->|GH_Contains| n1
     n4 -.->|GH_CanAccess| n1
-    n5 -.->|GH_RequestsAccessTo| n1
+    n5 -.->|GH_CanAccess| n1
     n6 -->|GH_HasSecret| n1
     n6 -->|GH_HasVariable| n1
     n6 -.->|GH_IsEligibleFor| n1

@@ -2,7 +2,7 @@
 
 ## General Information
 
-The non-traversable GH_RequestsAccessTo edge records access sought by a pending fine-grained personal access token request. It is distinct from GH_CanAccess, which represents access GitHub has already granted. An all-repository request targets the organization's reusable repository/all GH_Scope.
+Legacy non-traversable scope relationship for pending PAT requests. New exports use GH_CanAccess for requested resource scope, with the pending request node identifying that access has not been approved. This relationship remains documented for older graphs.
 
 ## Edge Schema
 

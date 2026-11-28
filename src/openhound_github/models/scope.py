@@ -124,8 +124,8 @@ class GHScopeProperties(GHNodeProperties):
         EdgeDef(
             start=nk.PERSONAL_ACCESS_TOKEN_REQUEST,
             end=nk.SCOPE,
-            kind=ek.REQUESTS_ACCESS_TO,
-            description="Pending PAT request requests access to repository scope",
+            kind=ek.CAN_ACCESS,
+            description="Pending PAT request targets repository scope",
             traversable=False,
         ),
         EdgeDef(
