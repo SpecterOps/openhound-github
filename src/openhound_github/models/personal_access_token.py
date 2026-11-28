@@ -14,7 +14,7 @@ from openhound_github.main import app
 from openhound_github.models.permissions import split_permission_groups
 from openhound_github.models.pat_access import pat_access_edges
 from openhound_github.models.branch_creation import branch_creation_edges
-from openhound_github.pat_ids import pat_node_id
+from openhound_github.pat_ids import collected_pat_node_id
 
 
 class Permissions(BaseModel):
@@ -151,15 +151,21 @@ class PersonalAccessToken(BaseAsset):
         return self._lookup.org_id_for_login(self.org_login)
 
     @property
-    def node_id(self) -> str:
+    def node_id(self) -> str | None:
         """Identify the token's organization grant using its numeric API ID."""
-        return pat_node_id(
-            self._lookup.org_database_id_for_login(self.org_login), self.id
+        return collected_pat_node_id(
+            self._lookup.org_database_id_for_login(self.org_login),
+            self.id,
+            org_login=self.org_login,
+            resource="personal_access_tokens",
+            request=False,
         )
 
     @property
-    def as_node(self) -> GHNode:
+    def as_node(self) -> GHNode | None:
         pid = self.node_id
+        if pid is None:
+            return None
         return GHNode(
             kinds=[nk.PERSONAL_ACCESS_TOKEN],
             properties=GHPersonalAccessTokenProperties(
@@ -251,6 +257,8 @@ class PersonalAccessToken(BaseAsset):
 
     @property
     def edges(self):
+        if self.node_id is None:
+            return
         yield Edge(
             kind=ek.CONTAINS,
             start=EdgePath(value=self.org_node_id, match_by="id"),

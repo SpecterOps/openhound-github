@@ -11,7 +11,7 @@ from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.permissions import split_permission_groups
 from openhound_github.models.pat_access import pat_access_edges
-from openhound_github.pat_ids import pat_request_node_id
+from openhound_github.pat_ids import collected_pat_node_id
 
 
 class Owner(BaseModel):
@@ -116,15 +116,21 @@ class PersonalAccessTokenRequest(BaseAsset):
         return self._lookup.org_id_for_login(self.org_login)
 
     @property
-    def node_id(self) -> str:
+    def node_id(self) -> str | None:
         """Identify this request independently of the underlying token."""
-        return pat_request_node_id(
-            self._lookup.org_database_id_for_login(self.org_login), self.id
+        return collected_pat_node_id(
+            self._lookup.org_database_id_for_login(self.org_login),
+            self.id,
+            org_login=self.org_login,
+            resource="personal_access_token_requests",
+            request=True,
         )
 
     @property
-    def as_node(self) -> GHNode:
+    def as_node(self) -> GHNode | None:
         rid = self.node_id
+        if rid is None:
+            return None
         return GHNode(
             kinds=[nk.PERSONAL_ACCESS_TOKEN_REQUEST],
             properties=GHPersonalAccessTokenRequestProperties(
@@ -153,6 +159,8 @@ class PersonalAccessTokenRequest(BaseAsset):
 
     @property
     def edges(self):
+        if self.node_id is None:
+            return
         yield from self._owner_edge
         yield Edge(
             kind=ek.CONTAINS,

@@ -193,6 +193,17 @@ their existing meaning, and no branch-write or deployment capability is implied.
 
 ### Fine-grained PAT identities
 
+PATs, PAT requests, and their repository-access edges are skipped with a warning
+when the collected organization has no usable numeric database ID. No substitute
+identity is generated. Correct the organization inventory and rerun
+preprocess/convert to recover these objects.
+
+Selected-request repository listings are buffered per request. If pagination
+fails, the collector logs the organization and request ID and retains the fetched
+rows with `repository_listing_complete: false`. Successful listings use `true`;
+older records have unknown completeness. This flag is also retained on the
+request's repository-access edges. A failed listing does not abort other requests.
+
 Active fine-grained PATs with `contents:write` can receive `GH_CanCreateBranch`
 edges capped by their owner's existing effective repository-role capabilities.
 Token repository selection is intersected with direct, team, and organization

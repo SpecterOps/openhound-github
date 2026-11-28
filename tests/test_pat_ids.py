@@ -120,9 +120,11 @@ def test_invalid_grant_id_is_rejected(lookup):
         access(lookup, pat_id=0).pat_node_id
 
 
-def test_missing_organization_id_fails_instead_of_encoding_none(lookup):
-    with pytest.raises(ValueError, match="organization database ID"):
-        access(lookup, org_login="unknown", token_id=900).pat_node_id
+def test_missing_organization_id_skips_access_without_encoding_none(lookup, caplog):
+    record = access(lookup, org_login="unknown", token_id=900)
+    assert record.pat_node_id is None
+    assert list(record.edges) == []
+    assert "missing or invalid organization database ID" in caplog.text
 
 
 def test_request_uses_request_id_independently_of_token_id(lookup):
@@ -163,3 +165,50 @@ def test_collection_keeps_grant_id_for_api_endpoint_and_edges(lookup):
     client.paginate.assert_called_once_with(
         "/orgs/acME/personal-access-tokens/10/repositories", params={"per_page": 100}
     )
+
+
+@pytest.mark.parametrize("missing", ["absent", "null"])
+@pytest.mark.parametrize("kind", ["token", "request", "token_access", "request_access"])
+def test_missing_organization_identity_skips_nodes_and_edges_before_encoding(
+    lookup, caplog, missing, kind
+):
+    from openhound_github.models.personal_access_token_request_access import (
+        PatRequestRepoAccess,
+    )
+
+    if missing == "absent":
+        lookup.client.execute(
+            "DELETE FROM inventory.organizations WHERE login = 'Acme'"
+        )
+    else:
+        lookup.client.execute(
+            "UPDATE inventory.organizations SET database_id = NULL WHERE login = 'Acme'"
+        )
+    if kind == "token":
+        record = token(lookup)
+    elif kind == "token_access":
+        record = access(lookup)
+    elif kind == "request_access":
+        record = PatRequestRepoAccess(node_id="R_1", request_id=20, org_login="acme")
+        record._lookup = lookup
+    else:
+        record = PersonalAccessTokenRequest(
+            id=20,
+            token_name="pending",
+            token_expired=False,
+            owner={
+                "login": "alice",
+                "id": 1,
+                "node_id": "U_1",
+                "type": "User",
+                "site_admin": False,
+            },
+            org_login="acme",
+            repository_selection="all",
+        )
+        record._lookup = lookup
+    assert record.as_node is None
+    assert list(record.edges) == []
+    assert "acme" in caplog.text.lower()
+    assert "missing or invalid organization database ID" in caplog.text
+    assert any(r.phase == "conversion" for r in caplog.records)

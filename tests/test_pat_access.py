@@ -163,8 +163,18 @@ def test_selected_request_repository_collection_uses_request_id(lookup, selectio
     ctx = SourceContext(organizations=[OrgContext(org_name="acME", client=client)])
     records = list(pat_request_repo_access.__wrapped__(request, ctx))
     assert records == [
-        {"request_id": 10, "node_id": "R_1", "org_login": "acME"},
-        {"request_id": 10, "node_id": "R_2", "org_login": "acME"},
+        {
+            "request_id": 10,
+            "node_id": "R_1",
+            "org_login": "acME",
+            "repository_listing_complete": True,
+        },
+        {
+            "request_id": 10,
+            "node_id": "R_2",
+            "org_login": "acME",
+            "repository_listing_complete": True,
+        },
     ]
     for record in records:
         record = PatRequestRepoAccess.model_validate(record)
@@ -231,3 +241,59 @@ def test_selected_request_pipeline_collects_and_converts_nontraversable_scope(
     assert edge["start"]["value"].startswith("PATR_")
     assert edge["end"]["value"] == "R_1"
     assert edge["properties"]["traversable"] is False
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_request_repository_pagination_failure_is_scoped_and_preserves_incomplete_rows(
+    lookup, caplog, partial
+):
+    request = asset(PersonalAccessTokenRequest, lookup, {}, "selected")
+
+    def pages():
+        if partial:
+            yield [{"node_id": "R_1"}]
+        raise RuntimeError("pagination failed")
+
+    client = MagicMock()
+    client.paginate.return_value = pages()
+    ctx = SourceContext(organizations=[OrgContext(org_name="acME", client=client)])
+    rows = list(pat_request_repo_access.__wrapped__(request, ctx))
+    assert rows == (
+        [
+            {
+                "request_id": 10,
+                "node_id": "R_1",
+                "org_login": "acME",
+                "repository_listing_complete": False,
+            }
+        ]
+        if partial
+        else []
+    )
+    log = next(
+        r
+        for r in caplog.records
+        if getattr(r, "resource", None) == "pat_request_repo_access"
+    )
+    assert log.phase == "resource_iteration"
+    assert log.request_id == 10 and log.org_login == "acME"
+    assert log.repository_listing_complete is False
+    assert "pagination failed" in log.message
+    if rows:
+        record = PatRequestRepoAccess(**rows[0])
+        record._lookup = lookup
+        (edge,) = record.edges
+        assert edge.properties.repository_listing_complete is False
+        assert edge.properties.traversable is False
+    # A different request still gets a complete listing.
+    request.id = 11
+    client.paginate.return_value = [[{"node_id": "R_2"}]]
+    subsequent = list(pat_request_repo_access.__wrapped__(request, ctx))
+    assert subsequent == [
+        {
+            "request_id": 11,
+            "node_id": "R_2",
+            "org_login": "acME",
+            "repository_listing_complete": True,
+        }
+    ]

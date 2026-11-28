@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.pat_ids import pat_node_id
+from openhound_github.pat_ids import collected_pat_node_id
 
 
 class Owner(BaseModel):
@@ -50,13 +50,19 @@ class PatRepoAccess(BaseAsset):
         return None
 
     @property
-    def pat_node_id(self) -> str:
-        return pat_node_id(
-            self._lookup.org_database_id_for_login(self.org_login), self.pat_id
+    def pat_node_id(self) -> str | None:
+        return collected_pat_node_id(
+            self._lookup.org_database_id_for_login(self.org_login),
+            self.pat_id,
+            org_login=self.org_login,
+            resource="pat_repo_access",
+            request=False,
         )
 
     @property
     def edges(self):
+        if self.pat_node_id is None:
+            return
         yield Edge(
             kind=ek.CAN_ACCESS,
             start=EdgePath(value=self.pat_node_id, match_by="id"),
