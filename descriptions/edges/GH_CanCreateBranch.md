@@ -10,6 +10,8 @@ Older collections without the capability scope use direct installation-to-reposi
 
 Existing repository roles use the same conservative creation-restriction classification with their existing role bypass checks. The calculation evaluates collected classic branch protections; rulesets and overlapping-rule precedence are not resolved, and incomplete collection may still omit restrictions.
 
+Fine-grained PATs require `contents:write`, an unexpired token, and granted repository access. Each target must also be reachable through the owner's existing repository-role branch-creation capability, including collected team and organization-role inheritance. All-repository PATs use the shared scope only when the owner has authority over every member; partial authority and selected grants use direct repository edges. Composition queries include the owner's capability path. User/team allowances not yet represented by owner GH_CanCreateBranch paths do not independently grant PAT capabilities. Pending requests receive no active capability edges.
+
 ## Scenarios
 
 ### Shared repository eligibility
@@ -23,6 +25,8 @@ Exact branch names, literal namespaces, and star patterns requiring specific tex
 | `GH_RepoRole` | `GH_Repository` | `true` |
 | `GH_AppInstallation` | `GH_Repository` | `true` |
 | `GH_AppInstallation` | `GH_Scope` | `true` |
+| `GH_PersonalAccessToken` | `GH_Repository` | `true` |
+| `GH_PersonalAccessToken` | `GH_Scope` | `true` |
 
 ## Diagram
 

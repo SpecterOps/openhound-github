@@ -2,9 +2,11 @@
 
 ## General Information
 
-Represents a pending request from an organization member to access organization resources with a fine-grained personal access token. PAT requests are linked to their owning user and the organization. An all-repository request also has a non-traversable GH_RequestsAccessTo edge to the organization's repository/all GH_Scope.
+Represents a pending request from an organization member to access organization resources with a fine-grained personal access token. PAT requests are linked to their owning user and the organization. An all-repository request also has a non-traversable GH_CanAccess edge to the organization's repository/all GH_Scope.
 
-The requested permissions are stored separately as `organization_permissions` and `repository_permissions`. Each property is a list of `scope:access` values such as `members:read` or `contents:write`, matching the permission format used on GH_WorkflowJob nodes.
+The requested permissions use the same explicit permission catalog as GitHub Apps and are stored as `permission:access` arrays in `permissions_repository`, `permissions_organization`, `permissions_enterprise`, and `permissions_account`. Unknown permission keys are retained in `permissions_unclassified`. Empty categories are empty arrays. These properties describe requested permissions; requests do not establish active access.
+
+GH_CanAccess is non-traversable scope metadata: on a pending request it describes requested access, not approval or an active capability. Organization links require nonempty `permissions_organization`. Enterprise links require nonempty `permissions_enterprise` and a uniquely matched collected enterprise parent. Selected repository requests are collected from the request repositories endpoint; all-repository requests use the shared scope.
 
 ## Properties
 
@@ -14,17 +16,17 @@ The requested permissions are stored separately as `organization_permissions` an
 | `displayname` | `string` | The human-readable display name. |
 | `environmentid` | `string` | The identifier of the GitHub environment where this node was collected. |
 | `last_seen` | `datetime` | The timestamp when this node was last observed during collection. |
-| `node_id` | `string` | The stable identifier used as the OpenGraph node ID; this is the native GitHub node ID where available. |
+| `node_id` | `string` | `PATR_` plus unpadded URL-safe Base64 of MessagePack `[1, organization_database_id, request_id]`. |
 | `token_name` | `string` | The user-assigned display name of the token. |
 | `owner_login` | `string` | The login handle of the user who submitted the request. |
 | `repository_selection` | `string` | Whether the request targets `all`, `subset`, or `none` of the organization's repositories. |
 | `reason` | `string` | The rationale provided by the requester for the access request. |
 | `org_name` | `string` | The org name property. |
-| `organization_permissions` | `list[string]` | Requested organization-scoped permissions in `scope:access` form. |
-| `repository_permissions` | `list[string]` | Requested repository-scoped permissions in `scope:access` form. |
-| `query_organization_permissions` | `string` | Query for organization permissions. |
-| `query_user` | `string` | Query for user. |
-| `query_repositories` | `string` | Query for repositories. |
+| `permissions_organization` | `list[string]` | Requested organization-scoped permissions in `permission:access` form. |
+| `permissions_repository` | `list[string]` | Requested repository-scoped permissions in `permission:access` form. |
+| `permissions_enterprise` | `list[string]` | Requested enterprise permissions as `permission:access` values. |
+| `permissions_account` | `list[string]` | Requested account permissions as `permission:access` values. |
+| `permissions_unclassified` | `list[string]` | Requested permissions absent from the shared catalog. |
 
 ## Diagram
 
@@ -35,6 +37,6 @@ graph LR
     n2["GH_Scope"]
     n3["GH_User"]
     n0 -.->|GH_Contains| n1
-    n1 -.->|GH_RequestsAccessTo| n2
+    n1 -.->|GH_CanAccess| n2
     n3 -.->|GH_HasPersonalAccessTokenRequest| n1
 ```

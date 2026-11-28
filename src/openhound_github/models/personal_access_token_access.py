@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.pat_ids import pat_node_id
 
 
 class Owner(BaseModel):
@@ -50,7 +51,9 @@ class PatRepoAccess(BaseAsset):
 
     @property
     def pat_node_id(self) -> str:
-        return f"GH_PAT_{self.org_node_id}_{self.pat_id}"
+        return pat_node_id(
+            self._lookup.org_database_id_for_login(self.org_login), self.pat_id
+        )
 
     @property
     def edges(self):

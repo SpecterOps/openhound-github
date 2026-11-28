@@ -9,12 +9,9 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.permissions import normalize_permission_declaration
-from openhound_github.models.scope import (
-    ALL_REPOSITORIES_SCOPE,
-    REPOSITORY_SCOPE_TYPE,
-    scope_node_id,
-)
+from openhound_github.models.permissions import split_permission_groups
+from openhound_github.models.pat_access import pat_access_edges
+from openhound_github.pat_ids import pat_request_node_id
 
 
 class Owner(BaseModel):
@@ -27,19 +24,19 @@ class Owner(BaseModel):
 
 @dataclass
 class GHPersonalAccessTokenRequestProperties(GHNodeProperties):
-    """PAT request properties and accordion panel queries.
-    
+    """PAT request properties; entity-panel queries live in the extension schema.
+
     Attributes:
         token_name: The user-assigned display name of the token.
         owner_login: The login handle of the user who submitted the request.
         repository_selection: Whether the request targets `all`, `subset`, or `none` of the organization's repositories.
         reason: The rationale provided by the requester for the access request.
         org_name: The org name property.
-        organization_permissions: Requested organization-scoped permissions in `scope:access` form.
-        repository_permissions: Requested repository-scoped permissions in `scope:access` form.
-        query_organization_permissions: Query for organization permissions.
-        query_user: Query for user.
-        query_repositories: Query for repositories.
+        permissions_organization: Requested organization permissions as permission:access values.
+        permissions_repository: Requested repository permissions as permission:access values.
+        permissions_enterprise: Requested enterprise permissions as permission:access values.
+        permissions_account: Requested account permissions as permission:access values.
+        permissions_unclassified: Requested permissions absent from the shared catalog.
     """
 
     # TODO: Check for the following fields
@@ -50,11 +47,11 @@ class GHPersonalAccessTokenRequestProperties(GHNodeProperties):
     repository_selection: str | None = None
     reason: str | None = None
     org_name: str | None = None
-    organization_permissions: list[str] | None = None
-    repository_permissions: list[str] | None = None
-    query_organization_permissions: str | None = None
-    query_user: str | None = None
-    query_repositories: str | None = None
+    permissions_organization: list[str] | None = None
+    permissions_repository: list[str] | None = None
+    permissions_enterprise: list[str] | None = None
+    permissions_account: list[str] | None = None
+    permissions_unclassified: list[str] | None = None
 
 
 @app.asset(
@@ -65,6 +62,20 @@ class GHPersonalAccessTokenRequestProperties(GHNodeProperties):
         properties=GHPersonalAccessTokenRequestProperties,
     ),
     edges=[
+        EdgeDef(
+            start=nk.PERSONAL_ACCESS_TOKEN_REQUEST,
+            end=nk.ORGANIZATION,
+            kind=ek.CAN_ACCESS,
+            description="PAT request targets organization permissions",
+            traversable=False,
+        ),
+        EdgeDef(
+            start=nk.PERSONAL_ACCESS_TOKEN_REQUEST,
+            end=nk.ENTERPRISE,
+            kind=ek.CAN_ACCESS,
+            description="PAT request targets declared enterprise permissions",
+            traversable=False,
+        ),
         EdgeDef(
             start=nk.USER,
             end=nk.PERSONAL_ACCESS_TOKEN_REQUEST,
@@ -106,13 +117,14 @@ class PersonalAccessTokenRequest(BaseAsset):
 
     @property
     def node_id(self) -> str:
-        """Construct a generated node id"""
-        return f"GH_PATRequest_{self.org_node_id}_{self.id}"
+        """Identify this request independently of the underlying token."""
+        return pat_request_node_id(
+            self._lookup.org_database_id_for_login(self.org_login), self.id
+        )
 
     @property
     def as_node(self) -> GHNode:
         rid = self.node_id
-        permissions = self.permissions or {}
         return GHNode(
             kinds=[nk.PERSONAL_ACCESS_TOKEN_REQUEST],
             properties=GHPersonalAccessTokenRequestProperties(
@@ -125,15 +137,7 @@ class PersonalAccessTokenRequest(BaseAsset):
                 repository_selection=self.repository_selection,
                 reason=self.reason,
                 org_name=self.org_login,
-                organization_permissions=normalize_permission_declaration(
-                    permissions.get("organization")
-                ),
-                repository_permissions=normalize_permission_declaration(
-                    permissions.get("repository")
-                ),
-                query_organization_permissions=f"MATCH p=(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}})-[:GH_CanAccess]->(:GH_Organization) RETURN p",
-                query_user=f"MATCH p=(:GH_User)-[:GH_HasPersonalAccessTokenRequest]->(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}}) RETURN p",
-                query_repositories=f"MATCH p=(:GH_PersonalAccessTokenRequest {{node_id:'{rid}'}})-[:GH_RequestsAccessTo|GH_ScopedTo*1..2]->(:GH_Repository) RETURN p LIMIT 1000",
+                **split_permission_groups(self.permissions),
             ),
         )
 
@@ -149,23 +153,17 @@ class PersonalAccessTokenRequest(BaseAsset):
 
     @property
     def edges(self):
+        yield from self._owner_edge
         yield Edge(
             kind=ek.CONTAINS,
             start=EdgePath(value=self.org_node_id, match_by="id"),
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
-        if self.repository_selection == "all":
-            yield Edge(
-                kind=ek.REQUESTS_ACCESS_TO,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(
-                    value=scope_node_id(
-                        self.org_node_id,
-                        REPOSITORY_SCOPE_TYPE,
-                        ALL_REPOSITORIES_SCOPE,
-                    ),
-                    match_by="id",
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
+        yield from pat_access_edges(
+            self._lookup,
+            node_id=self.node_id,
+            org_node_id=self.org_node_id,
+            repository_selection=self.repository_selection,
+            permissions=split_permission_groups(self.permissions),
+        )

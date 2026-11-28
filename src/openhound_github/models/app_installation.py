@@ -7,16 +7,15 @@ from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
 from pydantic import BaseModel, Field, model_validator
 
-from openhound_github.graph import GHEdgeProperties, GHNode, GHNodeProperties
+from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
 from openhound_github.models.app_permissions import split_app_permissions
+from openhound_github.models.branch_creation import branch_creation_edges
 from openhound_github.models.scope import (
     ALL_REPOSITORIES_SCOPE,
-    REPOSITORY_BRANCH_CREATION_SCOPE_TYPE,
     REPOSITORY_SCOPE_TYPE,
-    UNRESTRICTED_BRANCH_CREATION_SCOPE,
     scope_node_id,
 )
 
@@ -284,67 +283,25 @@ class AppInstallation(BaseAsset):
         ):
             return
 
-        use_scope = self.repository_selection == "all" and (
-            self._lookup.branch_creation_scope_available(
-                self.environment_slug, self.org_node_id
-            )
-        )
-        if use_scope and self._lookup.canonical_scope_has_targets(
-            self.environment_slug,
-            REPOSITORY_BRANCH_CREATION_SCOPE_TYPE,
-            UNRESTRICTED_BRANCH_CREATION_SCOPE,
-        ):
-            target_scope_id = scope_node_id(
-                self.org_node_id,
-                REPOSITORY_BRANCH_CREATION_SCOPE_TYPE,
-                UNRESTRICTED_BRANCH_CREATION_SCOPE,
-            )
-            yield Edge(
-                kind=ek.CAN_CREATE_BRANCH,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(
-                    value=target_scope_id,
-                    match_by="id",
-                ),
-                properties=GHEdgeProperties(
-                    traversable=True,
-                    composed=True,
-                    reason="contents_write_and_all_repository_access",
-                    query_composition=(
-                        self._branch_creation_access_query
-                        + f"MATCH p1=(:GH_Scope {{node_id:'{target_scope_id}'}})"
-                        "-[:GH_ScopedTo]->(repository) RETURN p, p1"
-                    ),
-                ),
-            )
-        for (
-            repository_id,
-            reason,
-        ) in self._lookup.app_installation_branch_creation_repositories(
-            self.id, self.environment_slug, exclude_shared=use_scope
-        ):
-            query = (
-                self._branch_creation_access_query
-                + f"AND repository.node_id = '{repository_id}' "
-            )
-            if reason == "app_push_allowance":
-                query += (
+        yield from branch_creation_edges(
+            self._lookup,
+            credential_node_id=self.node_id,
+            org_login=self.environment_slug,
+            org_node_id=self.org_node_id,
+            allow_shared_scope=self.repository_selection == "all",
+            resolve_repositories=lambda exclude_shared: (
+                self._lookup.app_installation_branch_creation_repositories(
+                    self.id, self.environment_slug, exclude_shared=exclude_shared
+                )
+            ),
+            access_query=self._branch_creation_access_query,
+            repository_evidence_queries={
+                "app_push_allowance": (
                     "MATCH p1=(installation)-[:GH_RestrictionsCanPush]->"
                     "(:GH_BranchProtectionRule)<-[:GH_Contains]-(repository) RETURN p, p1"
-                )
-            else:
-                query += "RETURN p"
-            yield Edge(
-                kind=ek.CAN_CREATE_BRANCH,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(value=repository_id, match_by="id"),
-                properties=GHEdgeProperties(
-                    traversable=True,
-                    composed=True,
-                    reason=reason,
-                    query_composition=query,
                 ),
-            )
+            },
+        )
 
     @property
     def edges(self):

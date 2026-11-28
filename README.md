@@ -191,6 +191,28 @@ collections without the scope record use direct repository edges instead.
 Archived or disabled repositories are excluded. Repository access scopes retain
 their existing meaning, and no branch-write or deployment capability is implied.
 
+### Fine-grained PAT identities
+
+Active fine-grained PATs with `contents:write` can receive `GH_CanCreateBranch`
+edges capped by their owner's existing effective repository-role capabilities.
+Token repository selection is intersected with direct, team, and organization
+role authority. Shared branch-creation scopes require owner authority over every
+member; partial access uses direct repository edges. Pending requests and expired
+tokens receive no active capabilities. Re-run preprocessing before conversion
+to load selected PAT repository grants into the lookup.
+
+PAT nodes use `PAT_<payload>` and PAT requests use `PATR_<payload>`, where the
+payload is unpadded URL-safe Base64 of MessagePack `[1, organization_database_id,
+grant_id]` or `[1, organization_database_id, request_id]`, respectively. These
+are collector-owned identifiers. Both use their respective API record's `id`,
+not `token_id`. Organization IDs come from collected numeric `database_id` values.
+
+Existing collections can be reused when their organization database IDs are present;
+missing numeric identity data requires recollection. Conversion fails rather
+than inventing an ID from missing data. Generate a fresh graph output and remove
+the old `GH_PAT_*` / `GH_PATRequest_*` nodes and their relationships from the
+imported graph before importing the replacement identities to avoid duplicates.
+
 ### App registration management
 
 Organization owners and predefined App manager roles receive traversable

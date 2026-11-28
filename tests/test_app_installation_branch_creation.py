@@ -9,6 +9,7 @@ import pytest
 from openhound_github.kinds import edges as ek
 from openhound_github.lookup import GithubLookup
 from openhound_github.models.app_installation import AppInstallation
+from openhound_github.models.branch_creation import branch_creation_edges
 from openhound_github.models.scope import (
     REPOSITORY_BRANCH_CREATION_SCOPE_TYPE,
     UNRESTRICTED_BRANCH_CREATION_SCOPE,
@@ -333,3 +334,84 @@ def test_explore_queries_resolve_both_direct_and_scoped_capabilities():
     )
     assert "GH_CanCreateBranch" in search["query"]
     assert "GH_ScopedTo*0..1" in search["query"]
+
+
+@pytest.mark.parametrize("bypass", [False, None, True])
+@pytest.mark.parametrize("exclude_shared", [False, True])
+def test_shared_evaluator_accepts_credential_policy_and_requires_positive_bypass(
+    connection, bypass, exclude_shared
+):
+    branch_creation_eligibility(connection, "inventory")
+    lookup = GithubLookup(connection, schema="inventory")
+    rows = lookup._branch_creation_repositories_for_access(
+        "ACME",
+        access_query="""SELECT node_id AS repository_node_id,
+                       CAST(? AS BOOLEAN) AS can_bypass FROM inventory.repositories""",
+        access_parameters=[bypass],
+        restriction_bypass_query="access.can_bypass",
+        bypass_reason="test_actor_allowance",
+        exclude_shared=exclude_shared,
+    )
+    expected = set()
+    if not exclude_shared:
+        expected |= {
+            ("R_OPEN", "shared_creation_eligibility"),
+            ("R_NAMED", "shared_creation_eligibility"),
+        }
+    if bypass is True:
+        expected |= {
+            ("R_EXCEPTION", "test_actor_allowance"),
+            ("R_DENIED", "test_actor_allowance"),
+        }
+    assert set(rows) == expected
+
+
+@pytest.mark.parametrize("second_pattern", ["*", "?*"])
+def test_shared_evaluator_requires_every_restriction_to_have_known_bypass(
+    connection, second_pattern
+):
+    add_rule(connection, "R_EXCEPTION", pattern=second_pattern, rule_id="SECOND")
+    branch_creation_eligibility(connection, "inventory")
+    lookup = GithubLookup(connection, schema="inventory")
+    rows = lookup._branch_creation_repositories_for_access(
+        "acme",
+        access_query="SELECT 'R_EXCEPTION' AS repository_node_id",
+        access_parameters=[],
+        restriction_bypass_query="restriction.rule_id = 'EXCEPTION'",
+        bypass_reason="test_actor_allowance",
+    )
+    assert rows == []
+
+
+@pytest.mark.parametrize("allow_shared_scope", [False, True])
+def test_shared_edge_builder_requires_explicit_authority_for_scope_members(
+    connection, allow_shared_scope
+):
+    branch_creation_eligibility(connection, "inventory")
+    lookup = GithubLookup(connection, schema="inventory")
+    exclusions = []
+
+    def resolve(exclude_shared):
+        exclusions.append(exclude_shared)
+        return [] if exclude_shared else [("R_OPEN", "shared_creation_eligibility")]
+
+    edges = list(
+        branch_creation_edges(
+            lookup,
+            credential_node_id="TEST_CREDENTIAL",
+            org_login="acme",
+            org_node_id="O_1",
+            allow_shared_scope=allow_shared_scope,
+            resolve_repositories=resolve,
+            access_query="MATCH p=(credential)-[:GH_CanAccess]->(repository) WHERE true ",
+            repository_evidence_queries={},
+        )
+    )
+    assert {edge.end.value for edge in edges} == (
+        {SCOPE_ID} if allow_shared_scope else {"R_OPEN"}
+    )
+    assert exclusions == [allow_shared_scope]
+    assert all(edge.start.value == "TEST_CREDENTIAL" for edge in edges)
+    assert all(
+        edge.properties.traversable and edge.properties.composed for edge in edges
+    )

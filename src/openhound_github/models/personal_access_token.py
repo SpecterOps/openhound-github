@@ -1,27 +1,29 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import ClassVar
 
 from dlt.common.libs.pydantic import DltConfig
 from openhound.core.asset import BaseAsset, EdgeDef, NodeDef
 from openhound.core.models.entries_dataclass import Edge, EdgePath, EdgeProperties
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
-from openhound_github.models.permissions import normalize_permission_declaration
-from openhound_github.models.scope import (
-    ALL_REPOSITORIES_SCOPE,
-    REPOSITORY_SCOPE_TYPE,
-    scope_node_id,
-)
+from openhound_github.models.permissions import split_permission_groups
+from openhound_github.models.pat_access import pat_access_edges
+from openhound_github.models.branch_creation import branch_creation_edges
+from openhound_github.pat_ids import pat_node_id
 
 
 class Permissions(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     organization: dict | None = None
     repository: dict | None = None
+    enterprise: dict | None = None
+    account: dict | None = None
 
 
 class Owner(BaseModel):
@@ -33,24 +35,24 @@ class Owner(BaseModel):
 
 @dataclass
 class GHPersonalAccessTokenProperties(GHNodeProperties):
-    """PAT properties and accordion panel queries.
+    """PAT properties; entity-panel queries live in the extension schema.
 
     Attributes:
         environment_name: The name of the environment (GitHub organization) where the token has access.
         owner_id: The GitHub ID of the token owner.
         owner_node_id: The GraphQL node ID of the token owner.
         token_expires_at: The ISO 8601 timestamp of when the token expires.
-        organization_permissions: Organization-scoped permissions in `scope:access` form.
-        repository_permissions: Repository-scoped permissions in `scope:access` form.
+        permissions_organization: Granted organization permissions as permission:access values.
+        permissions_repository: Granted repository permissions as permission:access values.
+        permissions_enterprise: Granted enterprise permissions as permission:access values.
+        permissions_account: Granted account permissions as permission:access values.
+        permissions_unclassified: Granted permissions absent from the shared catalog.
         token_last_used_at: The ISO 8601 timestamp of when the token was last used.
         access_granted_at: The ISO 8601 timestamp of when the token was granted to the organization.
         token_name: The user-assigned display name of the token.
         owner_login: The login handle of the user who owns the token.
         repository_selection: Whether the token has access to `all`, `subset`, or `none` of the organization's repositories.
         token_expired: Whether the token has expired.
-        query_organization_permissions: Query for organization permissions.
-        query_user: Query for user.
-        query_repositories: Query for repositories.
     """
 
     environment_name: str
@@ -60,15 +62,15 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
     token_expires_at: datetime | None = None
     token_last_used_at: datetime | None = None
     access_granted_at: datetime | None = None
-    organization_permissions: list[str] | None = None
-    repository_permissions: list[str] | None = None
+    permissions_organization: list[str] | None = None
+    permissions_repository: list[str] | None = None
+    permissions_enterprise: list[str] | None = None
+    permissions_account: list[str] | None = None
+    permissions_unclassified: list[str] | None = None
     token_name: str | None = None
     owner_login: str | None = None
     repository_selection: str | None = None
     token_expired: bool | None = None
-    query_organization_permissions: str | None = None
-    query_user: str | None = None
-    query_repositories: str | None = None
 
 
 @app.asset(
@@ -79,6 +81,13 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
         properties=GHPersonalAccessTokenProperties,
     ),
     edges=[
+        EdgeDef(
+            start=nk.PERSONAL_ACCESS_TOKEN,
+            end=nk.ENTERPRISE,
+            kind=ek.CAN_ACCESS,
+            description="Credential targets declared enterprise permissions",
+            traversable=False,
+        ),
         EdgeDef(
             start=nk.USER,
             end=nk.PERSONAL_ACCESS_TOKEN,
@@ -92,6 +101,20 @@ class GHPersonalAccessTokenProperties(GHNodeProperties):
             kind=ek.CONTAINS,
             description="Org contains PAT",
             traversable=False,
+        ),
+        EdgeDef(
+            start=nk.PERSONAL_ACCESS_TOKEN,
+            end=nk.REPOSITORY,
+            kind=ek.CAN_CREATE_BRANCH,
+            description="PAT can create branches within its owner's effective authority",
+            traversable=True,
+        ),
+        EdgeDef(
+            start=nk.PERSONAL_ACCESS_TOKEN,
+            end=nk.SCOPE,
+            kind=ek.CAN_CREATE_BRANCH,
+            description="PAT can create branches throughout an authorized repository scope",
+            traversable=True,
         ),
         EdgeDef(
             start=nk.PERSONAL_ACCESS_TOKEN,
@@ -129,8 +152,10 @@ class PersonalAccessToken(BaseAsset):
 
     @property
     def node_id(self) -> str:
-        """Construct a synthetic node_id for this PAT based on org node ID and token ID. This is needed to link users to their PATs via edges, since GH doesn't return unique IDs for PATs."""
-        return f"GH_PAT_{self.org_node_id}_{self.id}"
+        """Identify the token's organization grant using its numeric API ID."""
+        return pat_node_id(
+            self._lookup.org_database_id_for_login(self.org_login), self.id
+        )
 
     @property
     def as_node(self) -> GHNode:
@@ -149,16 +174,9 @@ class PersonalAccessToken(BaseAsset):
                 environment_name=self.org_login,
                 token_expires_at=self.token_expires_at,
                 owner_id=self.owner.id if self.owner else None,
-                organization_permissions=normalize_permission_declaration(
-                    self.permissions.organization if self.permissions else None
-                ),
-                repository_permissions=normalize_permission_declaration(
-                    self.permissions.repository if self.permissions else None
-                ),
+                owner_node_id=self.owner.node_id,
+                **split_permission_groups(self.permissions.model_dump()),
                 token_last_used_at=self.token_last_used_at,
-                query_organization_permissions=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess]->(:GH_Organization) RETURN p",
-                query_user=f"MATCH p=(:GH_User)-[:GH_HasPersonalAccessToken]->(:GH_PersonalAccessToken {{node_id:'{pid}'}}) RETURN p",
-                query_repositories=f"MATCH p=(:GH_PersonalAccessToken {{node_id:'{pid}'}})-[:GH_CanAccess|GH_ScopedTo*1..2]->(:GH_Repository) RETURN p LIMIT 1000",
             ),
         )
 
@@ -173,6 +191,65 @@ class PersonalAccessToken(BaseAsset):
             )
 
     @property
+    def _can_create_branch_edges(self):
+        permissions = split_permission_groups(self.permissions.model_dump())
+        if (
+            self.token_expired
+            or "contents:write" not in permissions["permissions_repository"]
+            or self.repository_selection not in {"all", "subset", "selected"}
+            or not self.owner.node_id
+            or not self.org_node_id
+        ):
+            return
+        now = datetime.now(timezone.utc)
+        for expiration in (self.expires_at, self.token_expires_at):
+            if expiration is not None:
+                if expiration.tzinfo is None:
+                    expiration = expiration.replace(tzinfo=timezone.utc)
+                if expiration <= now:
+                    return
+
+        owner_id = self.owner.node_id.replace("\\", "\\\\").replace("'", "\\'")
+        access_query = (
+            f"MATCH p=(token:GH_PersonalAccessToken {{node_id:'{self.node_id}'}})"
+            "-[:GH_CanAccess|GH_ScopedTo*1..2]->(repository:GH_Repository) "
+            f"MATCH owner_access=(owner:GH_User {{node_id:'{owner_id}'}})"
+            "-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf*1..]->(:GH_RepoRole)"
+            "-[:GH_CanCreateBranch]->(repository) "
+            "WHERE 'contents:write' IN token.permissions_repository "
+            "AND token.token_expired = false "
+        )
+        yield from branch_creation_edges(
+            self._lookup,
+            credential_node_id=self.node_id,
+            org_login=self.org_login,
+            org_node_id=self.org_node_id,
+            allow_shared_scope=(
+                self.repository_selection == "all"
+                and self._lookup.pat_branch_creation_scope_authorized(
+                    self.owner.node_id, self.org_login, self.id
+                )
+            ),
+            resolve_repositories=lambda exclude_shared: (
+                self._lookup.pat_branch_creation_repositories(
+                    self.owner.node_id,
+                    self.org_login,
+                    self.id,
+                    self.repository_selection,
+                    exclude_shared=exclude_shared,
+                )
+            ),
+            access_query=access_query,
+            supporting_paths=("owner_access",),
+            repository_evidence_queries={
+                "owner_creation_capability": (
+                    "MATCH protections=(repository)-[:GH_Contains]->(rule:GH_BranchProtectionRule) "
+                    "RETURN p, owner_access, protections"
+                ),
+            },
+        )
+
+    @property
     def edges(self):
         yield Edge(
             kind=ek.CONTAINS,
@@ -180,24 +257,12 @@ class PersonalAccessToken(BaseAsset):
             end=EdgePath(value=self.node_id, match_by="id"),
             properties=EdgeProperties(traversable=False),
         )
-        yield Edge(
-            kind=ek.CAN_ACCESS,
-            start=EdgePath(value=self.node_id, match_by="id"),
-            end=EdgePath(value=self.org_node_id, match_by="id"),
-            properties=EdgeProperties(traversable=False),
+        yield from pat_access_edges(
+            self._lookup,
+            node_id=self.node_id,
+            org_node_id=self.org_node_id,
+            repository_selection=self.repository_selection,
+            permissions=split_permission_groups(self.permissions.model_dump()),
         )
-        if self.repository_selection == "all":
-            yield Edge(
-                kind=ek.CAN_ACCESS,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(
-                    value=scope_node_id(
-                        self.org_node_id,
-                        REPOSITORY_SCOPE_TYPE,
-                        ALL_REPOSITORIES_SCOPE,
-                    ),
-                    match_by="id",
-                ),
-                properties=EdgeProperties(traversable=False),
-            )
         yield from self._owner_edge
+        yield from self._can_create_branch_edges
