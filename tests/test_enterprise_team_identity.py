@@ -8,6 +8,7 @@ from openhound_github.enterprise_team_ids import (
     enterprise_database_id,
     enterprise_team_node_id,
 )
+from openhound_github.role_ids import role_node_id
 from openhound_github.lookup import GithubLookup
 from openhound_github.models import (
     EnterpriseTeam,
@@ -64,6 +65,12 @@ def lookup_with_observations():
         "INSERT INTO github.projected_enterprise_teams VALUES (?,?,'org-one'), (?,?,'org-two'), (?,'ET_other','other')",
         [TEAM_ID, NATIVE, TEAM_ID, NATIVE, TEAM_ID],
     )
+    con.execute("ALTER TABLE github.enterprise ADD COLUMN IF NOT EXISTS database_id BIGINT")
+    con.execute("INSERT INTO github.enterprise (id, database_id) VALUES (?, 569334)", [ENTERPRISE])
+    con.execute("CREATE TABLE github.repositories (node_id VARCHAR, database_id BIGINT)")
+    con.execute("INSERT INTO github.repositories VALUES ('R_1', 1), ('R_2', 2)")
+    con.execute("ALTER TABLE github.repo_roles ADD COLUMN IF NOT EXISTS type VARCHAR")
+    con.execute("INSERT INTO github.repo_roles (repository_node_id, id, name, type) VALUES ('R_1', 77, 'security-review', 'custom'), ('R_2', 77, 'security-review', 'custom')")
     return GithubLookup(con)
 
 
@@ -203,7 +210,7 @@ def test_repository_grants_use_org_client_and_native_team_identity(
         model._lookup = lookup
         edge = next(model.edges)
         assert edge.start.value == NATIVE
-        assert edge.end.value == f"{row['repo_node_id']}_{role}"
+        assert edge.end.value == role_node_id("repository", int(row["repo_node_id"][-1]), role if role == "admin" else 77, builtin=role == "admin")
 
 
 def test_grants_skip_orgs_without_collection_access(caplog):

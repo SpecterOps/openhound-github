@@ -1,3 +1,4 @@
+from role_id_helpers import configure_role_ids, org_role_id
 import duckdb
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -425,7 +426,7 @@ def test_org_runner_group_access_all_visibility_excludes_public_repositories_whe
         inherited=True,
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.private_repository_node_ids_for_org.return_value = [("REPO_PRIVATE",)]
     lookup.members_can_create_repository.return_value = (False, False, False, False)
@@ -451,7 +452,7 @@ def test_org_runner_group_access_selected_visibility_excludes_public_repositorie
         accessible_repo_node_ids=["REPO_PRIVATE", "REPO_PUBLIC"],
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.private_repository_node_ids_for_org.return_value = [("REPO_PRIVATE",)]
     access._lookup = lookup
@@ -473,7 +474,7 @@ def test_org_runner_group_access_emits_traversable_use_edges_for_unrestricted_gr
         accessible_repo_node_ids=["REPO_1"],
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.actions_enabled_repository_node_ids_for_org.return_value = [("REPO_1",)]
     lookup.branch_node_ids_for_org.return_value = [
@@ -507,7 +508,7 @@ def test_org_runner_group_access_does_not_emit_use_edges_when_actions_disabled()
         accessible_repo_node_ids=["REPO_1"],
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.actions_enabled_repository_node_ids_for_org.return_value = []
     lookup.branch_node_ids_for_org.return_value = [("REPO_1", "BRANCH_1")]
@@ -529,7 +530,7 @@ def test_inherited_org_runner_group_access_requires_enterprise_workflow_policy_t
         accessible_repo_node_ids=["REPO_1"],
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.enterprise_runner_group_restricted_to_workflows_for_inherited_org_group.return_value = (
         True
@@ -555,7 +556,7 @@ def test_org_runner_group_access_all_visibility_emits_traversable_create_access_
         restricted_to_workflows=False,
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.repository_node_ids_for_org.return_value = []
     lookup.actions_enabled_repositories_for_org.return_value = "all"
@@ -572,7 +573,7 @@ def test_org_runner_group_access_all_visibility_emits_traversable_create_access_
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
     ]
-    assert [edge.start.value for edge in edges] == ["ORG_1_owners", "ORG_1_members"]
+    assert [edge.start.value for edge in edges] == [org_role_id("owners"), org_role_id("members")]
     assert {edge.end.value for edge in edges} == {"ORG_1_runner_group_1"}
     assert all(edge.properties.traversable is True for edge in edges)
     query = edges[1].properties.query_composition
@@ -594,7 +595,7 @@ def test_org_runner_group_access_without_public_access_requires_private_or_inter
         restricted_to_workflows=False,
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.private_repository_node_ids_for_org.return_value = []
     lookup.actions_enabled_repositories_for_org.return_value = "all"
@@ -610,7 +611,7 @@ def test_org_runner_group_access_without_public_access_requires_private_or_inter
     assert [edge.kind for edge in edges] == [
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS
     ]
-    assert edges[0].start.value == "ORG_1_owners"
+    assert edges[0].start.value == org_role_id("owners")
     assert edges[0].properties.traversable is True
     query = edges[0].properties.query_composition
     assert "GH_CanCreateInternalRepositories" in query
@@ -628,7 +629,7 @@ def test_org_runner_group_access_private_visibility_requires_private_or_internal
         restricted_to_workflows=False,
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.private_repository_node_ids_for_org.return_value = []
     lookup.actions_enabled_repositories_for_org.return_value = "all"
@@ -645,7 +646,7 @@ def test_org_runner_group_access_private_visibility_requires_private_or_internal
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
         ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
     ]
-    assert [edge.start.value for edge in edges] == ["ORG_1_owners", "ORG_1_members"]
+    assert [edge.start.value for edge in edges] == [org_role_id("owners"), org_role_id("members")]
     assert all(edge.properties.traversable is True for edge in edges)
     query = edges[1].properties.query_composition
     assert "GH_CanCreateInternalRepositories" in query
@@ -663,7 +664,7 @@ def test_org_runner_group_access_selected_visibility_does_not_emit_latent_access
         accessible_repo_node_ids=[],
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.members_can_create_repository.return_value = (True, True, True, True)
     access._lookup = lookup
@@ -682,7 +683,7 @@ def test_org_runner_group_access_does_not_emit_create_access_when_new_repositori
         restricted_to_workflows=False,
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.repository_node_ids_for_org.return_value = []
     lookup.actions_enabled_repositories_for_org.return_value = "selected"
@@ -704,7 +705,7 @@ def test_inherited_org_runner_group_create_access_requires_enterprise_workflow_p
         inherited=True,
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.repository_node_ids_for_org.return_value = []
     lookup.actions_enabled_repositories_for_org.return_value = "all"
@@ -739,7 +740,7 @@ def test_inherited_org_runner_group_create_access_is_not_emitted_when_enterprise
         inherited=True,
         org_login="acme",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.org_id_for_login.return_value = "ORG_1"
     lookup.repository_node_ids_for_org.return_value = []
     lookup.actions_enabled_repositories_for_org.return_value = "all"

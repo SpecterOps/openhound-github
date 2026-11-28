@@ -208,7 +208,7 @@ class Scope(BaseAsset):
         edge_kinds = self._repository_creation_edge_kinds
         if not edge_kinds:
             return
-        owners_role_id = f"{self.org_node_id}_owners"
+        owners_role_id = self._lookup.org_role_node_id(self.org_node_id, "owners")
         yield Edge(
             kind=ek.CAN_READ_SECRET,
             start=EdgePath(value=owners_role_id, match_by="id"),
@@ -221,7 +221,7 @@ class Scope(BaseAsset):
         )
 
         if self._members_can_create_repository_in_scope(edge_kinds):
-            members_role_id = f"{self.org_node_id}_members"
+            members_role_id = self._lookup.org_role_node_id(self.org_node_id, "members")
             yield Edge(
                 kind=ek.CAN_READ_SECRET,
                 start=EdgePath(value=members_role_id, match_by="id"),

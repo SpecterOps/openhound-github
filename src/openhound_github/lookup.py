@@ -7,6 +7,7 @@ import duckdb
 from duckdb import DuckDBPyConnection
 from openhound.core.lookup import LookupManager, logger
 
+from openhound_github.role_ids import role_node_id
 from openhound_github.runner_ids import runner_group_node_id, runner_node_id
 from openhound_github.enterprise_team_ids import enterprise_team_node_id
 
@@ -40,6 +41,75 @@ class GithubLookup(LookupManager):
         except duckdb.Error as err:
             logger.error("DuckDB lookup query failed: %s", err)
             return None
+
+    @lru_cache
+    def role_parent_database_id(self, kind: str, parent_node_id: str) -> int:
+        table, column = {
+            "repository": ("repositories", "node_id"),
+            "organization": ("organizations", "node_id"),
+            "enterprise": ("enterprise", "id"),
+        }[kind]
+        value = self._find_single_object(
+            f"SELECT database_id FROM {self.schema}.{table} WHERE {column} = ?",
+            [parent_node_id],
+        )
+        if value is None:
+            raise ValueError(
+                f"Missing {kind} database ID for role parent {parent_node_id!r}"
+            )
+        return int(value)
+
+    @lru_cache
+    def repo_role_node_id(self, repository_node_id: str, role_name: str) -> str | None:
+        row = self._find_single_row(
+            f"SELECT id, type FROM {self.schema}.repo_roles WHERE repository_node_id = ? AND name = ?",
+            [repository_node_id, role_name],
+        )
+        if row is None and role_name not in {
+            "read",
+            "triage",
+            "write",
+            "maintain",
+            "admin",
+        }:
+            return None
+        builtin = row[1] == "default" if row is not None else True
+        key = role_name if builtin else int(row[0])
+        return role_node_id(
+            "repository",
+            self.role_parent_database_id("repository", repository_node_id),
+            key,
+            builtin=builtin,
+        )
+
+    @lru_cache
+    def org_role_node_id(self, org_node_id: str, role_name: str) -> str | None:
+        row = self._find_single_row(
+            f"SELECT id, type FROM {self.schema}.org_roles WHERE org_node_id = ? AND name = ?",
+            [org_node_id, role_name],
+        )
+        if row is None and role_name not in {"owners", "members"}:
+            return None
+        builtin = row[1] == "default" if row is not None else True
+        key = role_name if builtin else int(row[0])
+        return role_node_id(
+            "organization",
+            self.role_parent_database_id("organization", org_node_id),
+            key,
+            builtin=builtin,
+        )
+
+    @lru_cache
+    def enterprise_role_node_id(
+        self, enterprise_node_id: str, role_id: str | int
+    ) -> str:
+        builtin = role_id in {"owners", "members"}
+        return role_node_id(
+            "enterprise",
+            self.role_parent_database_id("enterprise", enterprise_node_id),
+            role_id if builtin else int(role_id),
+            builtin=builtin,
+        )
 
     @lru_cache
     def org_id(self) -> str | None:
@@ -148,10 +218,13 @@ class GithubLookup(LookupManager):
 
     @lru_cache
     def has_app_owner(self, node_id: str, owner_type: str) -> bool:
-        return self._find_single_object(
-            f"SELECT node_id FROM {self.schema}.app_owners WHERE node_id = ? AND type = ?",
-            [node_id, owner_type],
-        ) is not None
+        return (
+            self._find_single_object(
+                f"SELECT node_id FROM {self.schema}.app_owners WHERE node_id = ? AND type = ?",
+                [node_id, owner_type],
+            )
+            is not None
+        )
 
     @lru_cache
     def is_collected_user_node_id(self, node_id: str) -> bool:
@@ -1156,9 +1229,9 @@ class GithubLookup(LookupManager):
     def repo_role_node_ids_with_view_secret_scanning_alerts(
         self, repository_node_id: str
     ):
-        return self._find_all_objects(
+        rows = self._find_all_objects(
             f"""
-                SELECT repository_node_id || '_' || name
+                SELECT repository_node_id, name
                 FROM {self.schema}.repo_roles
                 WHERE repository_node_id = ?
                   AND (
@@ -1168,12 +1241,13 @@ class GithubLookup(LookupManager):
                 """,
             [repository_node_id],
         )
+        return [(self.repo_role_node_id(parent, name),) for parent, name in rows]
 
     @lru_cache
     def org_role_node_ids_with_view_secret_scanning_alerts(self, org_login: str):
-        return self._find_all_objects(
+        rows = self._find_all_objects(
             f"""
-             SELECT org_node_id || '_' || name
+             SELECT org_node_id, name
              FROM {self.schema}.org_roles
              WHERE org_login = ?
                AND (
@@ -1183,6 +1257,7 @@ class GithubLookup(LookupManager):
              """,
             [org_login],
         )
+        return [(self.org_role_node_id(parent, name),) for parent, name in rows]
 
     @lru_cache
     def actor_gate_bypass(
@@ -1686,9 +1761,9 @@ class GithubLookup(LookupManager):
 
     @lru_cache
     def repo_role_node_ids_with_read_repo_contents(self, repository_node_id: str):
-        return self._find_all_objects(
+        rows = self._find_all_objects(
             f"""
-            SELECT repository_node_id || '_' || name
+            SELECT repository_node_id, name
             FROM {self.schema}.repo_roles
             WHERE repository_node_id = ?
               AND type = 'default'
@@ -1696,3 +1771,4 @@ class GithubLookup(LookupManager):
             """,
             [repository_node_id],
         )
+        return [(self.repo_role_node_id(parent, name),) for parent, name in rows]

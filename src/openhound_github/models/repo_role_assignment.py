@@ -148,12 +148,13 @@ class RepoRoleAssignment(BaseAsset):
         # TODO: CHeck if edge goes actor → role node (not actor → repo).
         """Yield repository-role and branch-access edges from the resolved actor."""
         if self.role_name:
-            role_node_id = f"{self.repo_node_id}_{self.role_name}"
-            yield Edge(
-                kind=ek.HAS_ROLE,
-                start=EdgePath(value=self.actor_node_id, match_by="id"),
-                end=EdgePath(value=role_node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
-            )
+            role_node_id = self._lookup.repo_role_node_id(self.repo_node_id, self.role_name)
+            if role_node_id:
+                yield Edge(
+                    kind=ek.HAS_ROLE,
+                    start=EdgePath(value=self.actor_node_id, match_by="id"),
+                    end=EdgePath(value=role_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )
 
         yield from self._bypass_edges

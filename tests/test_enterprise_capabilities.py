@@ -1,3 +1,4 @@
+from role_id_helpers import configure_role_ids
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -49,7 +50,7 @@ def _role(permissions: list[str]) -> EnterpriseRole:
         enterprise_node_id="ENT_NODE_1",
         enterprise_slug="example-enterprise",
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.enterprise_id.return_value = "ENT_NODE_1"
     role._lookup = lookup
     return role
@@ -94,7 +95,7 @@ def test_every_enterprise_permission_has_a_unique_edge_kind() -> None:
 def test_unknown_enterprise_permission_is_preserved_but_not_invented_as_edge() -> None:
     edges = list(_role(["future_permission_not_yet_modeled"]).edges)
 
-    assert [edge.kind for edge in edges] == [ek.CONTAINS]
+    assert [edge.kind for edge in edges] == [ek.CONTAINS, ek.CAN_ACCESS]
 
 
 def test_every_enterprise_user_receives_builtin_members_role() -> None:
@@ -105,14 +106,14 @@ def test_every_enterprise_user_receives_builtin_members_role() -> None:
         enterprise_slug="example-enterprise",
         has_direct_enterprise_membership=False,
     )
-    lookup = MagicMock()
+    lookup = configure_role_ids(MagicMock())
     lookup.enterprise_id.return_value = "ENT_NODE_1"
     user._lookup = lookup
 
     edges = list(user.edges)
 
     assert [edge.kind for edge in edges] == [ek.HAS_ROLE]
-    assert edges[0].end.value.endswith("_members")
+    assert edges[0].end.value == lookup.enterprise_role_node_id("ENT_NODE_1", "members")
 
 
 def test_enterprise_roles_include_synthetic_members_role() -> None:

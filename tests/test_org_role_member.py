@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+from role_id_helpers import configure_role_ids, org_role_id
 import pytest
 
 from openhound_github.kinds import edges as ek
@@ -20,6 +22,7 @@ def test_org_role_members_only_emit_direct_assignment_edges(assignment):
     if assignment is not None:
         record["assignment"] = assignment
     member = OrgRoleMember.model_validate(record)
+    member._lookup = configure_role_ids(MagicMock())
     assert member.model_dump()["assignment"] == assignment
 
     edges = list(member.edges)
@@ -30,5 +33,5 @@ def test_org_role_members_only_emit_direct_assignment_edges(assignment):
         assert len(edges) == 1
         assert edges[0].kind == ek.HAS_ROLE
         assert edges[0].start.value == "U_1"
-        assert edges[0].end.value == "O_1_app_manager"
+        assert edges[0].end.value == org_role_id("app_manager", 42)
         assert edges[0].properties.traversable

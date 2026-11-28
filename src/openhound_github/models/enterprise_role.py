@@ -10,8 +10,9 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.role_ids import role_node_id
+from openhound_github.models.role_permissions import role_permission_properties
 from openhound_github.models.app_management import app_management_edges
-from openhound_github.models.enterprise_helpers import enterprise_role_node_id
 
 
 ENTERPRISE_PERMISSION_EDGES: dict[str, tuple[str, bool]] = {
@@ -76,6 +77,11 @@ class GHEnterpriseRoleProperties(GHNodeProperties):
     """Properties for a GitHub enterprise role.
 
     Attributes:
+        permissions_repository: Direct native permissions for repository resources.
+        permissions_organization: Direct native permissions for organization resources.
+        permissions_enterprise: Direct native permissions for enterprise resources.
+        permissions_unclassified: Direct actions with unknown or unsupported targets.
+        base_role: Immediate base role name, or null when no base is declared.
         github_role_id: The raw GitHub role ID.
         short_name: The role short name.
         description: The role description.
@@ -83,25 +89,22 @@ class GHEnterpriseRoleProperties(GHNodeProperties):
         type: The role type.
         created_at: When the role was created.
         updated_at: When the role was last updated.
-        permissions: Raw enterprise permission strings.
         environment_name: The enterprise environment name.
-        query_enterprise: Query for the containing enterprise.
-        query_explicit_members: Query for direct user members.
-        query_team_members: Query for team-assigned members.
     """
 
     github_role_id: str | int | None = None
     short_name: str | None = None
     description: str | None = None
     source: str | None = None
+    base_role: str | None = None
+    permissions_repository: list[str] | None = None
+    permissions_organization: list[str] | None = None
+    permissions_enterprise: list[str] | None = None
+    permissions_unclassified: list[str] | None = None
     type: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
-    permissions: list[str] | None = None
     environment_name: str | None = None
-    query_enterprise: str | None = None
-    query_explicit_members: str | None = None
-    query_team_members: str | None = None
 
 
 @app.asset(
@@ -112,6 +115,13 @@ class GHEnterpriseRoleProperties(GHNodeProperties):
         properties=GHEnterpriseRoleProperties,
     ),
     edges=[
+        EdgeDef(
+            start=nk.ENTERPRISE_ROLE,
+            end=nk.ENTERPRISE,
+            kind=ek.CAN_ACCESS,
+            description="Role has access scope to its parent enterprise",
+            traversable=False,
+        ),
         EdgeDef(
             start=nk.ENTERPRISE_ROLE,
             end=nk.APP,
@@ -300,13 +310,20 @@ class EnterpriseRole(BaseAsset):
     source: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    base_role: str | None = None
     permissions: list[str] = Field(default_factory=list)
     enterprise_node_id: str
     enterprise_slug: str
 
     @property
     def node_id(self) -> str:
-        return enterprise_role_node_id(self.enterprise_node_id, self.id)
+        builtin = self.source == "Default"
+        return role_node_id(
+            "enterprise",
+            self._lookup.role_parent_database_id("enterprise", self.enterprise_node_id),
+            self.name if builtin else int(self.id),
+            builtin=builtin,
+        )
 
     @property
     def role_type(self) -> str:
@@ -324,15 +341,18 @@ class EnterpriseRole(BaseAsset):
                 environment_name=self.enterprise_slug,
                 github_role_id=self.id,
                 short_name=self.name,
+                base_role=self.base_role if self.base_role != "none" else None,
+                **role_permission_properties(
+                    self.name,
+                    "Enterprise",
+                    self.permissions if "permissions" in self.model_fields_set else None,
+                    synthesized=self.source == "Default",
+                ),
                 description=self.description,
                 source=self.source,
                 type=self.role_type,
                 created_at=self.created_at,
                 updated_at=self.updated_at,
-                permissions=self.permissions,
-                query_enterprise=f"MATCH p=(:GH_Enterprise {{node_id:'{self.enterprise_node_id}'}})-[:GH_Contains]->(:GH_EnterpriseRole {{node_id:'{self.node_id}'}}) RETURN p",
-                query_explicit_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_EnterpriseRole {{node_id:'{self.node_id}'}}) RETURN p",
-                query_team_members=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_TeamRole)-[:GH_MemberOf]->(:GH_EnterpriseTeam)-[:GH_HasRole]->(:GH_EnterpriseRole {{node_id:'{self.node_id}'}}) RETURN p",
             ),
         )
 
@@ -362,4 +382,10 @@ class EnterpriseRole(BaseAsset):
             is_predefined=self.role_type == "default",
             account_node_id=self.enterprise_node_id,
             account_type="Enterprise",
+        )
+        yield Edge(
+            kind=ek.CAN_ACCESS,
+            start=EdgePath(value=self.node_id, match_by="id"),
+            end=EdgePath(value=self.enterprise_node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
         )

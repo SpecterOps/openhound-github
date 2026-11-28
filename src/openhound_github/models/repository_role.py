@@ -8,6 +8,8 @@ from openhound_github.graph import GHNode, GHNodeProperties
 from openhound_github.kinds import edges as ek
 from openhound_github.kinds import nodes as nk
 from openhound_github.main import app
+from openhound_github.role_ids import role_node_id
+from openhound_github.models.role_permissions import role_permission_properties
 
 DEFAULT_REPO_ROLES: list[dict[str, str | None]] = [
     {
@@ -199,18 +201,20 @@ class BaseRepoRole(BaseModel):
 
 @dataclass
 class GHRepoRoleProperties(GHNodeProperties):
-    """Repository role-specific properties and accordion panel queries.
+    """Repository role properties; Explore queries live in the extension schema.
     
     Attributes:
+        github_role_id: Original role record ID before collector node-ID encoding.
+        permissions_repository: Direct native permissions for repository resources.
+        permissions_organization: Direct native permissions for organization resources.
+        permissions_enterprise: Direct native permissions for enterprise resources.
+        permissions_unclassified: Direct actions with unknown or unsupported targets.
+        base_role: Immediate base role name, or null when no base is declared.
         short_name: The short role name (e.g., `read`, `write`, `admin`, `triage`, `maintain`, or custom role name).
         repository_name: The name of the repository this role belongs to.
         repository_id: The node_id of the repository this role belongs to.
         environment_name: The name of the environment (GitHub organization).
         type: `default` for built-in roles or `custom` for custom repository roles.
-        query_explicit_users: Query for explicit users.
-        query_explicit_teams: Query for explicit teams.
-        query_unrolled_members: Query for unrolled members.
-        query_repository_permissions: Query for repository permissions.
     """
 
     short_name: str
@@ -218,10 +222,12 @@ class GHRepoRoleProperties(GHNodeProperties):
     repository_id: str
     environment_name: str
     type: str
-    query_explicit_users: str | None = None
-    query_explicit_teams: str | None = None
-    query_unrolled_members: str | None = None
-    query_repository_permissions: str | None = None
+    github_role_id: int | None = None
+    base_role: str | None = None
+    permissions_repository: list[str] | None = None
+    permissions_organization: list[str] | None = None
+    permissions_enterprise: list[str] | None = None
+    permissions_unclassified: list[str] | None = None
 
 
 @app.asset(
@@ -232,6 +238,13 @@ class GHRepoRoleProperties(GHNodeProperties):
         properties=GHRepoRoleProperties,
     ),
     edges=[
+        EdgeDef(
+            start=nk.REPO_ROLE,
+            end=nk.REPOSITORY,
+            kind=ek.CAN_ACCESS,
+            description="Role has access scope to its parent repository",
+            traversable=False,
+        ),
         EdgeDef(
             start=nk.REPO_ROLE,
             end=nk.REPOSITORY,
@@ -697,8 +710,13 @@ class RepoRole(BaseAsset):
 
     @property
     def node_id(self) -> str:
-        """Construct a synthetic node_id for this repo role based on org/repo/role name. This is needed to link users/teams to their roles via edges, since GH doesn't return unique IDs for custom roles."""
-        return f"{self.repository_node_id}_{self.name}"
+        builtin = self.type == "default"
+        return role_node_id(
+            "repository",
+            self._lookup.role_parent_database_id("repository", self.repository_node_id),
+            self.name if builtin else self.id,
+            builtin=builtin,
+        )
 
     @property
     def org_node_id(self) -> str:
@@ -712,7 +730,7 @@ class RepoRole(BaseAsset):
 
     @property
     def as_node(self) -> GHNode:
-        """Build the repository-role node with permission and assignee queries."""
+        """Build the repository-role node with direct permission properties."""
         rid = self.node_id
         return GHNode(
             kinds=["GH_RepoRole", "GH_Role"],
@@ -721,19 +739,19 @@ class RepoRole(BaseAsset):
                 displayname=self.name,
                 node_id=rid,
                 short_name=self.name,
+                github_role_id=self.id,
+                base_role=self.base_role if self.base_role != "none" else None,
+                **role_permission_properties(
+                    self.name,
+                    "Repository",
+                    self.permissions if "permissions" in self.model_fields_set else None,
+                    synthesized=self.type == "default",
+                ),
                 type=self.type,
                 repository_name=self.repository_name,
                 repository_id=self.repository_node_id,
                 environment_name=self.org_login,
                 environmentid=self.org_node_id,
-                query_explicit_users=f"MATCH p=(:GH_User)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) RETURN p",
-                query_explicit_teams=f"MATCH p=(team)-[:GH_HasRole]->(:GH_RepoRole {{node_id:'{rid}'}}) WHERE team:GH_Team OR team:GH_EnterpriseTeam RETURN p",
-                query_unrolled_members=(
-                    f"MATCH p=(role:GH_Role)-[:GH_HasRole|GH_HasBaseRole|GH_MemberOf|GH_ReadRepoContents*1..]->(reporole:GH_RepoRole {{node_id:'{rid}'}}) "
-                    f"MATCH p1=(role)<-[:GH_HasRole]-(:GH_User) "
-                    f"OPTIONAL MATCH p2=(reporole)<-[:GH_HasRole]-(:GH_User) RETURN p,p1,p2"
-                ),
-                query_repository_permissions=f"MATCH p=(:GH_RepoRole {{node_id:'{rid}'}})-[*1..]->(:GH_Repository) RETURN p",
             ),
         )
 
@@ -741,15 +759,16 @@ class RepoRole(BaseAsset):
     def _default_edges(self):
         if self.type == "default":
             # Org-level all_repo_* → this role (traversable)
-            yield Edge(
-                kind=ek.HAS_BASE_ROLE,
-                start=EdgePath(
-                    value=f"{self.org_node_id}_all_repo_{self.name}",
-                    match_by="id",
-                ),
-                end=EdgePath(value=self.node_id, match_by="id"),
-                properties=EdgeProperties(traversable=True),
+            organization_role_id = self._lookup.org_role_node_id(
+                self.org_node_id, f"all_repo_{self.name}"
             )
+            if organization_role_id:
+                yield Edge(
+                    kind=ek.HAS_BASE_ROLE,
+                    start=EdgePath(value=organization_role_id, match_by="id"),
+                    end=EdgePath(value=self.node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )
 
             # Direct permission edges → repo
             for kind in DEFAULT_ROLE_PERMISSIONS.get(self.name, []):
@@ -764,7 +783,7 @@ class RepoRole(BaseAsset):
             if self.name == "read" and self.repository_visibility == "internal":
                 yield Edge(
                     kind=ek.HAS_ROLE,
-                    start=EdgePath(value=f"{self.org_node_id}_members", match_by="id"),
+                    start=EdgePath(value=self._lookup.org_role_node_id(self.org_node_id, "members"), match_by="id"),
                     end=EdgePath(value=self.node_id, match_by="id"),
                     properties=EdgeProperties(traversable=True),
                 )
@@ -992,14 +1011,16 @@ class RepoRole(BaseAsset):
     def edges(self):
         # # Within-repo base role hierarchy (triage→read, maintain→write, custom→base_role)
         if self.base_role:
-            yield Edge(
-                kind=ek.HAS_BASE_ROLE,
-                start=EdgePath(value=self.node_id, match_by="id"),
-                end=EdgePath(
-                    value=f"{self.repository_node_id}_{self.base_role}", match_by="id"
-                ),
-                properties=EdgeProperties(traversable=True),
+            base_node_id = self._lookup.repo_role_node_id(
+                self.repository_node_id, self.base_role
             )
+            if base_node_id:
+                yield Edge(
+                    kind=ek.HAS_BASE_ROLE,
+                    start=EdgePath(value=self.node_id, match_by="id"),
+                    end=EdgePath(value=base_node_id, match_by="id"),
+                    properties=EdgeProperties(traversable=True),
+                )
 
         # Can WriteBranch edges
         yield from self._admin_bypass_edges
@@ -1016,3 +1037,9 @@ class RepoRole(BaseAsset):
         yield from self._can_create_environment_edges
         yield from self._can_edit_repo_protection_edges
         yield from self._can_edit_branch_protection_edges
+        yield Edge(
+            kind=ek.CAN_ACCESS,
+            start=EdgePath(value=self.node_id, match_by="id"),
+            end=EdgePath(value=self.repository_node_id, match_by="id"),
+            properties=EdgeProperties(traversable=False),
+        )

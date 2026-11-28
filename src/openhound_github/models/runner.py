@@ -684,7 +684,7 @@ class OrgRunnerGroupAccess(BaseAsset):
         if not edge_kinds or not self._new_repositories_can_dispatch_workflows:
             return
 
-        owners_role_id = f"{self.org_node_id}_owners"
+        owners_role_id = self._lookup.org_role_node_id(self.org_node_id, "owners")
         yield Edge(
             kind=ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
             start=EdgePath(value=owners_role_id, match_by="id"),
@@ -699,7 +699,7 @@ class OrgRunnerGroupAccess(BaseAsset):
         )
 
         if self._members_can_create_repository_in_scope(edge_kinds):
-            members_role_id = f"{self.org_node_id}_members"
+            members_role_id = self._lookup.org_role_node_id(self.org_node_id, "members")
             yield Edge(
                 kind=ek.CAN_CREATE_REPOSITORY_WITH_RUNNER_ACCESS,
                 start=EdgePath(value=members_role_id, match_by="id"),
